@@ -1,6 +1,6 @@
 # Produktspezifikation – CSC X Tool
 
-**Version:** 0.1  
+**Version:** 0.2  
 **Stand:** 27.08.2026  
 **Status:** gemeinsam erarbeitete fachliche Baseline für die weitere Entwicklung
 
@@ -15,7 +15,7 @@ Der Kernablauf lautet:
 1. Kandidaten für eine Mottoshow eintragen
 2. Kandidaten anhören, kommentieren, priorisieren und aussortieren
 3. die eigene Einreichung festlegen
-4. die anonymen Wettbewerbsbeiträge als Textblock importieren
+4. die anonymen Wettbewerbsbeiträge als formatierten Beitragsblock aus der Zwischenablage importieren
 5. Beiträge anhören und eine persönliche Rangliste bilden
 6. die eindeutige Top 15 abschließen und als Text ausgeben
 7. nach Abschluss der Abstimmung Beiträge Teilnehmern zuordnen
@@ -33,7 +33,8 @@ Der Kernablauf lautet:
 - Status, Kommentar und manuelle Reihenfolge der Kandidaten
 - Festlegen genau einer eigenen Einreichung je Mottoshow
 - Teilnehmerstammdaten mit Land und Flagge
-- Import der anonymen Wettbewerbsbeiträge aus einem Textblock
+- Import der anonymen Wettbewerbsbeiträge aus einem formatierten, aus dem CSC kopierten Beitragsblock
+- Übernahme der in der Zwischenablage enthaltenen Linkziele, insbesondere YouTube-URLs
 - Hörstatus, Wiedervorlage, Kommentar und Rangposition der Beiträge
 - komfortable Rangbildung per Drag-and-drop
 - Abschluss und Textausgabe einer eindeutigen Top 15
@@ -101,6 +102,10 @@ Der eine Kandidat, der für eine Mottoshow tatsächlich beim CSC eingereicht wur
 ### Wettbewerbsbeitrag
 
 Ein anonym eingereichter Song eines anderen Teilnehmers, der im Rahmen der eigenen Abstimmung angehört und gegebenenfalls gerankt wird.
+
+### Beitragsblock
+
+Der aus einem CSC-Beitrag kopierte Block der anonymen Wettbewerbsbeiträge. Im Forum werden die Beiträge als anklickbare Linktexte im Format `Interpret - Titel` dargestellt. Beim Kopieren kann die Zwischenablage neben Plaintext auch eine Rich-Text-/HTML-Repräsentation mit den tatsächlichen Linkzielen enthalten.
 
 ### Rangliste
 
@@ -326,42 +331,101 @@ Ein Wettbewerbsbeitrag besitzt:
 - optionale Teilnehmerzuordnung, erst nach Abstimmungsabschluss
 - Erstellungs- und Änderungszeitpunkt
 
-### ENTRY-001 – Textblockimport
+### ENTRY-001 – Beitragsblock-Import aus der Zwischenablage
 
-Die Wettbewerbsbeiträge werden primär durch Einfügen eines vollständigen Textblocks importiert.
+Die Wettbewerbsbeiträge werden primär durch Kopieren des formatierten Beitragsblocks aus dem CSC-Forum und anschließendes Einfügen per `Strg+V` in eine dafür vorgesehene Importfläche übernommen.
+
+Die Importfläche ist kein gewöhnliches Plaintext-Feld. Sie verarbeitet das Browser-`paste`-Event und wertet die vom Browser bereitgestellten Zwischenablageformate aus.
 
 Ein CSV-Import ist nicht vorgesehen.
 
-### ENTRY-002 – Importvorschau
+### ENTRY-002 – Rich-Text-/HTML-Import als Primärweg
+
+Wenn die Zwischenablage eine HTML-Repräsentation enthält, wird diese bevorzugt verarbeitet.
+
+Die Anwendung extrahiert aus anklickbaren Links mindestens:
+
+- den sichtbaren Linktext
+- das `href`-Linkziel
+
+Der erwartete CSC-Normalfall ist ein anklickbarer Link mit sichtbarem Text im Format:
+
+```text
+Interpret - Titel
+```
+
+und einem YouTube-Link als Ziel.
+
+Beispiel:
+
+```text
+Imminence - Paralyzed -> https://www.youtube.com/watch?v=2Dqu1Gh45qU
+The Killers - Read My Mind -> https://www.youtube.com/watch?v=5VWZU2SDFcY
+Alice In Chains - Would? -> https://www.youtube.com/watch?v=mOJEcEkR1a8
+```
+
+Die Anwendung soll die Linkinformationen direkt aus dem vom Benutzer ausgelösten Paste-Vorgang lesen. Eine dauerhafte oder im Hintergrund arbeitende Zwischenablageberechtigung ist dafür nicht vorgesehen.
+
+### ENTRY-003 – Unterstützte Fallback-Formate
+
+Der Importer wertet Eingabeformate in folgender Priorität aus:
+
+1. **HTML/Rich Text mit anklickbaren Links** – bevorzugter CSC-Normalfall; Linktext und URL werden direkt übernommen.
+2. **Markdownartige Links**, beispielsweise `[Interpret - Titel](https://youtube.com/...)`.
+3. **Plaintext mit expliziter URL**, sofern Linktext und URL zuverlässig zugeordnet werden können.
+4. **Nur `Interpret - Titel` ohne URL** – wird als unvollständiger Datensatz in der Vorschau angezeigt und nicht stillschweigend als vollständiger Beitrag übernommen.
+
+Die Fallbacks dienen der Robustheit gegenüber unterschiedlichen Zwischenablage-Repräsentationen durch Browser oder Zwischenprogramme. Sie ändern nicht den primären Bedienweg `CSC-Beitrag kopieren -> Strg+V im Tool`.
+
+### ENTRY-004 – Interpret und Titel parsen
+
+Der sichtbare Linktext wird in Interpret und Titel zerlegt.
+
+Der Normalfall verwendet die Trennung `Interpret - Titel`. Da Interpret oder Titel selbst Bindestriche enthalten können, darf eine nicht eindeutig interpretierbare Zeile nicht stillschweigend falsch zerlegt werden.
+
+Der Parser darf für den Normalfall eine definierte Heuristik verwenden. Zweifelhafte Fälle werden in der Importvorschau markiert und können dort manuell korrigiert werden.
+
+### ENTRY-005 – Importvorschau
 
 Der Import besteht aus:
 
-1. Textblock einfügen
-2. Zeilen parsen
-3. erkannte Datensätze in einer Vorschau anzeigen
-4. nicht oder nur teilweise erkannte Zeilen deutlich markieren
-5. einzelne Werte vor dem Import korrigieren
-6. Import bestätigen
+1. Beitragsblock im CSC-Forum kopieren
+2. Importfläche öffnen und `Strg+V` ausführen
+3. verfügbare Zwischenablageformate auswerten
+4. Links und sichtbare Beschriftungen extrahieren
+5. Interpret und Titel parsen
+6. erkannte Datensätze in einer Vorschau anzeigen
+7. nicht oder nur teilweise erkannte Datensätze deutlich markieren
+8. einzelne Werte vor dem Import korrigieren
+9. Import bestätigen
 
-Das genaue Eingabeformat wird anhand eines später bereitgestellten Beispiels einer früheren CSC-Ausgabe festgelegt.
+Die Vorschau zeigt mindestens Interpret, Titel, Link und Erkennungsstatus. Bei problematischen Fällen soll außerdem die ursprüngliche Beschriftung beziehungsweise der relevante Rohinhalt nachvollziehbar bleiben.
 
-### ENTRY-003 – Wiederholter Import
+### ENTRY-006 – YouTube-Linkvalidierung
 
-Bei einem Import in eine bereits befüllte Mottoshow warnt die Anwendung vor möglichen Dubletten. Der Benutzer kann den Import abbrechen, problematische Zeilen auslassen oder bewusst übernehmen.
+YouTube-Links werden als erwarteter Normalfall erkannt und entsprechend gekennzeichnet.
+
+Andere Linkziele dürfen nicht unbemerkt als gültige YouTube-Links behandelt werden. Sie werden in der Vorschau als ungewöhnlich oder unvollständig markiert und können manuell korrigiert werden.
+
+Die Anwendung benötigt für den Import keine YouTube-API.
+
+### ENTRY-007 – Wiederholter Import
+
+Bei einem Import in eine bereits befüllte Mottoshow warnt die Anwendung vor möglichen Dubletten. Der Benutzer kann den Import abbrechen, problematische Einträge auslassen oder bewusst übernehmen.
 
 Eine automatische Zusammenführung anhand von Interpret und Titel findet nicht statt.
 
-### ENTRY-004 – Manuelle Pflege
+### ENTRY-008 – Manuelle Pflege
 
 Wettbewerbsbeiträge können auch einzeln hinzugefügt, bearbeitet und gelöscht werden.
 
-### ENTRY-005 – Hörstatus
+### ENTRY-009 – Hörstatus
 
 Die Informationen `gehört` und `erneut anhören` sind voneinander unabhängig.
 
 Ein Beitrag kann gleichzeitig gehört, zur erneuten Anhörung markiert und bereits gerankt sein.
 
-### ENTRY-006 – Hören
+### ENTRY-010 – Hören
 
 Die Höransicht bietet:
 
@@ -715,6 +779,12 @@ Eine alternative Bedienung über Hoch-/Runter-Aktionen darf ergänzend vorhanden
 
 Fehler beim Einbetten eines Videos beeinträchtigen weder den Datensatz noch andere Teile der Oberfläche. Der externe Link bleibt sichtbar.
 
+### UI-008 – Paste-Fläche für den Beitragsimport
+
+Der Beitragsimport besitzt eine deutlich erkennbare Einfügefläche mit einer kurzen Anweisung wie `CSC-Beitragsblock kopieren und hier Strg+V drücken`.
+
+Die Oberfläche macht nach dem Einfügen sichtbar, wie viele Beiträge und Links erkannt wurden. Der Benutzer muss nicht zuerst ein Dokument, eine Datei oder einen externen Konverter erzeugen.
+
 ## 18. Nichtfunktionale Anforderungen
 
 ### NFR-001 – Lokale Datenhoheit
@@ -730,6 +800,8 @@ Die Anwendung sendet keine Nutzungsdaten, Diagnosedaten oder Abstimmungsdaten an
 ### NFR-003 – Browserkompatibilität
 
 Vivaldi ist das primäre Browserziel. Die Anwendung soll darüber hinaus in gängigen Chromium-basierten Desktopbrowsern funktionieren.
+
+Der Zwischenablage-Import muss insbesondere mit dem vom Browser beim normalen `paste`-Event bereitgestellten `text/html` und `text/plain` funktionieren. Die Implementierung darf für den normalen Import keine dauerhafte Browserberechtigung zum Lesen der Zwischenablage voraussetzen.
 
 ### NFR-004 – Datenintegrität
 
@@ -767,6 +839,7 @@ Importe, Abschlüsse, Wiederöffnungen und Exporte führen bei gleicher Eingabe 
 - Bei `UNBEKANNT` oder `NICHT_ABGESTIMMT` ist kein Punktwert zulässig.
 - Der Ergebnisabschluss ist mit unbekannten Teilnehmerwertungen nicht möglich.
 - Eine geteilte Endplatzierung besitzt weiterhin eine numerische Platzangabe.
+- Ein aus der Zwischenablage importierter Wettbewerbsbeitrag gilt erst dann als vollständig, wenn Interpret, Titel und YouTube-Link erkannt oder in der Vorschau manuell ergänzt wurden.
 
 ## 20. Durchgängiges Akzeptanzszenario
 
@@ -779,28 +852,30 @@ Eine erste fachlich vollständige Version gilt als benutzbar, wenn folgender Abl
 5. Ein Kandidat wird in Show 3 kopiert und dort unabhängig bearbeitet.
 6. Ein Kandidat wird als Einreichung von Show 1 festgelegt.
 7. Teilnehmer mit Namen, Land, Flagge und Alias werden gepflegt.
-8. Ein realer CSC-Textblock mit ungefähr 30 Beiträgen wird eingefügt, geprüft und importiert.
-9. Beiträge werden angehört, markiert und teilweise oder vollständig in eine Rangliste gezogen.
-10. Die ersten 15 Plätze werden eindeutig gereiht und die Abstimmung abgeschlossen.
-11. Die Top 15 wird ohne Punktangaben in einem geeigneten Textformat in die Zwischenablage kopiert.
-12. Nach dem Abschluss werden Beiträge den Teilnehmern zugeordnet.
-13. Für jeden aktiven Teilnehmer wird `unbekannt`, `nicht abgestimmt` oder `abgestimmt` mit zulässiger Punktzahl erfasst.
-14. Die Anwendung berechnet die Gesamtpunktzahl.
-15. Eine offizielle Gesamtpunktzahl kann zum Abgleich eingetragen werden.
-16. Endplatzierung und gegebenenfalls `geteilt` werden gespeichert.
-17. Die Ergebniserfassung wird abgeschlossen.
-18. Eine Sicherung und ein vollständiger JSON-Export werden erstellt.
-19. Nach einem Neustart sind sämtliche Daten unverändert vorhanden.
-20. Die Anwendung kann über die Oberfläche kontrolliert beendet werden.
+8. Ein CSC-Beitragsblock mit ungefähr 30 anklickbaren `Interpret - Titel`-Links wird im Forum kopiert und per `Strg+V` in die Importfläche eingefügt.
+9. Die Anwendung übernimmt die Linktexte und YouTube-Ziele aus der Rich-Text-/HTML-Zwischenablage, zeigt eine Vorschau und markiert problematische Datensätze.
+10. Erkannte oder korrigierte Beiträge werden importiert.
+11. Beiträge werden angehört, markiert und teilweise oder vollständig in eine Rangliste gezogen.
+12. Die ersten 15 Plätze werden eindeutig gereiht und die Abstimmung abgeschlossen.
+13. Die Top 15 wird ohne Punktangaben in einem geeigneten Textformat in die Zwischenablage kopiert.
+14. Nach dem Abschluss werden Beiträge den Teilnehmern zugeordnet.
+15. Für jeden aktiven Teilnehmer wird `unbekannt`, `nicht abgestimmt` oder `abgestimmt` mit zulässiger Punktzahl erfasst.
+16. Die Anwendung berechnet die Gesamtpunktzahl.
+17. Eine offizielle Gesamtpunktzahl kann zum Abgleich eingetragen werden.
+18. Endplatzierung und gegebenenfalls `geteilt` werden gespeichert.
+19. Die Ergebniserfassung wird abgeschlossen.
+20. Eine Sicherung und ein vollständiger JSON-Export werden erstellt.
+21. Nach einem Neustart sind sämtliche Daten unverändert vorhanden.
+22. Die Anwendung kann über die Oberfläche kontrolliert beendet werden.
 
 ## 21. Bewusst vertagte Eingaben
 
 Für die Spezifikation bestehen keine blockierenden offenen Fachfragen.
 
-Folgende konkrete Eingaben werden erst benötigt, bevor die jeweils betroffene Funktion implementiert wird:
+Folgende konkrete Eingaben beziehungsweise Testdaten werden erst benötigt, bevor die jeweils betroffene Funktion finalisiert wird:
 
-1. **Realer Textblock einer früheren CSC-Ausgabe**  
-   Grundlage für Parserregeln, Fehlermeldungen und Importvorschau.
+1. **Ein vollständiger realer Beitragsblock einer Mottoshow als Testfall**  
+   Das grundsätzliche Importformat ist geklärt: anklickbare Links mit sichtbarem `Interpret - Titel` und in der Zwischenablage erhaltenem Linkziel. Ein vollständiger realer Block wird noch benötigt, um Sonderfälle, Leerzeilen und ungewöhnliche Titel zuverlässig in Parser-Tests abzudecken.
 
 2. **Reales oder gewünschtes Ausgabeformat einer abgegebenen Top 15**  
    Grundlage für die endgültige Textvorlage und Zwischenablageausgabe.
