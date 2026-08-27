@@ -21,7 +21,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link as RouterLink, useParams } from 'react-router-dom'
 import { ApiErrorNotice } from '../../components/ApiErrorNotice'
 import { CountryFlag } from '../participants/CountryFlag'
@@ -49,22 +49,27 @@ export function ResultPage() {
   const [confirmation, setConfirmation] = useState<'close' | 'reopen' | null>(null)
   const [saving, setSaving] = useState(false)
 
-  const load = useCallback(async () => {
-    if (showId === null) return
-    setError(null)
-    try {
-      const [shows, loadedResult] = await Promise.all([fetchShows(), fetchResult(showId)])
-      setShow(shows.find((item) => item.id === showId) ?? null)
-      setResult(loadedResult)
-    } catch (caught) {
-      setResult(null)
-      setError(asResultApiError(caught, `/api/shows/${showId}/results`))
-    }
-  }, [showId])
-
   useEffect(() => {
-    void load()
-  }, [load])
+    let cancelled = false
+
+    async function loadResult() {
+      if (showId === null) return
+      try {
+        const [shows, loadedResult] = await Promise.all([fetchShows(), fetchResult(showId)])
+        if (cancelled) return
+        setError(null)
+        setShow(shows.find((item) => item.id === showId) ?? null)
+        setResult(loadedResult)
+      } catch (caught) {
+        if (cancelled) return
+        setResult(null)
+        setError(asResultApiError(caught, `/api/shows/${showId}/results`))
+      }
+    }
+
+    void loadResult()
+    return () => { cancelled = true }
+  }, [showId])
 
   async function saveScore(line: ReceivedScoreLine, status: ReceivedScoreStatus, points: number | null) {
     if (showId === null) return

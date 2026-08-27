@@ -40,6 +40,7 @@ class ResultApiIntegrationTest {
         long alpha = createParticipant("Alpha", true);
         long beta = createParticipant("Beta", true);
         long historic = createParticipant("Historisch", true);
+        long inactive = createParticipant("Inaktiv", false);
         List<Long> entries = createEntries(1, 15);
 
         HttpResponse<String> mappingTooEarly = put("/api/shows/1/entries/" + entries.getFirst() + "/participant", "{\"participantId\":" + alpha + "}");
@@ -58,6 +59,9 @@ class ResultApiIntegrationTest {
         assertThat(duplicateAssignment.body()).contains("PARTICIPANT_ALREADY_ASSIGNED_IN_SHOW");
         assertThat(put("/api/shows/1/entries/" + entries.get(1) + "/participant", "{\"participantId\":" + beta + "}").statusCode())
                 .isEqualTo(200);
+        HttpResponse<String> inactiveAssignment = put("/api/shows/1/entries/" + entries.get(2) + "/participant", "{\"participantId\":" + inactive + "}");
+        assertThat(inactiveAssignment.statusCode()).isEqualTo(409);
+        assertThat(inactiveAssignment.body()).contains("INACTIVE_PARTICIPANT_CANNOT_BE_ASSIGNED");
         jdbcTemplate.update("UPDATE motto_show SET ballot_closed_at = CURRENT_TIMESTAMP WHERE id = 2");
         long otherShowEntry = createEntries(2, 1).getFirst();
         assertThat(put("/api/shows/2/entries/" + otherShowEntry + "/participant", "{\"participantId\":" + alpha + "}").statusCode())
@@ -67,6 +71,10 @@ class ResultApiIntegrationTest {
         assertThat(firstRead.statusCode()).isEqualTo(200);
         assertThat(firstRead.body()).contains("\"displayName\":\"Alpha\"", "\"status\":\"UNBEKANNT\"", "\"persisted\":false");
         assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM received_score WHERE motto_show_id = 1", Integer.class)).isZero();
+        createAndSelectSubmission(1);
+        HttpResponse<String> closeWithUnknownActiveParticipant = post("/api/shows/1/results/close", null);
+        assertThat(closeWithUnknownActiveParticipant.statusCode()).isEqualTo(409);
+        assertThat(closeWithUnknownActiveParticipant.body()).contains("RESULTS_CLOSE_REQUIRES_KNOWN_ACTIVE_SCORES");
         assertThat(put("/api/shows/1/results/details", "{\"officialTotalPoints\":null,\"finalPlace\":null,\"finalPlaceTied\":true}").body())
                 .contains("TIED_FINAL_PLACE_REQUIRES_FINAL_PLACE");
         assertThat(put("/api/shows/1/results/scores/" + alpha, "{\"status\":\"UNBEKANNT\",\"points\":0}").statusCode()).isEqualTo(400);
@@ -75,14 +83,15 @@ class ResultApiIntegrationTest {
         assertThat(put("/api/shows/1/results/scores/" + beta, "{\"status\":\"NICHT_ABGESTIMMT\",\"points\":null}").statusCode()).isEqualTo(200);
         assertThat(put("/api/shows/1/results/scores/" + historic, "{\"status\":\"ABGESTIMMT\",\"points\":5}").statusCode()).isEqualTo(200);
         jdbcTemplate.update("UPDATE participant SET active = 0 WHERE id = ?", historic);
+        jdbcTemplate.update("UPDATE participant SET active = 0 WHERE id = ?", beta);
+        assertThat(get("/api/shows/1/entries").body()).contains("\"id\":" + entries.get(1), "\"participantId\":" + beta);
+        assertThat(put("/api/shows/1/entries/" + entries.get(1) + "/participant", "{\"participantId\":null}").statusCode()).isEqualTo(200);
 
         HttpResponse<String> scored = get("/api/shows/1/results");
         assertThat(scored.body()).contains("\"status\":\"ABGESTIMMT\",\"points\":0", "\"status\":\"NICHT_ABGESTIMMT\",\"points\":null");
         assertThat(scored.body()).contains("\"displayName\":\"Historisch\"", "\"active\":false", "\"calculatedTotalPoints\":5");
         assertThat(delete("/api/participants/" + historic).body()).contains("PARTICIPANT_IN_USE");
 
-        assertThat(post("/api/shows/1/results/close", null).body()).contains("RESULTS_CLOSE_REQUIRES_SUBMISSION");
-        createAndSelectSubmission(1);
         assertThat(post("/api/shows/1/results/close", null).body()).contains("RESULTS_CLOSE_REQUIRES_FINAL_PLACE");
         HttpResponse<String> details = put("/api/shows/1/results/details", "{\"officialTotalPoints\":7,\"finalPlace\":3,\"finalPlaceTied\":true}");
         assertThat(details.statusCode()).isEqualTo(200);

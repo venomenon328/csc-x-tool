@@ -95,6 +95,12 @@ class ContestEntryRepository {
         ));
     }
 
+    boolean participantIsActive(long participantId) {
+        return Boolean.TRUE.equals(jdbcTemplate.queryForObject(
+                "SELECT active FROM participant WHERE id = ?", Boolean.class, participantId
+        ));
+    }
+
     Optional<Long> findEntryIdByParticipant(long showId, long participantId) {
         return jdbcTemplate.query(
                 "SELECT id FROM contest_entry WHERE motto_show_id = ? AND participant_id = ?",

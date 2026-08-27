@@ -84,6 +84,12 @@ class ContestEntryService {
             if (!repository.participantExists(participantId)) {
                 throw new ParticipantNotFoundException(participantId);
             }
+            if (!repository.participantIsActive(participantId) && !participantId.equals(entry.participantId())) {
+                throw new ApiConflictException(
+                        "INACTIVE_PARTICIPANT_CANNOT_BE_ASSIGNED",
+                        "Inaktive Teilnehmer können nicht neu einem Wettbewerbsbeitrag zugeordnet werden."
+                );
+            }
             repository.findEntryIdByParticipant(showId, participantId)
                     .filter(assignedEntryId -> assignedEntryId != entry.id())
                     .ifPresent(assignedEntryId -> {

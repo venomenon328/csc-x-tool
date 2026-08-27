@@ -15,7 +15,7 @@ type ParticipantSelectProps = {
 export function ParticipantSelect({
   label = 'Teilnehmer', options, value, onChange, includeInactive = false, disabled = false,
 }: ParticipantSelectProps) {
-  const selectableParticipants = options.filter((participant) => includeInactive || participant.active)
+  const selectableParticipants = options.filter((participant) => includeInactive || participant.active || participant.id === value?.id)
   return (
     <Autocomplete
       disabled={disabled}

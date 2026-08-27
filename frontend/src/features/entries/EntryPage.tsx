@@ -336,7 +336,6 @@ export function EntryPage() {
                         <Typography component="h2" variant="subtitle1">Teilnehmerzuordnung</Typography>
                         {participants === null ? <Skeleton height={56} variant="rounded" /> : (
                           <ParticipantSelect
-                            includeInactive
                             label="Teilnehmer dieses Beitrags"
                             onChange={(participant) => void saveParticipantAssignment(activeEntry, participant)}
                             options={participants}
