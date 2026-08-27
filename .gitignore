@@ -25,6 +25,7 @@ replay_pid*
 **/node_modules/
 frontend/dist/
 frontend/.vite/
+frontend/node/
 *.tsbuildinfo
 npm-debug.log*
 yarn-debug.log*
