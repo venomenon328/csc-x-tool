@@ -60,10 +60,31 @@ class LiquibaseMigrationIntegrationTest {
                 .isInstanceOf(DataAccessException.class);
     }
 
+    @Test
+    void upgradesAnExistingP1DatabaseWithoutChangingRenamedShows() throws Exception {
+        DataSource dataSource = SqliteDataSourceFactory.create(temporaryDirectory.resolve("p1-upgrade.db"));
+        migrate(dataSource, "classpath:/db/changelog/p1-master.yaml");
+        JdbcTemplate jdbcTemplate = new JdbcTemplate(dataSource);
+        jdbcTemplate.update("UPDATE motto_show SET name = ? WHERE show_number = ?", "P1 bleibt erhalten", 9);
+
+        migrate(dataSource);
+
+        assertThat(jdbcTemplate.queryForObject("SELECT name FROM motto_show WHERE show_number = 9", String.class))
+                .isEqualTo("P1 bleibt erhalten");
+        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM candidate", Integer.class)).isZero();
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM pragma_table_info('motto_show') WHERE name = 'selected_candidate_id'
+                """, Integer.class)).isEqualTo(1);
+    }
+
     private void migrate(DataSource dataSource) throws Exception {
+        migrate(dataSource, "classpath:/db/changelog/db.changelog-master.yaml");
+    }
+
+    private void migrate(DataSource dataSource, String changeLog) throws Exception {
         SpringLiquibase liquibase = new SpringLiquibase();
         liquibase.setDataSource(dataSource);
-        liquibase.setChangeLog("classpath:/db/changelog/db.changelog-master.yaml");
+        liquibase.setChangeLog(changeLog);
         liquibase.afterPropertiesSet();
     }
 }

@@ -1,0 +1,205 @@
+import { render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { App } from '../../app/App'
+import type { Candidate } from './api'
+
+const candidate: Candidate = {
+  id: 1, mottoShowId: 1, artist: 'Original', title: 'Titel', youtubeUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+  comment: null, status: 'OFFEN', manualPosition: 1, createdAt: '2026-08-27T00:00:00Z', updatedAt: '2026-08-27T00:00:00Z',
+}
+
+function jsonResponse(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
+}
+
+describe('CandidatePage', () => {
+  const fetchMock = vi.fn<typeof fetch>()
+
+  beforeEach(() => {
+    window.history.pushState({}, '', '/shows/1/candidates')
+    vi.stubGlobal('fetch', fetchMock)
+    fetchMock.mockReset()
+  })
+
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('creates a candidate and displays server-side validation errors', async () => {
+    const user = userEvent.setup()
+    let postAttempts = 0
+    fetchMock.mockImplementation(async (input, init) => {
+      const path = String(input)
+      if (path === '/api/shows') return jsonResponse([{ id: 1, showNumber: 1, name: 'Show Eins', candidateCount: 0, selectedCandidate: null }])
+      if (path === '/api/shows/1/candidates' && init?.method === 'POST') {
+        postAttempts += 1
+        return postAttempts === 1
+          ? jsonResponse({ timestamp: '2026-08-27T00:00:00Z', status: 400, code: 'INVALID_YOUTUBE_URL', message: 'Bitte gib einen gültigen YouTube-Video-Link an.', path }, 400)
+          : jsonResponse({ ...candidate, artist: 'Neu', title: 'Song' }, 201)
+      }
+      if (path === '/api/shows/1/candidates') return jsonResponse([])
+      throw new Error(`Unexpected request ${path}`)
+    })
+    render(<App />)
+
+    await screen.findByRole('heading', { name: 'Show Eins' })
+    const quickEntry = screen.getByRole('heading', { name: 'Kandidaten schnell erfassen' }).closest('section')
+    if (quickEntry === null) throw new Error('Quick entry section missing')
+    const [artist, title, youtubeUrl] = within(quickEntry).getAllByRole('textbox')
+    await user.type(artist, 'Neu')
+    await user.type(title, 'Song')
+    await user.type(youtubeUrl, 'https://invalid.example/video')
+    await user.click(screen.getByRole('button', { name: 'Kandidat anlegen' }))
+    expect(await screen.findByText('Bitte gib einen gültigen YouTube-Video-Link an.')).toBeVisible()
+
+    await user.clear(youtubeUrl)
+    await user.type(youtubeUrl, 'https://youtu.be/dQw4w9WgXcQ')
+    await user.click(screen.getByRole('button', { name: 'Kandidat anlegen' }))
+    await screen.findByText('Neu – Song')
+    expect(fetchMock).toHaveBeenCalledWith('/api/shows/1/candidates', expect.objectContaining({
+      method: 'POST', body: JSON.stringify({ artist: 'Neu', title: 'Song', youtubeUrl: 'https://youtu.be/dQw4w9WgXcQ', comment: '' }),
+    }))
+  })
+
+  it('offers multi-show copying and conscious submission replacement and clearing', async () => {
+    const user = userEvent.setup()
+    const shows = [
+      { id: 1, showNumber: 1, name: 'Show Eins', candidateCount: 1, selectedCandidate: { id: 99, artist: 'Alt', title: 'Beitrag', youtubeUrl: candidate.youtubeUrl } },
+      { id: 2, showNumber: 2, name: 'Show Zwei', candidateCount: 0, selectedCandidate: null },
+    ]
+    fetchMock.mockImplementation(async (input, init) => {
+      const path = String(input)
+      if (path === '/api/shows') return jsonResponse(shows)
+      if (path === '/api/shows/1/candidates') return jsonResponse([candidate])
+      if (path === '/api/shows/1/candidates/1/copy') return jsonResponse([], 201)
+      if (path === '/api/shows/1/submission' && init?.method === 'PUT') return jsonResponse(candidate)
+      if (path === '/api/shows/1/submission' && init?.method === 'DELETE') return new Response(null, { status: 204 })
+      throw new Error(`Unexpected request ${path}`)
+    })
+    render(<App />)
+
+    await screen.findByRole('heading', { name: 'Original – Titel', level: 3 })
+    expect(screen.getByRole('link', { name: candidate.youtubeUrl })).toHaveAttribute('href', candidate.youtubeUrl)
+    await user.click(screen.getByRole('button', { name: 'In andere Show kopieren' }))
+    expect(screen.getByRole('heading', { name: 'In andere Mottoshow kopieren' })).toBeVisible()
+    await user.click(screen.getByLabelText('Show 2: Show Zwei'))
+    await user.click(screen.getByRole('button', { name: 'Kopieren' }))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/shows/1/candidates/1/copy', expect.objectContaining({
+      body: JSON.stringify({ targetShowIds: [2] }),
+    })))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'In andere Mottoshow kopieren' })).not.toBeInTheDocument())
+
+    await user.click(screen.getByRole('button', { name: 'Als Einreichung wählen' }))
+    expect(screen.getByRole('heading', { name: 'Einreichung bewusst ersetzen?' })).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Einreichung ersetzen' }))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/shows/1/submission', expect.objectContaining({
+      method: 'PUT', body: JSON.stringify({ candidateId: 1, confirmReplacement: true }),
+    })))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Einreichung bewusst ersetzen?' })).not.toBeInTheDocument())
+
+    await user.click(screen.getByRole('button', { name: 'Aufheben' }))
+    expect(screen.getByRole('heading', { name: 'Einreichung aufheben?' })).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Einreichung aufheben' }))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/shows/1/submission', { method: 'DELETE' }))
+  })
+
+  it('uses direct submission selection when no submission exists yet', async () => {
+    const user = userEvent.setup()
+    const shows = [{ id: 1, showNumber: 1, name: 'Show Eins', candidateCount: 1, selectedCandidate: null }]
+    fetchMock.mockImplementation(async (input, init) => {
+      const path = String(input)
+      if (path === '/api/shows') return jsonResponse(shows)
+      if (path === '/api/shows/1/candidates') return jsonResponse([candidate])
+      if (path === '/api/shows/1/submission' && init?.method === 'PUT') return jsonResponse(candidate)
+      throw new Error(`Unexpected request ${path}`)
+    })
+    render(<App />)
+
+    await screen.findByRole('heading', { name: 'Original – Titel', level: 3 })
+    await user.click(screen.getByRole('button', { name: 'Als Einreichung wählen' }))
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/shows/1/submission', expect.objectContaining({
+      method: 'PUT', body: JSON.stringify({ candidateId: 1, confirmReplacement: false }),
+    })))
+    expect(screen.queryByRole('dialog', { name: 'Einreichung bewusst ersetzen?' })).not.toBeInTheDocument()
+  })
+
+  it('hides rejected candidates by default and shows them on request', async () => {
+    const user = userEvent.setup()
+    const rejectedCandidate = { ...candidate, id: 2, artist: 'Verworfen', title: 'Titel', status: 'VERWORFEN' as const, manualPosition: 2 }
+    fetchMock.mockImplementation(async (input) => {
+      const path = String(input)
+      if (path === '/api/shows') return jsonResponse([{ id: 1, showNumber: 1, name: 'Show Eins', candidateCount: 2, selectedCandidate: null }])
+      if (path === '/api/shows/1/candidates') return jsonResponse([candidate, rejectedCandidate])
+      throw new Error(`Unexpected request ${path}`)
+    })
+    render(<App />)
+
+    await screen.findByRole('heading', { name: 'Original – Titel', level: 3 })
+    expect(screen.getByLabelText('Verworfene anzeigen')).not.toBeChecked()
+    expect(screen.queryByText('Verworfen – Titel')).not.toBeInTheDocument()
+
+    await user.click(screen.getByLabelText('Verworfene anzeigen'))
+    expect(await screen.findByText('Verworfen – Titel')).toBeVisible()
+  })
+
+  it('keeps drag-and-drop enabled for a fresh manual list without rejected candidates', async () => {
+    fetchMock.mockImplementation(async (input) => {
+      const path = String(input)
+      if (path === '/api/shows') return jsonResponse([{ id: 1, showNumber: 1, name: 'Show Eins', candidateCount: 1, selectedCandidate: null }])
+      if (path === '/api/shows/1/candidates') return jsonResponse([candidate])
+      throw new Error(`Unexpected request ${path}`)
+    })
+    render(<App />)
+
+    await screen.findByRole('heading', { name: 'Original – Titel', level: 3 })
+    expect(screen.getByRole('button', { name: 'Original verschieben' })).toBeEnabled()
+    expect(screen.queryByText(/Drag-and-drop ist nur bei manueller Reihenfolge/)).not.toBeInTheDocument()
+  })
+
+  it('requires confirmation for candidate deletion and blocks deleting the active submission', async () => {
+    const user = userEvent.setup()
+    const selectedCandidate = { id: candidate.id, artist: candidate.artist, title: candidate.title, youtubeUrl: candidate.youtubeUrl }
+    let deletionAllowed = false
+    fetchMock.mockImplementation(async (input, init) => {
+      const path = String(input)
+      if (path === '/api/shows') return jsonResponse([{ id: 1, showNumber: 1, name: 'Show Eins', candidateCount: 1, selectedCandidate: deletionAllowed ? null : selectedCandidate }])
+      if (path === '/api/shows/1/candidates') return jsonResponse([candidate])
+      if (path === '/api/shows/1/submission' && init?.method === 'DELETE') {
+        deletionAllowed = true
+        return new Response(null, { status: 204 })
+      }
+      if (path === '/api/shows/1/candidates/1' && init?.method === 'DELETE') return new Response(null, { status: 204 })
+      throw new Error(`Unexpected request ${path}`)
+    })
+    render(<App />)
+
+    await screen.findByRole('heading', { name: 'Original – Titel', level: 3 })
+    const deleteButton = screen.getByRole('button', { name: 'Löschen' })
+    expect(deleteButton).toBeDisabled()
+    expect(fetchMock).not.toHaveBeenCalledWith('/api/shows/1/candidates/1', expect.objectContaining({ method: 'DELETE' }))
+
+    await user.click(screen.getByRole('button', { name: 'Aufheben' }))
+    await user.click(screen.getByRole('button', { name: 'Einreichung aufheben' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Löschen' })).toBeEnabled())
+  })
+
+  it('does not delete a non-selected candidate before its confirmation', async () => {
+    const user = userEvent.setup()
+    fetchMock.mockImplementation(async (input, init) => {
+      const path = String(input)
+      if (path === '/api/shows') return jsonResponse([{ id: 1, showNumber: 1, name: 'Show Eins', candidateCount: 1, selectedCandidate: null }])
+      if (path === '/api/shows/1/candidates') return jsonResponse([candidate])
+      if (path === '/api/shows/1/candidates/1' && init?.method === 'DELETE') return new Response(null, { status: 204 })
+      throw new Error(`Unexpected request ${path}`)
+    })
+    render(<App />)
+
+    await screen.findByRole('heading', { name: 'Original – Titel', level: 3 })
+    await user.click(screen.getByRole('button', { name: 'Löschen' }))
+    expect(screen.getByRole('heading', { name: 'Kandidat löschen?' })).toBeVisible()
+    expect(fetchMock).not.toHaveBeenCalledWith('/api/shows/1/candidates/1', expect.objectContaining({ method: 'DELETE' }))
+
+    await user.click(screen.getByRole('button', { name: 'Kandidat löschen' }))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/shows/1/candidates/1', { method: 'DELETE' }))
+  })
+})

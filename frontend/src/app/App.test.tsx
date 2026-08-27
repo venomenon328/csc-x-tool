@@ -4,8 +4,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { App } from './App'
 
 const shows = [
-  { id: 1, showNumber: 1, name: 'Super Men' },
-  { id: 9, showNumber: 9, name: 'TBA' },
+  {
+    id: 1, showNumber: 1, name: 'Super Men', candidateCount: 2,
+    selectedCandidate: { id: 101, artist: 'Artist', title: 'Titel', youtubeUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' },
+  },
+  { id: 9, showNumber: 9, name: 'TBA', candidateCount: 0, selectedCandidate: null },
 ]
 
 function jsonResponse(body: unknown, status = 200) {
@@ -34,6 +37,8 @@ describe('App', () => {
 
     expect(screen.getByLabelText('Mottoshows werden geladen')).toBeVisible()
     expect(await screen.findByRole('heading', { name: 'Super Men' })).toBeVisible()
+    expect(screen.getByText('Eigene Einreichung: Artist – Titel')).toBeVisible()
+    expect(screen.getByText('Kandidaten: 2 Kandidaten')).toBeVisible()
     expect(screen.getAllByText('Eigene Einreichung: noch nicht festgelegt')).not.toHaveLength(0)
     expect(screen.getAllByRole('link', { name: 'Kandidaten' })[0]).toHaveAttribute('href', '/shows/1/candidates')
   })

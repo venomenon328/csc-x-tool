@@ -9,8 +9,10 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 import de.venomenon.cscxtool.show.ShowNotFoundException;
+import de.venomenon.cscxtool.candidate.CandidateNotFoundException;
 
 @RestControllerAdvice
 class ApiExceptionHandler {
@@ -25,6 +27,26 @@ class ApiExceptionHandler {
         );
     }
 
+    @ExceptionHandler(CandidateNotFoundException.class)
+    ResponseEntity<ApiError> candidateNotFound(CandidateNotFoundException exception, HttpServletRequest request) {
+        return error(
+                HttpStatus.NOT_FOUND,
+                "CANDIDATE_NOT_FOUND",
+                "Der angeforderte Kandidat wurde in dieser Mottoshow nicht gefunden.",
+                request
+        );
+    }
+
+    @ExceptionHandler(ApiBadRequestException.class)
+    ResponseEntity<ApiError> badRequest(ApiBadRequestException exception, HttpServletRequest request) {
+        return error(HttpStatus.BAD_REQUEST, exception.code(), exception.getMessage(), request);
+    }
+
+    @ExceptionHandler(ApiConflictException.class)
+    ResponseEntity<ApiError> conflict(ApiConflictException exception, HttpServletRequest request) {
+        return error(HttpStatus.CONFLICT, exception.code(), exception.getMessage(), request);
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     ResponseEntity<ApiError> validationFailed(MethodArgumentNotValidException exception, HttpServletRequest request) {
         FieldError fieldError = exception.getBindingResult().getFieldError();
@@ -32,6 +54,16 @@ class ApiExceptionHandler {
                 ? "Die übermittelten Daten sind ungültig."
                 : fieldError.getDefaultMessage();
         return error(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", message, request);
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    ResponseEntity<ApiError> unreadableRequest(HttpServletRequest request) {
+        return error(
+                HttpStatus.BAD_REQUEST,
+                "VALIDATION_ERROR",
+                "Die übermittelten Daten sind ungültig.",
+                request
+        );
     }
 
     @ExceptionHandler(NoResourceFoundException.class)

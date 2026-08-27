@@ -4,6 +4,15 @@ export type MottoShow = {
   id: number
   showNumber: number
   name: string
+  candidateCount: number
+  selectedCandidate: SelectedCandidate | null
+}
+
+export type SelectedCandidate = {
+  id: number
+  artist: string
+  title: string
+  youtubeUrl: string
 }
 
 export class ShowApiError extends Error {

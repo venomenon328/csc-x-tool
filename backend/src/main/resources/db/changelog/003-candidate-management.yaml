@@ -1,0 +1,50 @@
+databaseChangeLog:
+  - changeSet:
+      id: 003-candidate-management
+      author: venomenon328
+      changes:
+        # SQLite needs the candidate table before the nullable back reference can be added.
+        # Raw SQL keeps the migration and its foreign-key semantics explicit and reproducible.
+        - sql:
+            sql: |-
+              CREATE TABLE candidate (
+                id INTEGER PRIMARY KEY,
+                motto_show_id INTEGER NOT NULL,
+                artist TEXT NOT NULL
+                  CONSTRAINT ck_candidate_artist_not_blank CHECK (length(trim(artist)) > 0),
+                title TEXT NOT NULL
+                  CONSTRAINT ck_candidate_title_not_blank CHECK (length(trim(title)) > 0),
+                youtube_url TEXT NOT NULL
+                  CONSTRAINT ck_candidate_youtube_url_not_blank CHECK (length(trim(youtube_url)) > 0),
+                comment TEXT,
+                status TEXT NOT NULL
+                  CONSTRAINT ck_candidate_status CHECK (status IN ('OFFEN', 'IM_RENNEN', 'ENGERE_AUSWAHL', 'FINALIST', 'VERWORFEN')),
+                manual_position INTEGER NOT NULL
+                  CONSTRAINT ck_candidate_manual_position CHECK (manual_position > 0),
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                CONSTRAINT fk_candidate_motto_show
+                  FOREIGN KEY (motto_show_id) REFERENCES motto_show (id) ON DELETE RESTRICT,
+                CONSTRAINT uq_candidate_motto_show_manual_position UNIQUE (motto_show_id, manual_position)
+              );
+        - sql:
+            sql: |-
+              ALTER TABLE motto_show
+                ADD COLUMN selected_candidate_id INTEGER
+                  CONSTRAINT fk_motto_show_selected_candidate
+                  REFERENCES candidate (id) ON DELETE RESTRICT;
+        - sql:
+            splitStatements: false
+            sql: |-
+              CREATE TRIGGER trg_motto_show_selected_candidate_matches_show
+              BEFORE UPDATE OF selected_candidate_id ON motto_show
+              WHEN NEW.selected_candidate_id IS NOT NULL
+                AND NOT EXISTS (
+                  SELECT 1
+                  FROM candidate
+                  WHERE candidate.id = NEW.selected_candidate_id
+                    AND candidate.motto_show_id = NEW.id
+                )
+              BEGIN
+                SELECT RAISE(ABORT, 'The selected candidate must belong to the same motto show.');
+              END;

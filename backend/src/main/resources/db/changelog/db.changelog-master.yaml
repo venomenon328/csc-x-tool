@@ -5,3 +5,6 @@ databaseChangeLog:
   - include:
       file: 002-seed-motto-shows.yaml
       relativeToChangelogFile: true
+  - include:
+      file: 003-candidate-management.yaml
+      relativeToChangelogFile: true

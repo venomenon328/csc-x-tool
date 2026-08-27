@@ -19,13 +19,6 @@ import { Link as RouterLink } from 'react-router-dom'
 import { ApiErrorNotice } from '../../components/ApiErrorNotice'
 import { fetchShows, renameShow, ShowApiError, type MottoShow } from './api'
 
-const plannedAreas = [
-  'Eigene Einreichung: noch nicht festgelegt',
-  'Kandidaten: noch nicht angelegt',
-  'Wettbewerbsbeiträge: noch nicht angelegt',
-  'Abstimmung und Ergebnis: noch nicht begonnen',
-]
-
 export function ShowOverview() {
   const [shows, setShows] = useState<MottoShow[] | null>(null)
   const [loadError, setLoadError] = useState<ShowApiError | null>(null)
@@ -139,13 +132,22 @@ export function ShowOverview() {
 }
 
 function ShowCard({ show, onRename }: { show: MottoShow, onRename: () => void }) {
+  const submission = show.selectedCandidate == null
+    ? 'Eigene Einreichung: noch nicht festgelegt'
+    : `Eigene Einreichung: ${show.selectedCandidate.artist} – ${show.selectedCandidate.title}`
+  const candidateCount = show.candidateCount ?? 0
   return (
     <Card component="section" elevation={0} sx={{ border: 1, borderColor: 'divider' }}>
       <CardContent>
         <Typography color="secondary" variant="overline">Show {show.showNumber}</Typography>
         <Typography component="h2" sx={{ minHeight: 56 }} variant="h6">{show.name}</Typography>
         <Stack spacing={0.5} sx={{ mt: 2 }}>
-          {plannedAreas.map((area) => <Typography color="text.secondary" key={area} variant="body2">{area}</Typography>)}
+          <Typography color="text.secondary" variant="body2">{submission}</Typography>
+          <Typography color="text.secondary" variant="body2">
+            Kandidaten: {candidateCount === 1 ? '1 Kandidat' : `${candidateCount} Kandidaten`}
+          </Typography>
+          <Typography color="text.secondary" variant="body2">Wettbewerbsbeiträge: noch nicht angelegt</Typography>
+          <Typography color="text.secondary" variant="body2">Abstimmung und Ergebnis: noch nicht begonnen</Typography>
         </Stack>
       </CardContent>
       <CardActions sx={{ flexWrap: 'wrap' }}>
