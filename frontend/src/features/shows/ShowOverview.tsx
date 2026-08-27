@@ -1,0 +1,187 @@
+import { useEffect, useState } from 'react'
+import {
+  Alert,
+  Box,
+  Button,
+  Card,
+  CardActions,
+  CardContent,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  Skeleton,
+  Stack,
+  TextField,
+  Typography,
+} from '@mui/material'
+import { Link as RouterLink } from 'react-router-dom'
+import { ApiErrorNotice } from '../../components/ApiErrorNotice'
+import { fetchShows, renameShow, ShowApiError, type MottoShow } from './api'
+
+const plannedAreas = [
+  'Eigene Einreichung: noch nicht festgelegt',
+  'Kandidaten: noch nicht angelegt',
+  'Wettbewerbsbeiträge: noch nicht angelegt',
+  'Abstimmung und Ergebnis: noch nicht begonnen',
+]
+
+export function ShowOverview() {
+  const [shows, setShows] = useState<MottoShow[] | null>(null)
+  const [loadError, setLoadError] = useState<ShowApiError | null>(null)
+  const [editedShow, setEditedShow] = useState<MottoShow | null>(null)
+  const [name, setName] = useState('')
+  const [saveError, setSaveError] = useState<ShowApiError | null>(null)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    void loadShows()
+  }, [])
+
+  async function loadShows() {
+    setLoadError(null)
+    try {
+      setShows(await fetchShows())
+    } catch (error) {
+      setLoadError(asShowApiError(error))
+      setShows(null)
+    }
+  }
+
+  function openRenameDialog(show: MottoShow) {
+    setEditedShow(show)
+    setName(show.name)
+    setSaveError(null)
+  }
+
+  function closeRenameDialog() {
+    if (!saving) {
+      setEditedShow(null)
+      setSaveError(null)
+    }
+  }
+
+  async function saveName() {
+    if (editedShow === null) {
+      return
+    }
+
+    setSaving(true)
+    setSaveError(null)
+    try {
+      const renamed = await renameShow(editedShow.id, name)
+      setShows((currentShows) => currentShows?.map((show) => show.id === renamed.id ? renamed : show) ?? null)
+      setEditedShow(null)
+    } catch (error) {
+      setSaveError(asShowApiError(error))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Stack spacing={3}>
+      <Box>
+        <Typography component="h1" variant="h4">Übersicht</Typography>
+        <Typography color="text.secondary" sx={{ mt: 1 }}>
+          Die zwölf Mottoshows werden lokal gespeichert. Die fachlichen Arbeitsbereiche wachsen mit den nächsten Paketen.
+        </Typography>
+      </Box>
+
+      {loadError !== null && (
+        <Stack spacing={1}>
+          <ApiErrorNotice error={loadError.apiError} />
+          <Box><Button onClick={() => void loadShows()}>Erneut versuchen</Button></Box>
+        </Stack>
+      )}
+
+      {shows === null && loadError === null && <OverviewLoading />}
+
+      {shows !== null && shows.length === 0 && (
+        <Alert severity="info">Noch keine Mottoshows verfügbar.</Alert>
+      )}
+
+      {shows !== null && shows.length > 0 && (
+        <Box
+          aria-label="Mottoshow-Übersicht"
+          sx={{ display: 'grid', gap: 2, gridTemplateColumns: 'repeat(auto-fit, minmax(290px, 1fr))' }}
+        >
+          {shows.map((show) => <ShowCard key={show.id} onRename={() => openRenameDialog(show)} show={show} />)}
+        </Box>
+      )}
+
+      <Dialog fullWidth maxWidth="sm" onClose={closeRenameDialog} open={editedShow !== null}>
+        <DialogTitle>Mottoshow umbenennen</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ pt: 1 }}>
+            <Typography color="text.secondary">
+              {editedShow === null ? '' : `Show ${editedShow.showNumber}`}
+            </Typography>
+            {saveError !== null && <ApiErrorNotice error={saveError.apiError} />}
+            <TextField
+              autoFocus
+              fullWidth
+              label="Name der Mottoshow"
+              onChange={(event) => setName(event.target.value)}
+              value={name}
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button disabled={saving} onClick={closeRenameDialog}>Abbrechen</Button>
+          <Button disabled={saving} onClick={() => void saveName()} variant="contained">
+            {saving ? 'Speichert …' : 'Speichern'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Stack>
+  )
+}
+
+function ShowCard({ show, onRename }: { show: MottoShow, onRename: () => void }) {
+  return (
+    <Card component="section" elevation={0} sx={{ border: 1, borderColor: 'divider' }}>
+      <CardContent>
+        <Typography color="secondary" variant="overline">Show {show.showNumber}</Typography>
+        <Typography component="h2" sx={{ minHeight: 56 }} variant="h6">{show.name}</Typography>
+        <Stack spacing={0.5} sx={{ mt: 2 }}>
+          {plannedAreas.map((area) => <Typography color="text.secondary" key={area} variant="body2">{area}</Typography>)}
+        </Stack>
+      </CardContent>
+      <CardActions sx={{ flexWrap: 'wrap' }}>
+        <Button aria-label={`Show ${show.showNumber} bearbeiten`} onClick={onRename} size="small">Name bearbeiten</Button>
+        <Button component={RouterLink} size="small" to={`/shows/${show.id}/candidates`}>Kandidaten</Button>
+        <Button component={RouterLink} size="small" to={`/shows/${show.id}/voting`}>Abstimmung</Button>
+        <Button component={RouterLink} size="small" to={`/shows/${show.id}/result`}>Ergebnis</Button>
+      </CardActions>
+    </Card>
+  )
+}
+
+function OverviewLoading() {
+  return (
+    <Box aria-label="Mottoshows werden geladen" sx={{ display: 'grid', gap: 2, gridTemplateColumns: 'repeat(auto-fit, minmax(290px, 1fr))' }}>
+      {Array.from({ length: 3 }, (_, index) => (
+        <Card key={index} sx={{ p: 2 }}>
+          <Skeleton width="30%" />
+          <Skeleton height={44} />
+          <Skeleton />
+          <Skeleton />
+        </Card>
+      ))}
+    </Box>
+  )
+}
+
+function asShowApiError(error: unknown): ShowApiError {
+  if (error instanceof ShowApiError) {
+    return error
+  }
+  return new ShowApiError({
+    timestamp: new Date().toISOString(),
+    status: 0,
+    code: 'NETWORK_ERROR',
+    message: 'Die Übersicht konnte nicht geladen werden.',
+    path: '/api/shows',
+  })
+}
