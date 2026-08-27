@@ -71,6 +71,40 @@ describe('EntryPage', () => {
     })))
   })
 
+  it('keeps a preview row with missing artist and title non-importable until it is corrected', async () => {
+    const user = userEvent.setup()
+    const preview: ImportPreviewLine[] = [{
+      sourcePosition: 1,
+      sourceType: 'HTML_LINK',
+      sourceText: 'Paralyzed',
+      artist: null,
+      title: null,
+      youtubeUrl: first.youtubeUrl,
+      status: 'INCOMPLETE',
+      warnings: [{ code: 'MISSING_ARTIST_TITLE_SEPARATOR', message: 'Interpret und Titel konnten nicht eindeutig getrennt werden.' }],
+      possibleDuplicate: false,
+    }]
+    fetchMock.mockImplementation(async (input) => {
+      const path = String(input)
+      if (path === '/api/shows') return jsonResponse([show])
+      if (path === '/api/shows/1/entries/import-preview') return jsonResponse(preview)
+      if (path === '/api/shows/1/entries') return jsonResponse([])
+      throw new Error(`Unexpected request ${path}`)
+    })
+    render(<App />)
+
+    await screen.findByRole('heading', { name: 'Show Eins – Abstimmung' })
+    fireEvent.paste(screen.getByRole('button', { name: 'CSC-Beitragsblock einfügen' }), {
+      clipboardData: { getData: (type: string) => type === 'text/html' ? '<a href="https://www.youtube.com/watch?v=2Dqu1Gh45qU">Paralyzed</a>' : 'Paralyzed' },
+    })
+
+    const importButton = await screen.findByRole('button', { name: '1 Beitrag importieren' })
+    expect(importButton).toBeDisabled()
+    await user.type(screen.getByLabelText('Interpret'), 'Imminence')
+    await user.type(screen.getByLabelText('Titel'), 'Paralyzed')
+    expect(importButton).toBeEnabled()
+  })
+
   it('offers combined filters, independent listening flags, navigation, comment editing and manual CRUD', async () => {
     const user = userEvent.setup()
     let entries = [first, second]
