@@ -23,12 +23,12 @@ export function applyBallotDrop(lists: BallotLists, result: DropResult): BallotL
 
   if (sourceName === destinationName) {
     source.splice(result.destination.index, 0, moved)
-    return { ...lists, [sourceName]: source }
+    return normalizeBallotLists({ ...lists, [sourceName]: source })
   }
 
   const destination = [...lists[destinationName]]
   destination.splice(result.destination.index, 0, moved)
-  return { ...lists, [sourceName]: source, [destinationName]: destination }
+  return normalizeBallotLists({ ...lists, [sourceName]: source, [destinationName]: destination })
 }
 
 export function confirmedBallotLists(entries: ContestEntry[], ranking: BallotRanking): BallotLists {
@@ -71,6 +71,13 @@ export async function persistDroppedBallot({ result, confirmed, save, onOptimist
   } catch (error) {
     onConfirmedChange(confirmed)
     throw error
+  }
+}
+
+function normalizeBallotLists(lists: BallotLists): BallotLists {
+  return {
+    ranked: lists.ranked.map((entry, index) => ({ ...entry, rankingPosition: index + 1 })),
+    unranked: lists.unranked.map((entry) => ({ ...entry, rankingPosition: null })),
   }
 }
 

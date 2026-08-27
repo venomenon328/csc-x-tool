@@ -22,11 +22,19 @@ function drop(sourceId: string, sourceList: string, sourceIndex: number, destina
 }
 
 describe('ballot ranking interactions', () => {
-  it('moves an entry from the unranked pool into the ranked list and recalculates its position', () => {
+  it('moves an entry from the unranked pool into the ranked list and immediately recalculates positions', () => {
     const moved = applyBallotDrop(splitBallotEntries(entries), drop('3', 'unranked-entries', 0, 'ranked-entries', 1))
 
     expect(moved.ranked.map((entry) => entry.id)).toEqual([1, 3, 2])
+    expect(moved.ranked.map((entry) => entry.rankingPosition)).toEqual([1, 2, 3])
     expect(moved.unranked).toEqual([])
+  })
+
+  it('clears the moved rank and compacts the remaining positions when returning an entry to the pool', () => {
+    const moved = applyBallotDrop(splitBallotEntries(entries), drop('1', 'ranked-entries', 0, 'unranked-entries', 0))
+
+    expect(moved.ranked.map((entry) => [entry.id, entry.rankingPosition])).toEqual([[2, 1]])
+    expect(moved.unranked.map((entry) => [entry.id, entry.rankingPosition])).toEqual([[1, null], [3, null]])
   })
 
   it('sends one complete two-list state and rolls back to the last server-confirmed lists when persistence fails', async () => {
@@ -45,7 +53,13 @@ describe('ballot ranking interactions', () => {
     })).rejects.toBe(failure)
 
     expect(save).toHaveBeenCalledWith({ rankedEntryIds: [1, 3, 2], unrankedEntryIds: [] })
-    expect(onOptimisticChange).toHaveBeenCalledWith(expect.objectContaining({ ranked: expect.arrayContaining([expect.objectContaining({ id: 3 })]) }))
+    expect(onOptimisticChange).toHaveBeenCalledWith(expect.objectContaining({
+      ranked: [
+        expect.objectContaining({ id: 1, rankingPosition: 1 }),
+        expect.objectContaining({ id: 3, rankingPosition: 2 }),
+        expect.objectContaining({ id: 2, rankingPosition: 3 }),
+      ],
+    }))
     expect(onConfirmedChange).toHaveBeenLastCalledWith(confirmed)
   })
 })
