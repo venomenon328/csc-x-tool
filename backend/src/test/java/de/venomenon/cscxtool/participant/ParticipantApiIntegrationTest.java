@@ -72,18 +72,31 @@ class ParticipantApiIntegrationTest {
         assertThat(unchangedAliases.statusCode()).isEqualTo(200);
         assertThat(unchangedAliases.body()).contains("\"aliases\":[\"Alex Alt\",\"Lex\"]");
 
-        HttpResponse<String> updated = patch(activeParticipantId, """
+        HttpResponse<String> renamedAliases = patch(activeParticipantId, """
                 {"displayName":"Alex Bearbeitet","countryCode":"ch","active":false,"aliases":["Neu","Umbenannt"]}
                 """);
-        assertThat(updated.statusCode()).isEqualTo(200);
-        assertThat(updated.body()).contains("\"countryCode\":\"CH\"", "\"countryName\":\"Schweiz\"", "\"active\":false", "\"aliases\":[\"Neu\",\"Umbenannt\"]");
+        assertThat(renamedAliases.statusCode()).isEqualTo(200);
+        assertThat(renamedAliases.body()).contains("\"countryCode\":\"CH\"", "\"countryName\":\"Schweiz\"", "\"active\":false", "\"aliases\":[\"Neu\",\"Umbenannt\"]");
+
+        HttpResponse<String> addedAlias = patch(activeParticipantId, """
+                {"displayName":"Alex Bearbeitet","countryCode":"CH","active":false,"aliases":["Neu","Umbenannt","Zusatz"]}
+                """);
+        assertThat(addedAlias.statusCode()).isEqualTo(200);
+        assertThat(addedAlias.body()).contains("\"aliases\":[\"Neu\",\"Umbenannt\",\"Zusatz\"]");
+
+        HttpResponse<String> removedAliases = patch(activeParticipantId, """
+                {"displayName":"Alex Bearbeitet","countryCode":"CH","active":false,"aliases":["Umbenannt"]}
+                """);
+        assertThat(removedAliases.statusCode()).isEqualTo(200);
+        assertThat(removedAliases.body()).contains("\"aliases\":[\"Umbenannt\"]");
+        assertThat(removedAliases.body()).doesNotContain("\"Neu\"", "\"Zusatz\"");
 
         HttpResponse<String> duplicateAlias = patch(activeParticipantId, """
                 {"displayName":"Darf nicht persistieren","countryCode":"DE","active":true,"aliases":["gleich","GLEICH"]}
                 """);
         assertThat(duplicateAlias.statusCode()).isEqualTo(400);
         assertThat(duplicateAlias.body()).contains("\"code\":\"DUPLICATE_PARTICIPANT_ALIAS\"");
-        assertThat(get("/api/participants/" + activeParticipantId).body()).contains("\"displayName\":\"Alex Bearbeitet\"", "\"aliases\":[\"Neu\",\"Umbenannt\"]");
+        assertThat(get("/api/participants/" + activeParticipantId).body()).contains("\"displayName\":\"Alex Bearbeitet\"", "\"aliases\":[\"Umbenannt\"]");
 
         HttpResponse<String> invalidCountry = post("""
                 {"displayName":"Ungültig","countryCode":"ZZ","active":true,"aliases":[]}
