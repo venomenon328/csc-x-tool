@@ -54,19 +54,42 @@ Kandidaten und Wettbewerbsbeiträge werden immer im Kontext einer konkreten Mott
 
 Eine globale Suche darf Treffer aus mehreren Shows liefern, ersetzt aber keine getrennten Arbeitsansichten.
 
-### D-008 – Textblock statt CSV-Import
+### D-008 – Beitragsblock per Zwischenablage statt CSV
 
-Die Beiträge anderer Teilnehmer werden aus einem Textblock importiert. Ein reales Beispiel wird vor Implementierung des Parsers nachgereicht.
+Die Beiträge anderer Teilnehmer werden primär direkt aus dem formatierten CSC-Beitrag übernommen:
 
-CSV bleibt ein mögliches Exportformat, ist aber kein Importweg.
+1. Beitragsblock im Forum kopieren
+2. Importfläche im Tool öffnen
+3. `Strg+V`
+4. Importvorschau prüfen und bestätigen
 
-### D-009 – Anonyme Beiträge
+Die Forensoftware stellt die Beiträge als anklickbare Linktexte im Format `Interpret - Titel` dar. Beim Kopieren bleiben die Linkziele in einer formatierten Zwischenablage-Repräsentation erhalten. Der Importer wertet daher Rich-Text-/HTML-Daten des Paste-Vorgangs aus und übernimmt sichtbaren Linktext sowie URL.
+
+Ein gewöhnliches Plaintext-Textfeld ist nicht der Primärweg. CSV bleibt ein mögliches Exportformat, ist aber kein Importweg.
+
+### D-009 – Robuste Import-Fallbacks
+
+Der Beitragsimport unterstützt zusätzlich:
+
+- markdownartige Links
+- Plaintext mit expliziter URL
+- Plaintext ohne URL als unvollständige Vorschau
+
+Rich HTML mit anklickbaren Links besitzt Priorität. Fallback-Darstellungen dürfen keine zusätzlichen Dubletten erzeugen, wenn dieselben Beiträge bereits aus HTML erkannt wurden.
+
+### D-010 – Import immer mit Vorschau
+
+Zwischenablageinhalte werden nicht unmittelbar als fertige Wettbewerbsbeiträge gespeichert.
+
+Vor dem Import werden Interpret, Titel, Link und Erkennungsstatus angezeigt. Zweifelhafte `Interpret - Titel`-Trennungen, fehlende URLs und ungewöhnliche Linkziele können manuell korrigiert werden.
+
+### D-011 – Anonyme Beiträge
 
 Wettbewerbsbeiträge werden zunächst ohne Teilnehmer erfasst.
 
 Die Teilnehmerzuordnung wird erst nach Abschluss der eigenen Abstimmung freigeschaltet.
 
-### D-010 – Schlanker Hörzustand
+### D-012 – Schlanker Hörzustand
 
 Für einen Wettbewerbsbeitrag genügen:
 
@@ -77,25 +100,25 @@ Für einen Wettbewerbsbeitrag genügen:
 
 Ein kombinierter, feingranularer Workflowstatus wird nicht eingeführt.
 
-### D-011 – Lange Rangliste, verbindliche Top 15
+### D-013 – Lange Rangliste, verbindliche Top 15
 
 Alle Beiträge dürfen sortiert werden. Für den Abschluss sind nur mindestens 15 gerankte Beiträge erforderlich.
 
 Die ersten 15 bilden die ausgehende Bewertung. Sie sind eindeutig geordnet und enthalten keine Gleichstände.
 
-### D-012 – Ausgehende Bewertung ohne Punktangaben
+### D-014 – Ausgehende Bewertung ohne Punktangaben
 
 Die kopierte oder exportierte Bewertung enthält standardmäßig nur die Rangliste 1 bis 15.
 
 Die Punktzuordnung wird intern für spätere Auswertungen vorgehalten, aber nicht zwingend ausgegeben.
 
-### D-013 – Abschluss mit Snapshot
+### D-015 – Abschluss mit Snapshot
 
 Der Abschluss einer Abstimmung speichert einen Top-15-Snapshot.
 
 Eine Abstimmung kann bewusst wieder geöffnet werden; ein erneuter Abschluss erzeugt einen neuen Snapshot.
 
-### D-014 – Teilnehmerstammdaten bleiben klein
+### D-016 – Teilnehmerstammdaten bleiben klein
 
 Teilnehmer besitzen:
 
@@ -106,11 +129,11 @@ Teilnehmer besitzen:
 
 Eine Länderhistorie oder Teilnahmeverwaltung pro Show existiert nicht. Aktive Teilnehmer gelten grundsätzlich für alle zwölf Shows.
 
-### D-015 – Der Benutzer ist kein Teilnehmerdatensatz
+### D-017 – Der Benutzer ist kein Teilnehmerdatensatz
 
 Der Benutzer selbst wird nicht in den Teilnehmerstammdaten geführt.
 
-### D-016 – Ergebniszustände werden unterschieden
+### D-018 – Ergebniszustände werden unterschieden
 
 Für die erhaltenen Punkte werden folgende Fälle getrennt:
 
@@ -120,33 +143,33 @@ Für die erhaltenen Punkte werden folgende Fälle getrennt:
 
 Damit kann ein vollständiger Ergebnisstand zuverlässig von einer nur teilweise gepflegten Tabelle unterschieden werden.
 
-### D-017 – Berechnete und offizielle Gesamtpunktzahl
+### D-019 – Berechnete und offizielle Gesamtpunktzahl
 
 Die Summe der Einzelwertungen wird berechnet.
 
 Eine offizielle Gesamtpunktzahl kann zusätzlich gespeichert werden. Eine Abweichung wird angezeigt, aber nicht automatisch aufgelöst.
 
-### D-018 – Endplatzierung mit Gleichstandskennzeichen
+### D-020 – Endplatzierung mit Gleichstandskennzeichen
 
 Die Endplatzierung wird als Zahl gespeichert und kann zusätzlich als geteilt gekennzeichnet werden.
 
 Die allgemeinen Gleichstandsregeln des CSC werden darüber hinaus nicht implementiert.
 
-### D-019 – Keine Fristen
+### D-021 – Keine Fristen
 
 Einreichungs- und Abstimmungsfristen werden nicht gepflegt.
 
-### D-020 – Dark Mode als einziger Modus
+### D-022 – Dark Mode als einziger Modus
 
 Die Anwendung erhält eine hochwertige dunkle Oberfläche. Ein heller Modus ist nicht erforderlich.
 
-### D-021 – Drag-and-drop ist Kernfunktion
+### D-023 – Drag-and-drop ist Kernfunktion
 
 Manuelle Kandidatensortierung und Beitragsranking erfolgen komfortabel per Drag-and-drop.
 
 Eine besondere Tastatursteuerung ist nicht erforderlich.
 
-### D-022 – YouTube eingebettet und extern
+### D-024 – YouTube eingebettet und extern
 
 Ein eingebetteter Player ist vorgesehen, sofern das jeweilige Video dies zulässt.
 
@@ -198,11 +221,31 @@ Die Anwendung bindet nur an Loopback, besitzt keine Telemetrie und benötigt kei
 
 Externe Verbindungen entstehen nur durch den Browser beim Einbetten oder Öffnen von YouTube.
 
+### A-009 – Normaler Paste-Event statt dauerhafter Clipboard-Berechtigung
+
+Die Importfläche verarbeitet den vom Benutzer ausgelösten Browser-`paste`-Event und liest daraus `text/html` sowie `text/plain`.
+
+Für den normalen Import wird kein dauerhafter oder hintergründiger Zugriff auf die Systemzwischenablage benötigt. `navigator.clipboard.read()` ist keine Voraussetzung für die Kernfunktion.
+
+### A-010 – Clipboard-HTML ist untrusted input
+
+Formatierter Zwischenablageinhalt wird niemals als HTML in der Oberfläche gerendert.
+
+Der Parser extrahiert nur relevante Linktexte und URLs. Der rohe HTML-/Textblock wird initial nicht dauerhaft gespeichert oder vollständig protokolliert.
+
+### A-011 – Parserlogik zentral testbar
+
+Die Baseline sieht vor, `text/html` und `text/plain` vom Frontend an einen Import-Preview-Endpunkt zu senden und die eigentlichen Parserregeln serverseitig deterministisch zu testen.
+
+Falls ein technischer Spike eine kleine Vorverarbeitung im Browser erforderlich macht, darf die reine Linkextraktion verschoben werden; Vorschau, Validierung und fachliche Importregeln bleiben zentral reproduzierbar.
+
 ## Bewusst vertagte Entscheidungen
 
-### O-001 – Parserformat
+### O-001 – Vollständiger Import-Testblock
 
-Offen bis ein realer Textblock aus einer früheren CSC-Ausgabe vorliegt.
+Das Kernformat ist nicht mehr offen: formatierte Links mit sichtbarem `Interpret - Titel` und erhaltenem Linkziel.
+
+Vor der finalen Parserimplementierung soll noch ein vollständiger realer Beitragsblock einer Mottoshow als Testfixture bereitgestellt werden, um Sonderfälle und ungewöhnliche Titel abzudecken.
 
 ### O-002 – Ausgabeformat der Top 15
 
@@ -216,7 +259,11 @@ Werden anhand realer Daten separat priorisiert. Das initiale Datenmodell soll di
 
 Wird nach einem kleinen technischen Spike entschieden. Maßgeblich ist die Bedienqualität, nicht die Loyalität zu einem JavaScript-Paket.
 
-### O-005 – Installer- und Launcher-Details
+### O-005 – HTML-Parser und genaue Parseraufteilung
+
+Ob die HTML-Linkextraktion vollständig im Backend beispielsweise mit jsoup oder teilweise im Browser erfolgt, wird beim Import-Spike entschieden. Das ändert weder Bedienung noch fachliches Verhalten.
+
+### O-006 – Installer- und Launcher-Details
 
 Das Produktverhalten ist festgelegt; konkrete Paketierungswerkzeuge, Icon und Installerform werden im technischen Bootstrap entschieden.
 
@@ -224,4 +271,4 @@ Das Produktverhalten ist festgelegt; konkrete Paketierungswerkzeuge, Icon und In
 
 Die vertagten Punkte blockieren die Grundstruktur, das Datenmodell und die ersten Entwicklungsinkremente nicht.
 
-Insbesondere können Übersicht, Kandidaten, Teilnehmer, manuelle Beitragsverwaltung, Rangliste und Ergebnismodell bereits entwickelt werden, bevor Parser- und Ausgabeformat final bekannt sind.
+Insbesondere ist der bisherige offene Punkt zum grundsätzlichen Importformat ausreichend geklärt: Der technische Bootstrap kann die Importfläche und den Preview-Contract bereits berücksichtigen; der vollständige reale Block wird später für Parserhärtung und Tests benötigt.
