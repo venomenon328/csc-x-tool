@@ -6,7 +6,7 @@ Das Tool begleitet den praktischen Ablauf einer Mottoshow:
 
 1. Kandidaten sammeln, anhören, kommentieren und priorisieren
 2. die eigene Einreichung festlegen
-3. die anonymen Beiträge der anderen Teilnehmer importieren und anhören
+3. die anonymen Beiträge der anderen Teilnehmer direkt aus dem formatierten CSC-Beitragsblock per Zwischenablage importieren und anhören
 4. eine eindeutige persönliche Top 15 per Drag-and-drop erstellen
 5. nach Abschluss der Abstimmung Beiträge den Teilnehmern zuordnen
 6. die für die eigene Einreichung erhaltenen Punkte erfassen
@@ -26,6 +26,7 @@ Das Repository befindet sich in der Spezifikations- und Bootstrap-Phase. Produkt
 - keine Anmeldung und keine Benutzerverwaltung
 - komfortabler Windows-Launcher, der die Anwendung startet und den Browser öffnet
 - genau eine CSC-Ausgabe mit zwölf Mottoshows
+- Beitragsimport per normalem Browser-Paste-Event mit bevorzugter Auswertung formatierter Linkdaten (`text/html`)
 
 ## Dokumentation
 
