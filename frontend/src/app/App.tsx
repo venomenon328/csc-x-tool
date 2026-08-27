@@ -12,6 +12,7 @@ import {
 } from '@mui/material'
 import { BrowserRouter, Link as RouterLink, Route, Routes, useLocation } from 'react-router-dom'
 import { ShowOverview } from '../features/shows/ShowOverview'
+import { CandidatePage } from '../features/candidates/CandidatePage'
 import { ErrorBoundary } from './ErrorBoundary'
 import { theme } from './theme'
 
@@ -63,7 +64,7 @@ function AppShell() {
           <Route element={<ShowOverview />} path="/" />
           <Route element={<PlaceholderPage title="Teilnehmer" />} path="/participants" />
           <Route element={<PlaceholderPage title="Daten und Sicherungen" />} path="/data" />
-          <Route element={<PlaceholderPage title="Kandidaten" />} path="/shows/:showId/candidates" />
+          <Route element={<CandidatePage />} path="/shows/:showId/candidates" />
           <Route element={<PlaceholderPage title="Abstimmung" />} path="/shows/:showId/voting" />
           <Route element={<PlaceholderPage title="Ergebnis" />} path="/shows/:showId/result" />
           <Route element={<PlaceholderPage title="Seite nicht gefunden" />} path="*" />

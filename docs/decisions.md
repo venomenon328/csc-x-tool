@@ -251,6 +251,12 @@ P1 verwendet den WAL-Modus als SQLite-Baseline. Der Spike läuft gegen echte tem
 
 `foreign_keys=ON` und ein `busy_timeout` von fünf Sekunden werden beim Öffnen **jeder** Verbindung gesetzt, weil beide SQLite-Pragmas verbindungslokal sind. Liquibase und die fachlichen Repositories verwenden dieselbe konfigurierte Datasource. Migrationsfehler brechen den Start mit einer verständlichen Meldung ab, werden nicht in Storage-Fehler übersetzt und behalten ihre SQLite-Ursache in der Fehlerkette.
 
+### A-014 – `@hello-pangea/dnd` für manuelle Listen
+
+Der P2-Spike verwendet **`@hello-pangea/dnd` 18.0.1** in der echten Kandidatenliste mit React 19.2.8, TypeScript 6.0.3 und Material UI 9.3.1. Er deckt eine vertikale, scrollbar begrenzte Kandidatenliste mit eigenem Drag-Handle, sichtbarem Drop-Hinweis und den integrierten Auto-Scroll-Mechanismen der Bibliothek ab. Buttons, Statusauswahl und externe Links bleiben innerhalb einer Kandidatenzeile normal bedienbar, weil nur der explizite Handle ziehbar ist.
+
+Der Spike zeigte keinen Kompatibilitätsblocker. Die Bibliothek bleibt daher die einzige DnD-Abhängigkeit; ihre Droppable-/Draggable-Struktur unterstützt auch den späteren Zwei-Listen-Fall in P5, ohne Ranking-Fachlogik vorwegzunehmen. Ein Drop sendet genau einen vollständigen Reorder-Command; bei Fehler stellt die Oberfläche den letzten serverbestätigten Stand wieder her.
+
 ## Bewusst vertagte Entscheidungen
 
 ### O-001 – Vollständiger Import-Testblock
@@ -267,9 +273,9 @@ Offen bis ein reales oder gewünschtes Einreichungsformat vorliegt.
 
 Werden anhand realer Daten separat priorisiert. Das initiale Datenmodell soll die spätere Auswertung ermöglichen, ohne bereits eine Berichtssammlung vorzutäuschen.
 
-### O-004 – Drag-and-drop-Bibliothek
+### O-004 – Drag-and-drop-Bibliothek (erledigt in P2)
 
-Die konkrete Bibliothek wird erst mit der echten Kandidatenliste in P2 gewählt. Maßgeblich sind mehrere Listen, Auto-Scroll, Einfügeindikator und die Desktopbedienung; P0 zieht keine Drag-and-drop-Implementierung vor.
+Die konkrete Bibliothek ist mit A-014 auf `@hello-pangea/dnd` 18.0.1 festgelegt. Ihre endgültige Bestätigung für den komplexeren Ranking-Fall bleibt P5 vorbehalten; dort entsteht jedoch keine zweite DnD-Abhängigkeit ohne einen nachgewiesenen Blocker.
 
 ### O-005 – HTML-Parser und genaue Parseraufteilung
 
