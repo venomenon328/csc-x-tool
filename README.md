@@ -122,7 +122,7 @@ Für Entwicklung, Tests oder einen isolierten Start wird der Root explizit geset
 .\mvnw.cmd -Dcsc-x-tool.storage.root=C:\temp\csc-x-tool-data -pl backend -Pdev spring-boot:run
 ```
 
-Alternativ akzeptiert Spring die Umgebungsvariable `CSC_X_TOOL_STORAGE_ROOT`. Ist weder dieser Override noch `LOCALAPPDATA` verfügbar, bricht der Start mit einer pfadbezogenen Fehlermeldung ab.
+Zusätzlich wird die dokumentierte Umgebungsvariable `CSC_X_TOOL_STORAGE_ROOT` explizit als Alias für denselben Override unterstützt. Ist weder dieser Override noch `LOCALAPPDATA` verfügbar, bricht der Start mit einer pfadbezogenen Fehlermeldung ab.
 
 `GET /api/shows` liefert die zwölf Shows; `PATCH /api/shows/{showId}` mit `{ "name": "…" }` benennt eine Show um.
 
