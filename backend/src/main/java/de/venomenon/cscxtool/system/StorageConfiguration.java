@@ -2,8 +2,12 @@ package de.venomenon.cscxtool.system;
 
 import java.nio.file.Path;
 import javax.sql.DataSource;
+import de.venomenon.cscxtool.data.DatabaseAccessLock;
+import de.venomenon.cscxtool.data.LockedDataSource;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.env.Environment;
 
 @Configuration(proxyBeanMethods = false)
@@ -24,7 +28,18 @@ class StorageConfiguration {
     }
 
     @Bean
-    DataSource dataSource(ApplicationStorage storage) {
+    DatabaseStartupState databaseStartupState(ApplicationStorage storage) {
+        return new DatabaseStartupState(java.nio.file.Files.exists(storage.databaseFile()));
+    }
+
+    @Bean(name = "sqliteDataSource")
+    DataSource sqliteDataSource(ApplicationStorage storage) {
         return SqliteDataSourceFactory.create(storage.databaseFile());
+    }
+
+    @Bean
+    @Primary
+    DataSource dataSource(@Qualifier("sqliteDataSource") DataSource sqliteDataSource, DatabaseAccessLock accessLock) {
+        return new LockedDataSource(sqliteDataSource, accessLock);
     }
 }

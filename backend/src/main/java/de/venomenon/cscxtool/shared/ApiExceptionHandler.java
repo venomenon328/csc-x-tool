@@ -15,6 +15,8 @@ import de.venomenon.cscxtool.show.ShowNotFoundException;
 import de.venomenon.cscxtool.candidate.CandidateNotFoundException;
 import de.venomenon.cscxtool.participant.ParticipantNotFoundException;
 import de.venomenon.cscxtool.entry.ContestEntryNotFoundException;
+import de.venomenon.cscxtool.data.BackupFileException;
+import de.venomenon.cscxtool.data.BackupStorageException;
 
 @RestControllerAdvice
 class ApiExceptionHandler {
@@ -67,6 +69,18 @@ class ApiExceptionHandler {
     @ExceptionHandler(ApiConflictException.class)
     ResponseEntity<ApiError> conflict(ApiConflictException exception, HttpServletRequest request) {
         return error(HttpStatus.CONFLICT, exception.code(), exception.getMessage(), request);
+    }
+
+    @ExceptionHandler(BackupFileException.class)
+    ResponseEntity<ApiError> backupFile(BackupFileException exception, HttpServletRequest request) {
+        HttpStatus status = "BACKUP_NOT_FOUND".equals(exception.code()) ? HttpStatus.NOT_FOUND : HttpStatus.BAD_REQUEST;
+        return error(status, exception.code(), exception.getMessage(), request);
+    }
+
+    @ExceptionHandler(BackupStorageException.class)
+    ResponseEntity<ApiError> backupStorage(BackupStorageException exception, HttpServletRequest request) {
+        return error(HttpStatus.INTERNAL_SERVER_ERROR, "BACKUP_STORAGE_ERROR",
+                "Die Datenoperation konnte technisch nicht abgeschlossen werden. Der bisherige Datenstand bleibt erhalten.", request);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

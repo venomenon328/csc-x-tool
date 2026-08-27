@@ -21,7 +21,7 @@ public class CountryCatalog {
     private final List<Country> countries;
     private final Map<String, Country> countriesByCode;
 
-    CountryCatalog(ObjectMapper objectMapper) {
+    public CountryCatalog(ObjectMapper objectMapper) {
         List<Country> loadedCountries = load(objectMapper);
         Collator germanCollator = Collator.getInstance(Locale.GERMAN);
         List<Country> sortedCountries = loadedCountries.stream()

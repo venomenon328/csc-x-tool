@@ -16,6 +16,7 @@ import { CandidatePage } from '../features/candidates/CandidatePage'
 import { EntryPage } from '../features/entries/EntryPage'
 import { ParticipantPage } from '../features/participants/ParticipantPage'
 import { ResultPage } from '../features/results/ResultPage'
+import { DataManagementPage } from '../features/data/DataManagementPage'
 import { ErrorBoundary } from './ErrorBoundary'
 import { theme } from './theme'
 
@@ -66,7 +67,7 @@ function AppShell() {
         <Routes>
           <Route element={<ShowOverview />} path="/" />
           <Route element={<ParticipantPage />} path="/participants" />
-          <Route element={<PlaceholderPage title="Daten und Sicherungen" />} path="/data" />
+          <Route element={<DataManagementPage />} path="/data" />
           <Route element={<CandidatePage />} path="/shows/:showId/candidates" />
           <Route element={<EntryPage />} path="/shows/:showId/voting" />
           <Route element={<ResultPage />} path="/shows/:showId/result" />

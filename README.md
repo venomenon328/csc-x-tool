@@ -16,6 +16,12 @@ Das Tool begleitet den praktischen Ablauf einer Mottoshow:
 
 P1 aus [Issue #5](https://github.com/venomenon328/csc-x-tool/issues/5) ist umgesetzt: Die Anwendung speichert zwölf Mottoshows lokal in SQLite, migriert ihr Schema mit Liquibase und zeigt die persistente Übersicht. Kandidaten, Teilnehmer, Beiträge, Ranking und Ergebnisse folgen bewusst erst in den vorgesehenen Entwicklungspaketen.
 
+## Sicherungen und Exporte
+
+Die Seite `/data` erzeugt manuelle Sicherungen, listet automatische und manuelle Artefakte, lädt sie herunter und führt Restore-Vorschau sowie eine separate Bestätigung aus. Backups sind einzelne `.cscbackup`-Container mit einem SQLite-Snapshot und prüfbarem Manifest; sie dürfen nicht manuell verändert werden. Bei jedem Restore entsteht unmittelbar davor eine zusätzliche, nicht rotierte Sicherheitskopie.
+
+Der vollständige JSON-Download verwendet den versionierten Contract `csc-x-tool-full-export` v1 und enthält alle fachlichen Daten einschließlich historischer Top-15-Snapshots und Ergebniszustände. CSV-Downloads sind UTF-8 mit BOM, Semikolon und CRLF für Kandidaten, Wettbewerbsbeiträge, Teilnehmer und Ergebnisse. Der bestehende Top-15-Textdownload bleibt getrennt.
+
 ## Festgelegte Grundrichtung
 
 - lokal laufende Webanwendung
