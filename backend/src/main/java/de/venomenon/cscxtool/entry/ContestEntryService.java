@@ -1,6 +1,7 @@
 package de.venomenon.cscxtool.entry;
 
 import de.venomenon.cscxtool.shared.ApiBadRequestException;
+import de.venomenon.cscxtool.shared.ApiConflictException;
 import de.venomenon.cscxtool.show.ShowNotFoundException;
 import de.venomenon.cscxtool.song.YoutubeUrlNormalizer;
 import java.util.HashMap;
@@ -68,8 +69,19 @@ class ContestEntryService {
     @Transactional
     void delete(long showId, long entryId) {
         requireShow(showId);
+        ContestEntry entry = repository.findByIdAndShowId(entryId, showId)
+                .orElseThrow(() -> new ContestEntryNotFoundException(entryId, showId));
+        if (entry.rankingPosition() != null && repository.isBallotClosed(showId)) {
+            throw new ApiConflictException(
+                    "BALLOT_REOPEN_REQUIRED",
+                    "Die abgeschlossene Abstimmung muss vor einer Rang\u00e4nderung bewusst wieder ge\u00f6ffnet werden."
+            );
+        }
         if (!repository.delete(entryId, showId)) {
             throw new ContestEntryNotFoundException(entryId, showId);
+        }
+        if (entry.rankingPosition() != null) {
+            repository.replaceRanking(showId, repository.findRankedEntryIds(showId));
         }
     }
 

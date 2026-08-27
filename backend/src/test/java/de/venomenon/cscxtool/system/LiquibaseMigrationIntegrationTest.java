@@ -172,6 +172,46 @@ class LiquibaseMigrationIntegrationTest {
                 """)).isInstanceOf(DataAccessException.class);
     }
 
+    @Test
+    void upgradesAnExistingP4DatabaseAndEnforcesBallotSnapshotConstraints() throws Exception {
+        Path databaseFile = temporaryDirectory.resolve("p4-upgrade.db");
+        DataSource dataSource = SqliteDataSourceFactory.create(databaseFile);
+        migrate(dataSource, "classpath:/db/changelog/p4-master.yaml");
+        JdbcTemplate jdbcTemplate = new JdbcTemplate(dataSource);
+        jdbcTemplate.update("""
+                INSERT INTO contest_entry (motto_show_id, artist, title, youtube_url, listened, relisten, ranking_position, created_at, updated_at)
+                VALUES (1, 'Bestehender Beitrag', 'Titel', 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', 0, 0, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """);
+        long entryId = jdbcTemplate.queryForObject("SELECT id FROM contest_entry WHERE motto_show_id = 1", Long.class);
+
+        migrate(SqliteDataSourceFactory.create(databaseFile));
+
+        assertThat(jdbcTemplate.queryForObject("SELECT ranking_position FROM contest_entry WHERE id = ?", Integer.class, entryId)).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject("SELECT ballot_closed_at FROM motto_show WHERE id = 1", String.class)).isNull();
+        jdbcTemplate.update("""
+                INSERT INTO ballot_snapshot (motto_show_id, snapshot_number, created_at, is_current)
+                VALUES (1, 1, CURRENT_TIMESTAMP, 1)
+                """);
+        long snapshotId = jdbcTemplate.queryForObject("SELECT id FROM ballot_snapshot WHERE motto_show_id = 1", Long.class);
+        jdbcTemplate.update("""
+                INSERT INTO ballot_snapshot_item (ballot_snapshot_id, rank, contest_entry_id, artist_snapshot, title_snapshot, youtube_url_snapshot)
+                VALUES (?, 1, ?, 'Snapshot Interpret', 'Snapshot Titel', 'https://www.youtube.com/watch?v=dQw4w9WgXcQ')
+                """, snapshotId, entryId);
+
+        assertThatThrownBy(() -> jdbcTemplate.update("""
+                INSERT INTO ballot_snapshot (motto_show_id, snapshot_number, created_at, is_current)
+                VALUES (1, 2, CURRENT_TIMESTAMP, 1)
+                """)).isInstanceOf(DataAccessException.class);
+        assertThatThrownBy(() -> jdbcTemplate.update("""
+                INSERT INTO ballot_snapshot_item (ballot_snapshot_id, rank, contest_entry_id, artist_snapshot, title_snapshot, youtube_url_snapshot)
+                VALUES (?, 16, NULL, 'X', 'Y', 'https://www.youtube.com/watch?v=dQw4w9WgXcQ')
+                """, snapshotId)).isInstanceOf(DataAccessException.class);
+        jdbcTemplate.update("DELETE FROM contest_entry WHERE id = ?", entryId);
+        assertThat(jdbcTemplate.queryForObject("SELECT contest_entry_id FROM ballot_snapshot_item WHERE ballot_snapshot_id = ?", Long.class, snapshotId)).isNull();
+        assertThat(jdbcTemplate.queryForObject("SELECT artist_snapshot FROM ballot_snapshot_item WHERE ballot_snapshot_id = ?", String.class, snapshotId))
+                .isEqualTo("Snapshot Interpret");
+    }
+
     private void migrate(DataSource dataSource) throws Exception {
         migrate(dataSource, "classpath:/db/changelog/db.changelog-master.yaml");
     }

@@ -20,7 +20,11 @@ import {
 } from '@mui/material'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link as RouterLink, useParams } from 'react-router-dom'
+import type { DropResult } from '@hello-pangea/dnd'
 import { ApiErrorNotice } from '../../components/ApiErrorNotice'
+import { BallotPanel } from '../ballot/BallotPanel'
+import { BallotApiError, closeBallot, fetchBallot, reopenBallot, reorderBallot, type Ballot } from '../ballot/api'
+import { combineBallotLists, persistDroppedBallot, splitBallotEntries } from '../ballot/ballotReorder'
 import { fetchShows, type MottoShow } from '../shows/api'
 import { YoutubePlayerPanel } from '../songs/YoutubePlayerPanel'
 import { ClipboardImportArea } from './ClipboardImportArea'
@@ -44,6 +48,7 @@ export function EntryPage() {
   const showId = Number.isSafeInteger(parsedShowId) && parsedShowId > 0 ? parsedShowId : null
   const [shows, setShows] = useState<MottoShow[] | null>(null)
   const [entries, setEntries] = useState<ContestEntry[] | null>(null)
+  const [ballot, setBallot] = useState<Ballot | null>(null)
   const [error, setError] = useState<EntryApiError | null>(null)
   const [activeEntryId, setActiveEntryId] = useState<number | null>(null)
   const [search, setSearch] = useState('')
@@ -56,6 +61,7 @@ export function EntryPage() {
   const [creating, setCreating] = useState(false)
   const [savingNewEntry, setSavingNewEntry] = useState(false)
   const [entryPendingDeletion, setEntryPendingDeletion] = useState<ContestEntry | null>(null)
+  const [reordering, setReordering] = useState(false)
 
   const show = shows?.find((item) => item.id === showId) ?? null
   const visibleEntries = useMemo(() => (entries ?? []).filter((entry) => {
@@ -72,11 +78,13 @@ export function EntryPage() {
     if (showId === null) return
     setError(null)
     try {
-      const [loadedShows, loadedEntries] = await Promise.all([fetchShows(), fetchEntries(showId)])
+      const [loadedShows, loadedEntries, loadedBallot] = await Promise.all([fetchShows(), fetchEntries(showId), fetchBallot(showId)])
       setShows(loadedShows)
       setEntries(loadedEntries)
+      setBallot(loadedBallot)
     } catch (caught) {
       setEntries(null)
+      setBallot(null)
       setError(asEntryApiError(caught, `/api/shows/${showId}/entries`))
     }
   }, [showId])
@@ -133,7 +141,7 @@ export function EntryPage() {
     setError(null)
     try {
       await deleteEntry(showId, entry.id)
-      setEntries((current) => current?.filter((item) => item.id !== entry.id) ?? null)
+      setEntries(await fetchEntries(showId))
       setActiveEntryId((current) => current === entry.id ? null : current)
       setEntryPendingDeletion(null)
       void reloadShows()
@@ -171,6 +179,49 @@ export function EntryPage() {
     }
   }
 
+  async function reorderEntries(result: DropResult) {
+    if (showId === null || entries === null) return
+    const confirmed = splitBallotEntries(entries)
+    setError(null)
+    setReordering(true)
+    try {
+      await persistDroppedBallot({
+        result,
+        confirmed,
+        save: (ranking) => reorderBallot(showId, ranking),
+        onOptimisticChange: (lists) => setEntries(combineBallotLists(lists)),
+        onConfirmedChange: (lists) => setEntries(combineBallotLists(lists)),
+      })
+      void reloadShows()
+    } catch (caught) {
+      setError(asEntryApiError(caught, `/api/shows/${showId}/ballot/reorder`))
+    } finally {
+      setReordering(false)
+    }
+  }
+
+  async function closeRanking() {
+    if (showId === null) return
+    setError(null)
+    try {
+      setBallot(await closeBallot(showId))
+      void reloadShows()
+    } catch (caught) {
+      setError(asEntryApiError(caught, `/api/shows/${showId}/ballot/close`))
+    }
+  }
+
+  async function reopenRanking() {
+    if (showId === null) return
+    setError(null)
+    try {
+      setBallot(await reopenBallot(showId))
+      void reloadShows()
+    } catch (caught) {
+      setError(asEntryApiError(caught, `/api/shows/${showId}/ballot/reopen`))
+    }
+  }
+
   if (showId === null) return <Alert severity="error">Die Mottoshow-ID ist ungültig.</Alert>
 
   return (
@@ -182,7 +233,7 @@ export function EntryPage() {
           <Typography color="secondary" variant="overline">Show {show.showNumber}</Typography>
           <Typography component="h1" variant="h4">{show.name} – Abstimmung</Typography>
           <Typography color="text.secondary" sx={{ mt: 1 }}>
-            Wettbewerbsbeiträge importieren, anhören und persönliche Hörnotizen pflegen. Das Ranking folgt erst im nächsten Paket.
+            Wettbewerbsbeiträge importieren, anhören, bewerten und als eindeutige Top 15 abschließen.
           </Typography>
         </Box>
       )}
@@ -192,8 +243,9 @@ export function EntryPage() {
         <>
           <ClipboardImportArea onPasteData={pasteForPreview} />
           {previewLines !== null && <ImportPreview importing={importing} lines={previewLines} onCancel={() => setPreviewLines(null)} onChange={setPreviewLines} onImport={() => void confirmImport()} />}
+          {ballot !== null && <BallotPanel ballot={ballot} entries={entries} onClose={() => void closeRanking()} onDrop={(result) => void reorderEntries(result)} onReopen={() => void reopenRanking()} reordering={reordering} showId={showId} />}
           <Stack direction={{ xs: 'column', md: 'row' }} spacing={3}>
-            <Paper component="section" sx={{ flex: 1, minWidth: 0, p: 2 }}>
+            <Paper aria-label="Beitragspool" component="section" sx={{ flex: 1, minWidth: 0, p: 2 }}>
               <Stack spacing={2}>
                 <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} sx={{ alignItems: { md: 'center' }, justifyContent: 'space-between' }}>
                   <Typography component="h2" variant="h6">Beitragspool ({visibleEntries.length})</Typography>
@@ -306,6 +358,7 @@ function EntryLoading() {
 
 function asEntryApiError(error: unknown, path: string): EntryApiError {
   if (error instanceof EntryApiError) return error
+  if (error instanceof BallotApiError) return new EntryApiError(error.apiError)
   return new EntryApiError({
     timestamp: new Date().toISOString(), status: 0, code: 'NETWORK_ERROR',
     message: 'Die Wettbewerbsbeiträge konnten nicht verarbeitet werden.', path,

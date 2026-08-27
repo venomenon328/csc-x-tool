@@ -559,6 +559,10 @@ Für die Beitragsansicht können `ranking_position = null` und positive Position
 
 Die ersten 15 Positionen werden nicht als eigener veränderlicher Datensatz geführt, sondern aus der Rangliste abgeleitet. Erst beim Abschluss entsteht ein Snapshot.
 
+Der P5-Reorder-Command übermittelt stets beide vollständigen Bereiche. Das Backend vergleicht ihre Vereinigungsmenge mit allen aktuellen Beitrags-IDs der Show; fehlende, fremde oder doppelte IDs sind fachliche Konflikte und ändern in der Transaktion nichts. Zur konfliktfreien Neuvergabe leert es zunächst die optionalen Positionen und schreibt dann die gerankten Beiträge als `1..n`; diese temporäre Zwischenform ist nur innerhalb derselben SQLite-Transaktion sichtbar.
+
+Ein Abschluss speichert die ersten 15 Beiträge mit Rang, Interpret, Titel und YouTube-URL als Textkopien. `ballot_snapshot_item.contest_entry_id` bleibt nullable und nutzt `ON DELETE SET NULL`; dadurch überleben historische Snapshots spätere Änderungen und das erlaubte Löschen eines Originalbeitrags. Der zentrale Renderer formatiert ausschließlich einen aktuellen, gespeicherten Snapshot. Damit kann der spätere CSC-Textnachtrag den Renderer ersetzen, ohne Ranglogik oder Persistenz anzufassen.
+
 ## 13. YouTube-Integration
 
 ### URL-Normalisierung

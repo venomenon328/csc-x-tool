@@ -50,6 +50,17 @@ describe('App', () => {
     expect(await screen.findByText('Noch keine Mottoshows verfügbar.')).toBeVisible()
   })
 
+  it('shows ranked-entry progress and an already closed top fifteen on the overview', async () => {
+    fetchMock.mockResolvedValue(jsonResponse([{
+      ...shows[0], contestEntryCount: 18, listenedEntryCount: 16, rankedEntryCount: 16,
+      ballotClosedAt: '2026-08-27T12:00:00Z',
+    }]))
+    render(<App />)
+
+    expect(await screen.findByText('Eingeordnet: 16 Beiträge')).toBeVisible()
+    expect(screen.getByText('Top 15: abgeschlossen')).toBeVisible()
+  })
+
   it('persists a renamed show and updates the overview', async () => {
     const user = userEvent.setup()
     fetchMock

@@ -271,6 +271,14 @@ Die gemeinsame YouTube-Normalisierung und die datensparsame Player-Fläche wurde
 
 Der verpflichtende manuelle Vivaldi-Smoke mit einem real aus dem CSC-Editor kopierten Block wurde bei der Implementierung **nicht** durchgeführt. A-009 und A-011 sind für den automatisiert getesteten Implementierungsweg umgesetzt, die Browserannahme bleibt bis zu dieser manuellen Abnahme ausdrücklich offen.
 
+### A-017 – P5-Rangfolge, Snapshot und neutrale Ausgabe
+
+P5 verwendet ausschließlich die seit P4 vorhandene Spalte `contest_entry.ranking_position`. Ein einzelner Drag-and-drop-Abschluss sendet die vollständigen ID-Listen beider Arbeitsbereiche. Das Backend akzeptiert sie nur, wenn sie zusammen alle aktuellen Beiträge der Show genau einmal enthalten, und ersetzt die Rangpositionen innerhalb einer SQLite-Transaktion lückenlos durch `1..n`; alle ungeordneten Beiträge erhalten `NULL`. Die serverbestätigten zwei Listen sind die fachliche Quelle für die Oberfläche; ein Speicherfehler setzt sie auf den letzten bestätigten Stand zurück.
+
+Der Abschluss setzt `motto_show.ballot_closed_at` und erzeugt eine unveränderliche Top-15-Kopie in `ballot_snapshot` und `ballot_snapshot_item`. Die Originalreferenz ist absichtlich nullable und verwendet `ON DELETE SET NULL`, damit eine spätere erlaubte Löschung den historischen Text nicht zerstört. Wiederöffnen macht ausschließlich den aktuellen Snapshot historisch; ein späterer Abschluss erzeugt die monoton nächste Fassung. Rangpunkte werden zentral aus dem Rang berechnet und nicht gespeichert.
+
+Bis zur realen Vorlage aus #15 ist der Renderer bewusst neutral und verbindlich: exakt 15 Zeilen `1. Interpret - Titel` bis `15. Interpret - Titel`, ohne Überschrift oder Punktwerte. Vorschau, Clipboard und UTF-8-Textdatei verwenden denselben serverseitigen Renderer und ausschließlich den aktuellen Snapshot. Der P5-Vivaldi-Smoke mit ungefähr 30 Beiträgen ist noch nicht durchgeführt; die manuelle Abnahme bleibt ausdrücklich offen, solange er nicht in Vivaldi dokumentiert ist.
+
 ## Bewusst vertagte Entscheidungen
 
 ### O-001 – Vollständiger Import-Testblock
@@ -281,7 +289,7 @@ Vor der finalen Parserimplementierung soll noch ein vollständiger realer Beitra
 
 ### O-002 – Ausgabeformat der Top 15
 
-Offen bis ein reales oder gewünschtes Einreichungsformat vorliegt.
+Das endgültige CSC-Format bleibt bis zu einem realen oder gewünschten Einreichungsformat offen. Bis dahin gilt die in A-017 dokumentierte neutrale 15-Zeilen-Ausgabe.
 
 ### O-003 – Statistiken und Diagramme
 

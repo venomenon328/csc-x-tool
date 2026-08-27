@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { App } from '../../app/App'
@@ -11,6 +11,7 @@ const first: ContestEntry = {
   createdAt: '2026-08-27T00:00:00Z', updatedAt: '2026-08-27T00:00:00Z',
 }
 const second: ContestEntry = { ...first, id: 12, artist: 'Alice In Chains', title: 'Would?', youtubeUrl: 'https://www.youtube.com/watch?v=mOJEcEkR1a8', relisten: true }
+const openBallot = { ballotClosedAt: null, currentSnapshot: null, snapshots: [], renderedText: null }
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
@@ -41,6 +42,7 @@ describe('EntryPage', () => {
     fetchMock.mockImplementation(async (input, init) => {
       const path = String(input)
       if (path === '/api/shows') return jsonResponse([show])
+      if (path === '/api/shows/1/ballot') return jsonResponse(openBallot)
       if (path === '/api/shows/1/entries' && init?.method === 'POST') return jsonResponse([first], 200)
       if (path === '/api/shows/1/entries/import-preview') return jsonResponse(preview)
       if (path === '/api/shows/1/entries') return jsonResponse([])
@@ -87,6 +89,7 @@ describe('EntryPage', () => {
     fetchMock.mockImplementation(async (input) => {
       const path = String(input)
       if (path === '/api/shows') return jsonResponse([show])
+      if (path === '/api/shows/1/ballot') return jsonResponse(openBallot)
       if (path === '/api/shows/1/entries/import-preview') return jsonResponse(preview)
       if (path === '/api/shows/1/entries') return jsonResponse([])
       throw new Error(`Unexpected request ${path}`)
@@ -111,6 +114,7 @@ describe('EntryPage', () => {
     fetchMock.mockImplementation(async (input, init) => {
       const path = String(input)
       if (path === '/api/shows') return jsonResponse([show])
+      if (path === '/api/shows/1/ballot') return jsonResponse(openBallot)
       if (path === '/api/shows/1/entries' && init?.method === 'POST') {
         const created = { ...first, id: 13, artist: 'Neu', title: 'Beitrag' }
         entries = [...entries, created]
@@ -127,8 +131,8 @@ describe('EntryPage', () => {
     })
     render(<App />)
 
-    await screen.findByText('Imminence – Paralyzed')
-    await user.click(screen.getByText('Imminence – Paralyzed'))
+    await screen.findAllByText('Imminence – Paralyzed')
+    await user.click(screen.getAllByText('Imminence – Paralyzed')[1]!)
     await user.click(screen.getByLabelText('Gehört'))
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/shows/1/entries/11', expect.objectContaining({
       method: 'PATCH', body: expect.stringContaining('"listened":true'),
@@ -143,7 +147,7 @@ describe('EntryPage', () => {
     expect(screen.getByRole('heading', { name: 'Alice In Chains – Would?' })).toBeVisible()
 
     await user.click(screen.getByLabelText('Ungehört'))
-    expect(screen.queryByText('Imminence – Paralyzed')).not.toBeInTheDocument()
+    expect(within(screen.getByLabelText('Beitragspool')).queryByText('Imminence – Paralyzed')).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Beitrag manuell anlegen' }))
     const dialog = screen.getByRole('dialog')

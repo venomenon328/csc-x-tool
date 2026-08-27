@@ -9,6 +9,8 @@ record MottoShow(
         int candidateCount,
         int contestEntryCount,
         int listenedEntryCount,
+        int rankedEntryCount,
+        Instant ballotClosedAt,
         SelectedCandidate selectedCandidate,
         Instant createdAt,
         Instant updatedAt

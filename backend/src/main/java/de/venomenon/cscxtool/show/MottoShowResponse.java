@@ -1,5 +1,7 @@
 package de.venomenon.cscxtool.show;
 
+import java.time.Instant;
+
 record MottoShowResponse(
         long id,
         int showNumber,
@@ -7,6 +9,8 @@ record MottoShowResponse(
         int candidateCount,
         int contestEntryCount,
         int listenedEntryCount,
+        int rankedEntryCount,
+        Instant ballotClosedAt,
         SelectedCandidateResponse selectedCandidate
 ) {
 
@@ -18,6 +22,8 @@ record MottoShowResponse(
                 show.candidateCount(),
                 show.contestEntryCount(),
                 show.listenedEntryCount(),
+                show.rankedEntryCount(),
+                show.ballotClosedAt(),
                 show.selectedCandidate() == null ? null : SelectedCandidateResponse.from(show.selectedCandidate())
         );
     }

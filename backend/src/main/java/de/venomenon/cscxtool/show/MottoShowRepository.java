@@ -26,6 +26,8 @@ class MottoShowRepository {
                        (SELECT COUNT(*) FROM candidate WHERE candidate.motto_show_id = motto_show.id) AS candidate_count,
                        (SELECT COUNT(*) FROM contest_entry WHERE contest_entry.motto_show_id = motto_show.id) AS contest_entry_count,
                        (SELECT COUNT(*) FROM contest_entry WHERE contest_entry.motto_show_id = motto_show.id AND contest_entry.listened = 1) AS listened_entry_count,
+                       (SELECT COUNT(*) FROM contest_entry WHERE contest_entry.motto_show_id = motto_show.id AND contest_entry.ranking_position IS NOT NULL) AS ranked_entry_count,
+                       motto_show.ballot_closed_at,
                        selected_candidate.id AS selected_candidate_id,
                        selected_candidate.artist AS selected_candidate_artist,
                        selected_candidate.title AS selected_candidate_title,
@@ -43,6 +45,8 @@ class MottoShowRepository {
                        (SELECT COUNT(*) FROM candidate WHERE candidate.motto_show_id = motto_show.id) AS candidate_count,
                        (SELECT COUNT(*) FROM contest_entry WHERE contest_entry.motto_show_id = motto_show.id) AS contest_entry_count,
                        (SELECT COUNT(*) FROM contest_entry WHERE contest_entry.motto_show_id = motto_show.id AND contest_entry.listened = 1) AS listened_entry_count,
+                       (SELECT COUNT(*) FROM contest_entry WHERE contest_entry.motto_show_id = motto_show.id AND contest_entry.ranking_position IS NOT NULL) AS ranked_entry_count,
+                       motto_show.ballot_closed_at,
                        selected_candidate.id AS selected_candidate_id,
                        selected_candidate.artist AS selected_candidate_artist,
                        selected_candidate.title AS selected_candidate_title,
@@ -70,10 +74,17 @@ class MottoShowRepository {
                 resultSet.getInt("candidate_count"),
                 resultSet.getInt("contest_entry_count"),
                 resultSet.getInt("listened_entry_count"),
+                resultSet.getInt("ranked_entry_count"),
+                nullableInstant(resultSet, "ballot_closed_at"),
                 selectedCandidate(resultSet),
                 resultSet.getTimestamp("created_at").toInstant(),
                 resultSet.getTimestamp("updated_at").toInstant()
         );
+    }
+
+    private static Instant nullableInstant(ResultSet resultSet, String columnName) throws SQLException {
+        java.sql.Timestamp timestamp = resultSet.getTimestamp(columnName);
+        return timestamp == null ? null : timestamp.toInstant();
     }
 
     private static SelectedCandidate selectedCandidate(ResultSet resultSet) throws SQLException {
