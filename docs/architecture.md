@@ -1,6 +1,6 @@
 # Technische Architektur – CSC X Tool
 
-**Version:** 0.1  
+**Version:** 0.2  
 **Stand:** 27.08.2026  
 **Status:** technische Baseline; konkrete Dependency-Versionen werden beim Bootstrap fest gepinnt
 
@@ -12,6 +12,7 @@ Die technische Architektur soll folgende Eigenschaften unterstützen:
 - Start über einen normalen Windows-Launcher
 - moderne, dunkle Browseroberfläche
 - sehr komfortables Drag-and-drop
+- zuverlässiger Import formatierter CSC-Beitragsblöcke aus der Browser-Zwischenablage
 - zuverlässige lokale Persistenz
 - einfache Sicherung und Wiederherstellung
 - keine Anmeldung und keine Benutzerverwaltung
@@ -46,6 +47,7 @@ Es gibt im installierten Produkt keinen separat zu startenden Node-Prozess, kein
 - Liquibase für versionierte Datenbankmigrationen
 - Jackson für JSON
 - Bean Validation für API-Eingaben
+- schlanker HTML-Parser wie jsoup für den serverseitig getesteten Import formatierter Zwischenablageinhalte, sofern der Bootstrap-Spike diesen Ansatz bestätigt
 
 Eine schwere ORM-Schicht ist für das kleine, klar relationale Datenmodell nicht erforderlich. Explizites SQL erleichtert insbesondere die Kontrolle von Sortierpositionen, Snapshots und SQLite-spezifischem Verhalten.
 
@@ -209,7 +211,8 @@ candidate/
 #### `entry`
 
 - Wettbewerbsbeiträge
-- Textblockimport und Vorschau
+- Zwischenablage-/Beitragsblockimport und Vorschau
+- Extraktion formatierter Links und Fallback-Parsing
 - Hörstatus und Kommentar
 - Teilnehmerzuordnung nach Abschluss
 
@@ -270,6 +273,7 @@ Die Show-Detailansicht darf diese Routen optisch als Tabs innerhalb eines gemein
 - Ein Drag-Vorgang erzeugt nicht für jede überfahrene Position einen Serverrequest.
 - Nach erfolgreichem Reorder wird die vollständige neue Reihenfolge bestätigt.
 - Optimistische Aktualisierung ist zulässig, sofern bei einem Fehler zuverlässig auf den letzten bestätigten Stand zurückgerollt wird.
+- Zwischenablageinhalte existieren nur temporär für Import und Vorschau und werden nicht als dauerhafter Frontendzustand behandelt.
 
 ### Zentrale UI-Komponenten
 
@@ -282,6 +286,7 @@ Die Show-Detailansicht darf diese Routen optisch als Tabs innerhalb eines gemein
 - `YoutubePlayerPanel`
 - `ParticipantSelect`
 - `ReceivedScoreGrid`
+- `ClipboardImportArea`
 - `ImportPreview`
 - `CompletionDialog`
 - `BackupManager`
@@ -385,6 +390,8 @@ Eindeutiger Schlüssel: `motto_show_id + participant_id`.
 - `import_session` und `import_row` nur, falls Importentwürfe dauerhaft gespeichert werden sollen
 - `audit_event` ist initial nicht vorgesehen
 
+Der rohe HTML- oder Plaintext-Inhalt der Zwischenablage wird initial **nicht** dauerhaft in der Datenbank gespeichert. Für die fachlichen Daten werden nur die bestätigten Importergebnisse übernommen.
+
 ## 9. Datenbankregeln
 
 Soweit SQLite dies sinnvoll unterstützt, werden folgende Regeln zusätzlich in der Datenbank abgesichert:
@@ -429,29 +436,109 @@ Beispielhafte Endpunktgruppen:
 
 Die konkrete Endpunktliste wird aus den Use-Cases der Produktspezifikation abgeleitet.
 
-## 11. Textblockimport
+## 11. Zwischenablage- und Beitragsblockimport
 
-Der Parser wird als klar getrennte Komponente aufgebaut:
+### 11.1 Grundprinzip
+
+Die CSC-Forensoftware stellt die Wettbewerbsbeiträge als anklickbare Linktexte im sichtbaren Format `Interpret - Titel` bereit. Beim Kopieren aus dem WYSIWYG-Beitrag enthält die Zwischenablage nach dem beobachteten Verhalten neben Plaintext auch eine formatierte Repräsentation, aus der das tatsächliche Linkziel erhalten bleibt.
+
+Der Import verwendet deshalb bewusst den normalen Browser-Paste-Vorgang und nicht ein gewöhnliches Textfeld.
 
 ```text
-Raw text
-  -> line segmentation
-  -> format-specific parsing
-  -> normalized preview rows
-  -> user corrections
-  -> validated import command
+CSC-Beitragsblock markieren und kopieren
+  -> Benutzer fokussiert ClipboardImportArea
+  -> Strg+V / browser paste event
+  -> ClipboardEvent.clipboardData
+       ├── text/html
+       └── text/plain
+  -> Import-Preview-Request
+  -> Formatpriorisierung
+       1. HTML-Links
+       2. Markdownartige Links
+       3. Plaintext + explizite URL
+       4. unvollständiger Plaintext
+  -> Linkextraktion
+  -> Artist/Title-Parsing
+  -> normalisierte Preview-Zeilen
+  -> Benutzerkorrekturen
+  -> validierter Import-Command
 ```
 
-### Anforderungen an den Parser
+### 11.2 Browseradapter
 
-- keine stillen Verluste unbekannter Zeilen
-- Zeilennummer und Originaltext bleiben in der Vorschau sichtbar
+Das Frontend fängt auf der Importfläche das `paste`-Event ab und liest ausschließlich die Daten dieses vom Benutzer ausgelösten Vorgangs, typischerweise:
+
+```ts
+const html = event.clipboardData?.getData('text/html') ?? '';
+const text = event.clipboardData?.getData('text/plain') ?? '';
+```
+
+Für den normalen Import wird **kein** dauerhafter Zugriff über `navigator.clipboard.read()` vorausgesetzt und keine Zwischenablage im Hintergrund überwacht.
+
+Damit bleibt der Bedienweg in Vivaldi und anderen Chromium-Browsern einfach: Beitragsblock kopieren, Import öffnen, `Strg+V`.
+
+### 11.3 Frontend/Backend-Grenze
+
+Bevorzugte Baseline:
+
+1. Das Frontend liest `text/html` und `text/plain` aus dem Paste-Event.
+2. Beide Strings werden als untrusted input an `/api/import-preview` gesendet.
+3. Das Backend extrahiert und normalisiert die Daten deterministisch.
+4. Das Backend liefert Preview-Zeilen mit Status, Warnungen und ursprünglicher Beschriftung zurück.
+5. Korrekturen erfolgen im Frontend.
+6. Erst der bestätigte Import erzeugt `contest_entry`-Datensätze.
+
+Der Vorteil dieser Aufteilung ist, dass die eigentlichen Parserregeln durch normale Backend-Tests mit gespeicherten Fixtures reproduzierbar geprüft werden können. Falls ein Bootstrap-Spike zeigt, dass bestimmte Clipboard-Fragmente im Browser zuverlässiger vorverarbeitet werden müssen, darf die reine HTML-Linkextraktion ins Frontend verschoben werden; die fachliche Preview- und Validierungslogik bleibt trotzdem zentral getestet.
+
+### 11.4 HTML-Verarbeitung
+
+HTML aus der Zwischenablage ist vollständig als **nicht vertrauenswürdig** zu behandeln.
+
+- Rohes HTML wird niemals mit `innerHTML` in die Anwendung gerendert.
+- Der Parser interessiert sich primär für `<a href>` und deren `textContent`.
+- Script-, Style- und sonstiger WYSIWYG-Ballast wird ignoriert.
+- Es werden nur Strings und URLs in die Preview übernommen.
+- HTML-Fragmente werden nicht dauerhaft gespeichert.
+
+Für die serverseitige Verarbeitung ist ein kleiner HTML-Parser wie jsoup geeigneter als Regex auf HTML.
+
+### 11.5 Formatpriorität und Fallbacks
+
+Der Parser versucht in dieser Reihenfolge:
+
+1. **Rich HTML:** Links aus `<a href>` extrahieren, sichtbaren Text als Beschriftung verwenden.
+2. **Markdownartige Darstellung:** Muster wie `[Interpret - Titel](https://...)` auswerten.
+3. **Plaintext mit URL:** sichtbare Bezeichnung und explizite URL zuordnen.
+4. **Plaintext ohne URL:** Datensatz nur als unvollständige Preview-Zeile ausgeben.
+
+Das Vorhandensein einer schwächeren Darstellung darf einen erfolgreich erkannten Rich-HTML-Datensatz nicht duplizieren.
+
+### 11.6 Interpret/Titel-Parsing
+
+Der CSC-Normalfall ist `Interpret - Titel`.
+
+Da Bindestriche sowohl in Interpreten als auch Titeln vorkommen können, muss das Parsing transparent bleiben:
+
+- einfache Normalfälle werden automatisch zerlegt
+- Unicode-Varianten von Bindestrichen können normalisiert werden
+- zweifelhafte Trennungen erhalten eine Warnung
+- Originalbeschriftung bleibt in der Preview sichtbar
+- Interpret und Titel sind vor dem Import editierbar
+
+Eine heuristische Fehlentscheidung ist kein Grund, den gesamten Block abzulehnen.
+
+### 11.7 Anforderungen an den Parser
+
+- keine stillen Verluste unbekannter oder nicht parsebarer Inhalte
+- Originalbeschriftung und gegebenenfalls Quellposition bleiben in der Vorschau nachvollziehbar
 - erkannte Felder werden transparent dargestellt
+- YouTube-Links werden als erwarteter Normalfall erkannt
+- fremde oder ungewöhnliche Linkziele werden markiert, nicht stillschweigend akzeptiert
 - Warnung statt automatische Zusammenführung bei möglichen Dubletten
-- Parserregeln sind durch Tests mit realen Beispielblöcken abgesichert
+- Parserregeln sind durch Tests mit realen beziehungsweise realistisch anonymisierten Zwischenablage-Fixtures abgesichert
 - Formatdetails sind austauschbar, ohne das Beitragsmodell zu verändern
 
-Der reale Beispieltext wird nicht im Quellcode als geheimnisvoller String in einem Test versteckt, sondern als anonymisierte Testressource dokumentiert.
+Ein vollständiger realer CSC-Beitragsblock wird später als Testgrundlage ergänzt. Die jetzt bekannte Kernstruktur `verlinkter Interpret - Titel + erhaltenes href` ist nicht mehr als offene Formatfrage zu behandeln.
 
 ## 12. Rangfolge und Reorder-Transaktionen
 
@@ -576,6 +663,8 @@ Obwohl die Anwendung nur lokal läuft, gelten folgende Mindestmaßnahmen:
 - Export- und Restore-Pfade werden serverseitig kontrolliert
 - keine freie Dateipfadübergabe aus dem Browser
 - Shutdown nur aus der lokalen Anwendung heraus
+- Zwischenablage-HTML wird nie direkt gerendert und nur als untrusted Parserinput behandelt
+- kein dauerhafter oder hintergründiger Zugriff auf die Zwischenablage
 
 Eine Loginmaske wird dadurch nicht eingeführt.
 
@@ -584,7 +673,7 @@ Eine Loginmaske wird dadurch nicht eingeführt.
 - lokales Rolling-File-Logging
 - verständliche technische Fehlerdetails für spätere Diagnose
 - keine Songlisten, Kommentare oder Abstimmungsinhalte unnötig im normalen Log
-- Importfehler referenzieren Zeilennummern, ohne den gesamten eingefügten Text dauerhaft zu protokollieren
+- Importfehler referenzieren nach Möglichkeit Preview-Zeile beziehungsweise Quellposition, ohne den gesamten eingefügten HTML-/Textblock dauerhaft zu protokollieren
 - begrenzte Logaufbewahrung
 
 ## 19. Tests
@@ -598,12 +687,15 @@ Eine Loginmaske wird dadurch nicht eingeführt.
 - Tests für Kandidaten- und Ranking-Reorder
 - Tests für Snapshot-Integrität
 - Tests für Backup und Restore
-- parserbezogene Tests mit realistischen Textressourcen
+- Parser-Tests für HTML-Clipboard-Fragmente mit `<a href>`
+- Parser-Tests für Markdown- und Plaintext-Fallbacks
+- Parser-Tests für Bindestriche, Unicode-Trenner, leere Linktexte, fremde URLs und unvollständige Zeilen
 
 ### Frontend
 
 - Komponententests für Formulare, Filter und Statusdarstellung
 - Drag-and-drop-Tests soweit im Testframework sinnvoll
+- Test des `paste`-Handlers mit `text/html` und `text/plain`
 - Tests der Importvorschau
 - Tests der Top-15-Grenze
 - Tests der Ergebnisstatus und Summendarstellung
@@ -613,6 +705,7 @@ Eine Loginmaske wird dadurch nicht eingeführt.
 - vollständiges Akzeptanzszenario aus der Produktspezifikation
 - Start mit leerer Datenbank
 - Kandidatenfluss
+- Einfügen eines formatierten Beitragsblocks per Paste-Event
 - Import und Voting
 - Abschluss, Wiederöffnung und erneuter Abschluss
 - Teilnehmerzuordnung
@@ -643,7 +736,7 @@ CI über GitHub Actions ist sinnvoll, aber nicht Teil dieses Dokumentations-Boot
 4. Kandidatenverwaltung einschließlich Reorder und Kopieren
 5. Teilnehmerverwaltung mit Ländern und Aliassen
 6. Wettbewerbsbeiträge und manuelle Pflege
-7. realer Textblockparser und Importvorschau
+7. Zwischenablage-Paste-Spike, Beitragsblockparser und Importvorschau
 8. Höransicht und YouTube-Einbettung
 9. Rangliste und Top-15-Snapshots
 10. Teilnehmerzuordnung
@@ -663,6 +756,7 @@ Folgende Details werden beim jeweiligen Bootstrap-Issue entschieden und in Code 
 - konkrete UI-Komponentenbibliothek
 - konkrete Drag-and-drop-Bibliothek
 - finaler Default-Port und Port-Fallback
+- finaler HTML-Parser beziehungsweise Aufteilung der reinen Linkextraktion zwischen Frontend und Backend
 - App-Icon und Installerformat
 - genaue CSV-Spaltenfolgen
 - konkrete Log- und Backup-Aufbewahrungsgrößen jenseits des fachlichen Standards
