@@ -13,6 +13,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 import de.venomenon.cscxtool.show.ShowNotFoundException;
 import de.venomenon.cscxtool.candidate.CandidateNotFoundException;
+import de.venomenon.cscxtool.participant.ParticipantNotFoundException;
 
 @RestControllerAdvice
 class ApiExceptionHandler {
@@ -33,6 +34,16 @@ class ApiExceptionHandler {
                 HttpStatus.NOT_FOUND,
                 "CANDIDATE_NOT_FOUND",
                 "Der angeforderte Kandidat wurde in dieser Mottoshow nicht gefunden.",
+                request
+        );
+    }
+
+    @ExceptionHandler(ParticipantNotFoundException.class)
+    ResponseEntity<ApiError> participantNotFound(ParticipantNotFoundException exception, HttpServletRequest request) {
+        return error(
+                HttpStatus.NOT_FOUND,
+                "PARTICIPANT_NOT_FOUND",
+                "Der angeforderte Teilnehmer wurde nicht gefunden.",
                 request
         );
     }

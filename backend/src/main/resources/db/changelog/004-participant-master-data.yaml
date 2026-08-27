@@ -1,0 +1,41 @@
+databaseChangeLog:
+  - changeSet:
+      id: 004-participant-master-data
+      author: venomenon328
+      changes:
+        - sql:
+            sql: |-
+              CREATE TABLE participant (
+                id INTEGER PRIMARY KEY,
+                display_name TEXT NOT NULL
+                  CONSTRAINT ck_participant_display_name_not_blank CHECK (length(trim(display_name)) > 0),
+                country_code TEXT NOT NULL
+                  CONSTRAINT ck_participant_country_code_format CHECK (country_code GLOB '[A-Z][A-Z]'),
+                active INTEGER NOT NULL DEFAULT 1
+                  CONSTRAINT ck_participant_active_boolean CHECK (active IN (0, 1)),
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+              );
+        - sql:
+            sql: |-
+              CREATE TABLE participant_alias (
+                id INTEGER PRIMARY KEY,
+                participant_id INTEGER NOT NULL,
+                alias TEXT NOT NULL
+                  CONSTRAINT ck_participant_alias_not_blank CHECK (length(trim(alias)) > 0),
+                CONSTRAINT fk_participant_alias_participant
+                  FOREIGN KEY (participant_id) REFERENCES participant (id) ON DELETE CASCADE,
+                CONSTRAINT uq_participant_alias_per_participant UNIQUE (participant_id, alias COLLATE NOCASE)
+              );
+        - createIndex:
+            tableName: participant
+            indexName: ix_participant_active
+            columns:
+              - column:
+                  name: active
+        - createIndex:
+            tableName: participant_alias
+            indexName: ix_participant_alias_participant
+            columns:
+              - column:
+                  name: participant_id

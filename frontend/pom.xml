@@ -103,6 +103,13 @@
                   <directory>${project.basedir}/dist</directory>
                   <filtering>false</filtering>
                 </resource>
+                <resource>
+                  <directory>${project.basedir}</directory>
+                  <filtering>false</filtering>
+                  <includes>
+                    <include>THIRD-PARTY-NOTICES.md</include>
+                  </includes>
+                </resource>
               </resources>
             </configuration>
           </execution>

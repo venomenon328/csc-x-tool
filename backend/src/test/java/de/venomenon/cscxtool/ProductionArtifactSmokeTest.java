@@ -33,6 +33,8 @@ class ProductionArtifactSmokeTest {
         HttpResponse<String> home = get("/");
         HttpResponse<String> health = get("/api/system/health");
         HttpResponse<String> shows = get("/api/shows");
+        HttpResponse<String> countries = get("/api/countries");
+        HttpResponse<String> participants = get("/api/participants");
 
         assertThat(home.statusCode()).isEqualTo(200);
         assertThat(home.body()).contains("<div id=\"root\">");
@@ -40,6 +42,10 @@ class ProductionArtifactSmokeTest {
         assertThat(health.body()).contains("\"status\":\"UP\"");
         assertThat(shows.statusCode()).isEqualTo(200);
         assertThat(shows.body()).contains("\"showNumber\":1", "\"showNumber\":12");
+        assertThat(countries.statusCode()).isEqualTo(200);
+        assertThat(countries.body()).contains("\"code\":\"DE\"", "\"name\":\"Deutschland\"");
+        assertThat(participants.statusCode()).isEqualTo(200);
+        assertThat(participants.body()).isEqualTo("[]");
     }
 
     @Test
