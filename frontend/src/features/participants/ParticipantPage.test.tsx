@@ -31,7 +31,7 @@ describe('ParticipantPage', () => {
 
   afterEach(() => vi.unstubAllGlobals())
 
-  it('shows loading and empty states, then creates a participant with country and aliases', async () => {
+  it('shows loading and empty states, then creates and edits a participant with country and aliases', async () => {
     const user = userEvent.setup()
     let participants: typeof alex[] = []
     fetchMock.mockImplementation(async (input, init) => {
@@ -40,6 +40,10 @@ describe('ParticipantPage', () => {
       if (path === '/api/participants' && init?.method === 'POST') {
         participants = [{ ...alex, displayName: 'Neu', aliases: ['Früher'] }]
         return jsonResponse(participants[0], 201)
+      }
+      if (path === '/api/participants/1' && init?.method === 'PATCH') {
+        participants = [{ ...alex, displayName: 'Bearbeitet', countryCode: 'AT', countryName: 'Österreich', aliases: ['Früher 2'] }]
+        return jsonResponse(participants[0])
       }
       if (path === '/api/participants') return jsonResponse(participants)
       throw new Error(`Unexpected request ${path}`)
@@ -62,6 +66,24 @@ describe('ParticipantPage', () => {
       method: 'POST', body: JSON.stringify({ displayName: 'Neu', countryCode: 'DE', active: true, aliases: ['Früher'] }),
     }))
     expect(screen.getByRole('img', { name: 'Flagge von Deutschland' })).toBeVisible()
+
+    await user.click(screen.getByRole('button', { name: 'Bearbeiten' }))
+    const displayNameInput = screen.getByRole('textbox', { name: 'Anzeigename' })
+    await user.clear(displayNameInput)
+    await user.type(displayNameInput, 'Bearbeitet')
+    const editedCountryInput = screen.getByRole('combobox', { name: 'Land' })
+    await user.clear(editedCountryInput)
+    await user.type(editedCountryInput, 'Österreich{arrowdown}{enter}')
+    const aliasInput = screen.getByRole('textbox', { name: 'Alias 1' })
+    await user.clear(aliasInput)
+    await user.type(aliasInput, 'Früher 2')
+    await user.click(screen.getByRole('button', { name: 'Speichern' }))
+
+    expect(await screen.findByText('Bearbeitet')).toBeVisible()
+    expect(fetchMock).toHaveBeenCalledWith('/api/participants/1', expect.objectContaining({
+      method: 'PATCH', body: JSON.stringify({ displayName: 'Bearbeitet', countryCode: 'AT', active: true, aliases: ['Früher 2'] }),
+    }))
+    expect(screen.getByRole('img', { name: 'Flagge von Österreich' })).toBeVisible()
   })
 
   it('searches aliases, explicitly reveals inactive rows, and confirms deletion', async () => {
