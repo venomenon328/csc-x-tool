@@ -146,8 +146,13 @@ function ShowCard({ show, onRename }: { show: MottoShow, onRename: () => void })
           <Typography color="text.secondary" variant="body2">
             Kandidaten: {candidateCount === 1 ? '1 Kandidat' : `${candidateCount} Kandidaten`}
           </Typography>
-          <Typography color="text.secondary" variant="body2">Wettbewerbsbeiträge: noch nicht angelegt</Typography>
-          <Typography color="text.secondary" variant="body2">Abstimmung und Ergebnis: noch nicht begonnen</Typography>
+          <Typography color="text.secondary" variant="body2">
+            Wettbewerbsbeiträge: {show.contestEntryCount === 1 ? '1 Beitrag' : `${show.contestEntryCount} Beiträge`}
+          </Typography>
+          <Typography color="text.secondary" variant="body2">
+            Gehört: {show.listenedEntryCount === 1 ? '1 Beitrag' : `${show.listenedEntryCount} Beiträge`}
+          </Typography>
+          <Typography color="text.secondary" variant="body2">Rangliste und Ergebnis: noch nicht begonnen</Typography>
         </Stack>
       </CardContent>
       <CardActions sx={{ flexWrap: 'wrap' }}>

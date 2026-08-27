@@ -1,4 +1,4 @@
-package de.venomenon.cscxtool.candidate;
+package de.venomenon.cscxtool.song;
 
 import de.venomenon.cscxtool.shared.ApiBadRequestException;
 import java.net.URI;
@@ -13,12 +13,12 @@ import org.springframework.stereotype.Component;
 
 /** Normalizes the supported YouTube video URLs without contacting YouTube. */
 @Component
-class YoutubeUrlNormalizer {
+public class YoutubeUrlNormalizer {
 
     private static final Pattern VIDEO_ID = Pattern.compile("[A-Za-z0-9_-]{11}");
     private static final Pattern START_TIME = Pattern.compile("(?:[0-9]+|[0-9]+h(?:[0-9]+m)?(?:[0-9]+s)?|[0-9]+m(?:[0-9]+s)?|[0-9]+s)");
 
-    String normalize(String value) {
+    public String normalize(String value) {
         URI uri;
         try {
             uri = new URI(value.trim());

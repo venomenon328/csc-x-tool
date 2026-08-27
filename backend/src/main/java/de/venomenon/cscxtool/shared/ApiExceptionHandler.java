@@ -14,6 +14,7 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 import de.venomenon.cscxtool.show.ShowNotFoundException;
 import de.venomenon.cscxtool.candidate.CandidateNotFoundException;
 import de.venomenon.cscxtool.participant.ParticipantNotFoundException;
+import de.venomenon.cscxtool.entry.ContestEntryNotFoundException;
 
 @RestControllerAdvice
 class ApiExceptionHandler {
@@ -34,6 +35,16 @@ class ApiExceptionHandler {
                 HttpStatus.NOT_FOUND,
                 "CANDIDATE_NOT_FOUND",
                 "Der angeforderte Kandidat wurde in dieser Mottoshow nicht gefunden.",
+                request
+        );
+    }
+
+    @ExceptionHandler(ContestEntryNotFoundException.class)
+    ResponseEntity<ApiError> contestEntryNotFound(ContestEntryNotFoundException exception, HttpServletRequest request) {
+        return error(
+                HttpStatus.NOT_FOUND,
+                "CONTEST_ENTRY_NOT_FOUND",
+                "Der angeforderte Wettbewerbsbeitrag wurde in dieser Mottoshow nicht gefunden.",
                 request
         );
     }

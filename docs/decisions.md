@@ -263,6 +263,14 @@ P3 führt einen versionierten, serverseitig validierten Katalog aller regulären
 
 Für Flaggen verwendet das Frontend `country-flag-icons` **1.6.20** als lokal gebündelte MIT-Abhängigkeit in ihrem 3:2-React-Format. Weder Bilder noch Daten werden von einem CDN oder einer Flaggen-API geladen. `CountryFlag` kapselt die lokale Darstellung inklusive neutralem Fallback. Der erforderliche MIT-Lizenzhinweis ist in `frontend/THIRD-PARTY-NOTICES.md` enthalten und wird zusammen mit dem Produkt beibehalten.
 
+### A-016 – Serverseitige P4-Importpipeline mit jsoup
+
+P4 liest `text/html` und `text/plain` ausschließlich aus demselben normalen Browser-`paste`-Event und sendet beide Repräsentationen an den showbezogenen Preview-Endpunkt. Die serverseitige Pipeline nutzt **jsoup 1.23.2** ausschließlich zum Parsen des HTML-Fragments; sie lädt keine Linkziele oder sonstige externe Ressourcen nach. Sie gibt nur extrahierte Linktexte, Linkziele und relevante unvollständige Zeilen als Text zurück. Rohe Clipboard-Blöcke werden weder gerendert, persistiert noch normal geloggt.
+
+Die gemeinsame YouTube-Normalisierung und die datensparsame Player-Fläche wurden aus P2 als Song-Basis extrahiert und werden für Kandidaten und Wettbewerbsbeiträge wiederverwendet. Der bestätigte Import validiert alle ausgewählten Zeilen erneut und speichert sie atomar.
+
+Der verpflichtende manuelle Vivaldi-Smoke mit einem real aus dem CSC-Editor kopierten Block wurde bei der Implementierung **nicht** durchgeführt. A-009 und A-011 sind für den automatisiert getesteten Implementierungsweg umgesetzt, die Browserannahme bleibt bis zu dieser manuellen Abnahme ausdrücklich offen.
+
 ## Bewusst vertagte Entscheidungen
 
 ### O-001 – Vollständiger Import-Testblock
@@ -283,9 +291,9 @@ Werden anhand realer Daten separat priorisiert. Das initiale Datenmodell soll di
 
 Die konkrete Bibliothek ist mit A-014 auf `@hello-pangea/dnd` 18.0.1 festgelegt. Ihre endgültige Bestätigung für den komplexeren Ranking-Fall bleibt P5 vorbehalten; dort entsteht jedoch keine zweite DnD-Abhängigkeit ohne einen nachgewiesenen Blocker.
 
-### O-005 – HTML-Parser und genaue Parseraufteilung
+### O-005 – HTML-Parser und genaue Parseraufteilung (für P4 entschieden)
 
-Ob die HTML-Linkextraktion vollständig im Backend beispielsweise mit jsoup oder teilweise im Browser erfolgt, wird beim Import-Spike entschieden. Das ändert weder Bedienung noch fachliches Verhalten.
+Die HTML-Linkextraktion erfolgt in P4 vollständig serverseitig mit jsoup 1.23.2; das Frontend übergibt nur `text/html` und `text/plain` aus dem Paste-Event und rendert kein Clipboard-HTML. Der reale Vivaldi-/CSC-Paste-Smoke bleibt als verpflichtende manuelle Abnahme offen, weil kein echter CSC-Block in Vivaldi durchgeführt und dokumentiert wurde.
 
 ### O-006 – Installer- und Launcher-Details
 

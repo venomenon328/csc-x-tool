@@ -7,6 +7,8 @@ record MottoShow(
         int showNumber,
         String name,
         int candidateCount,
+        int contestEntryCount,
+        int listenedEntryCount,
         SelectedCandidate selectedCandidate,
         Instant createdAt,
         Instant updatedAt

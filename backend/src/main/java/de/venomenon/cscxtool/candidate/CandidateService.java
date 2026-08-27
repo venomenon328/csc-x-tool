@@ -2,6 +2,7 @@ package de.venomenon.cscxtool.candidate;
 
 import de.venomenon.cscxtool.shared.ApiBadRequestException;
 import de.venomenon.cscxtool.shared.ApiConflictException;
+import de.venomenon.cscxtool.song.YoutubeUrlNormalizer;
 import de.venomenon.cscxtool.show.ShowNotFoundException;
 import java.util.HashSet;
 import java.util.List;

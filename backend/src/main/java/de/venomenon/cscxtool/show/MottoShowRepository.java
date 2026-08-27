@@ -24,6 +24,8 @@ class MottoShowRepository {
         return jdbcTemplate.query("""
                 SELECT motto_show.id, motto_show.show_number, motto_show.name,
                        (SELECT COUNT(*) FROM candidate WHERE candidate.motto_show_id = motto_show.id) AS candidate_count,
+                       (SELECT COUNT(*) FROM contest_entry WHERE contest_entry.motto_show_id = motto_show.id) AS contest_entry_count,
+                       (SELECT COUNT(*) FROM contest_entry WHERE contest_entry.motto_show_id = motto_show.id AND contest_entry.listened = 1) AS listened_entry_count,
                        selected_candidate.id AS selected_candidate_id,
                        selected_candidate.artist AS selected_candidate_artist,
                        selected_candidate.title AS selected_candidate_title,
@@ -39,6 +41,8 @@ class MottoShowRepository {
         return jdbcTemplate.query("""
                 SELECT motto_show.id, motto_show.show_number, motto_show.name,
                        (SELECT COUNT(*) FROM candidate WHERE candidate.motto_show_id = motto_show.id) AS candidate_count,
+                       (SELECT COUNT(*) FROM contest_entry WHERE contest_entry.motto_show_id = motto_show.id) AS contest_entry_count,
+                       (SELECT COUNT(*) FROM contest_entry WHERE contest_entry.motto_show_id = motto_show.id AND contest_entry.listened = 1) AS listened_entry_count,
                        selected_candidate.id AS selected_candidate_id,
                        selected_candidate.artist AS selected_candidate_artist,
                        selected_candidate.title AS selected_candidate_title,
@@ -64,6 +68,8 @@ class MottoShowRepository {
                 resultSet.getInt("show_number"),
                 resultSet.getString("name"),
                 resultSet.getInt("candidate_count"),
+                resultSet.getInt("contest_entry_count"),
+                resultSet.getInt("listened_entry_count"),
                 selectedCandidate(resultSet),
                 resultSet.getTimestamp("created_at").toInstant(),
                 resultSet.getTimestamp("updated_at").toInstant()

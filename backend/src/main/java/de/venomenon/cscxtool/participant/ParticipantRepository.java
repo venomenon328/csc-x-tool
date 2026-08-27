@@ -83,6 +83,12 @@ class ParticipantRepository {
         return jdbcTemplate.update("DELETE FROM participant WHERE id = ?", participantId) == 1;
     }
 
+    boolean isReferencedByContestEntry(long participantId) {
+        return Boolean.TRUE.equals(jdbcTemplate.queryForObject(
+                "SELECT EXISTS(SELECT 1 FROM contest_entry WHERE participant_id = ?)", Boolean.class, participantId
+        ));
+    }
+
     private List<Participant> attachAliases(List<ParticipantRow> rows) {
         if (rows.isEmpty()) {
             return List.of();

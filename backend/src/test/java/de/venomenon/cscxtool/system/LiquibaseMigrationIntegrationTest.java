@@ -124,6 +124,54 @@ class LiquibaseMigrationIntegrationTest {
                 .isInstanceOf(DataAccessException.class);
     }
 
+    @Test
+    void upgradesAnExistingP3DatabaseWithoutChangingItsExistingData() throws Exception {
+        DataSource dataSource = SqliteDataSourceFactory.create(temporaryDirectory.resolve("p3-upgrade.db"));
+        migrate(dataSource, "classpath:/db/changelog/p3-master.yaml");
+        JdbcTemplate jdbcTemplate = new JdbcTemplate(dataSource);
+        jdbcTemplate.update("UPDATE motto_show SET name = ? WHERE show_number = ?", "P3 bleibt erhalten", 9);
+        jdbcTemplate.update("""
+                INSERT INTO participant (display_name, country_code, active, created_at, updated_at)
+                VALUES ('Bestehender Teilnehmer', 'DE', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """);
+        long participantId = jdbcTemplate.queryForObject("SELECT id FROM participant", Long.class);
+        jdbcTemplate.update("INSERT INTO participant_alias (participant_id, alias) VALUES (?, ?)", participantId, "Alias");
+
+        migrate(SqliteDataSourceFactory.create(temporaryDirectory.resolve("p3-upgrade.db")));
+
+        assertThat(jdbcTemplate.queryForObject("SELECT name FROM motto_show WHERE show_number = 9", String.class))
+                .isEqualTo("P3 bleibt erhalten");
+        assertThat(jdbcTemplate.queryForObject("SELECT display_name FROM participant WHERE id = ?", String.class, participantId))
+                .isEqualTo("Bestehender Teilnehmer");
+        assertThat(jdbcTemplate.queryForObject("SELECT alias FROM participant_alias WHERE participant_id = ?", String.class, participantId))
+                .isEqualTo("Alias");
+        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM pragma_table_info('contest_entry')", Integer.class)).isEqualTo(12);
+    }
+
+    @Test
+    void enforcesTheP4ContestEntryConstraints() throws Exception {
+        DataSource dataSource = SqliteDataSourceFactory.create(temporaryDirectory.resolve("entry-constraints.db"));
+        migrate(dataSource);
+        JdbcTemplate jdbcTemplate = new JdbcTemplate(dataSource);
+
+        assertThatThrownBy(() -> jdbcTemplate.update("""
+                INSERT INTO contest_entry (motto_show_id, artist, title, youtube_url, listened, relisten, created_at, updated_at)
+                VALUES (1, ' ', 'Titel', 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """)).isInstanceOf(DataAccessException.class);
+        assertThatThrownBy(() -> jdbcTemplate.update("""
+                INSERT INTO contest_entry (motto_show_id, artist, title, youtube_url, listened, relisten, ranking_position, created_at, updated_at)
+                VALUES (1, 'Interpret', 'Titel', 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', 2, 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """)).isInstanceOf(DataAccessException.class);
+        jdbcTemplate.update("""
+                INSERT INTO contest_entry (motto_show_id, artist, title, youtube_url, listened, relisten, ranking_position, created_at, updated_at)
+                VALUES (1, 'Interpret', 'Titel', 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', 0, 0, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """);
+        assertThatThrownBy(() -> jdbcTemplate.update("""
+                INSERT INTO contest_entry (motto_show_id, artist, title, youtube_url, listened, relisten, ranking_position, created_at, updated_at)
+                VALUES (1, 'Interpret 2', 'Titel 2', 'https://www.youtube.com/watch?v=9bZkp7q19f0', 0, 0, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """)).isInstanceOf(DataAccessException.class);
+    }
+
     private void migrate(DataSource dataSource) throws Exception {
         migrate(dataSource, "classpath:/db/changelog/db.changelog-master.yaml");
     }
