@@ -14,6 +14,7 @@ import {
   DialogTitle,
   Divider,
   FormControlLabel,
+  Link,
   MenuItem,
   Paper,
   Select,
@@ -41,7 +42,8 @@ import {
   type CandidateStatus,
 } from './api'
 import { YoutubePlayerPanel } from './YoutubePlayerPanel'
-import { moveCandidate, visibleCandidates, type SortMode, type StatusFilter } from './candidateListUtils'
+import { visibleCandidates, type SortMode, type StatusFilter } from './candidateListUtils'
+import { persistDroppedCandidateOrder } from './candidateReorder'
 
 const statuses: Array<{ value: CandidateStatus, label: string }> = [
   { value: 'OFFEN', label: 'Offen' },
@@ -66,12 +68,13 @@ export function CandidatePage() {
   const [activeCandidate, setActiveCandidate] = useState<Candidate | null>(null)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL')
-  const [showRejected, setShowRejected] = useState(true)
+  const [showRejected, setShowRejected] = useState(false)
   const [sortMode, setSortMode] = useState<SortMode>('MANUAL')
   const [reordering, setReordering] = useState(false)
   const [copyingCandidate, setCopyingCandidate] = useState<Candidate | null>(null)
   const [copyTargets, setCopyTargets] = useState<number[]>([])
   const [replacementCandidate, setReplacementCandidate] = useState<Candidate | null>(null)
+  const [candidatePendingDeletion, setCandidatePendingDeletion] = useState<Candidate | null>(null)
   const [confirmClearSubmission, setConfirmClearSubmission] = useState(false)
   const [copyFallback, setCopyFallback] = useState<string | null>(null)
 
@@ -149,8 +152,8 @@ export function CandidatePage() {
     await saveCandidate({ ...candidate, status })
   }
 
-  async function removeCandidate(candidate: Candidate) {
-    if (showId === null) return
+  async function removeCandidate(candidate: Candidate): Promise<boolean> {
+    if (showId === null) return false
     setError(null)
     try {
       await deleteCandidate(showId, candidate.id)
@@ -160,21 +163,28 @@ export function CandidatePage() {
       setCandidates(confirmedCandidates.current)
       setActiveCandidate((current) => current?.id === candidate.id ? null : current)
       await reloadShows()
+      return true
     } catch (caught) {
       setError(asCandidateApiError(caught, `/api/shows/${showId}/candidates/${candidate.id}`))
+      return false
     }
   }
 
   async function persistDrop(result: DropResult) {
     if (showId === null || !dragEnabled || result.destination === null || result.destination.index === result.source.index) return
-    const optimistic = moveCandidate(confirmedCandidates.current, result.source.index, result.destination.index)
-    setCandidates(optimistic)
     setReordering(true)
     setError(null)
     try {
-      const confirmed = await reorderCandidates(showId, optimistic.map((candidate) => candidate.id))
-      confirmedCandidates.current = confirmed
-      setCandidates(confirmed)
+      await persistDroppedCandidateOrder({
+        result,
+        confirmedCandidates: confirmedCandidates.current,
+        save: (candidateIds) => reorderCandidates(showId, candidateIds),
+        onOptimisticChange: setCandidates,
+        onConfirmedChange: (nextCandidates) => {
+          confirmedCandidates.current = nextCandidates
+          setCandidates(nextCandidates)
+        },
+      })
     } catch (caught) {
       setCandidates(confirmedCandidates.current)
       setError(asCandidateApiError(caught, `/api/shows/${showId}/candidates/reorder`))
@@ -217,6 +227,12 @@ export function CandidatePage() {
       await reloadShows()
     } catch (caught) {
       setError(asCandidateApiError(caught, `/api/shows/${showId}/submission`))
+    }
+  }
+
+  async function confirmCandidateDeletion() {
+    if (candidatePendingDeletion !== null && await removeCandidate(candidatePendingDeletion)) {
+      setCandidatePendingDeletion(null)
     }
   }
 
@@ -292,7 +308,7 @@ export function CandidatePage() {
               dragEnabled={dragEnabled}
               onChangeStatus={(candidate, status) => void changeStatus(candidate, status)}
               onCopy={(candidate) => { setCopyTargets([]); setCopyingCandidate(candidate) }}
-              onDelete={(candidate) => void removeCandidate(candidate)}
+              onDelete={setCandidatePendingDeletion}
               onDrop={(result) => void persistDrop(result)}
               onEdit={setEditing}
               onPlay={setActiveCandidate}
@@ -321,6 +337,7 @@ export function CandidatePage() {
       />
       <ReplacementDialog candidate={replacementCandidate} onClose={() => setReplacementCandidate(null)} onConfirm={() => replacementCandidate !== null && void setSubmission(replacementCandidate, true)} />
       <ClearSubmissionDialog onClose={() => setConfirmClearSubmission(false)} onConfirm={() => void clearCurrentSubmission()} open={confirmClearSubmission} />
+      <DeleteCandidateDialog candidate={candidatePendingDeletion} onClose={() => setCandidatePendingDeletion(null)} onConfirm={() => void confirmCandidateDeletion()} />
     </Stack>
   )
 }
@@ -337,6 +354,9 @@ function SubmissionHeader({ selectedCandidate, onClear, onCopy }: {
     <Alert severity="success" action={<Button color="inherit" onClick={onClear} size="small">Aufheben</Button>}>
       <Stack spacing={0.5}>
         <Typography><strong>Eigene Einreichung:</strong> {selectedCandidate.artist} – {selectedCandidate.title}</Typography>
+        <Link href={selectedCandidate.youtubeUrl} rel="noreferrer" sx={{ overflowWrap: 'anywhere' }} target="_blank">
+          {selectedCandidate.youtubeUrl}
+        </Link>
         <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }} useFlexGap>
           <Button onClick={() => void onCopy(`${selectedCandidate.artist} – ${selectedCandidate.title}`)} size="small">Interpret &amp; Titel kopieren</Button>
           <Button onClick={() => void onCopy(selectedCandidate.youtubeUrl)} size="small">Link kopieren</Button>
@@ -469,7 +489,13 @@ function ManualCandidateList({ candidates, dragEnabled, reordering, selectedCand
                         <Button onClick={() => onEdit(candidate)} size="small">Bearbeiten</Button>
                         <Button onClick={() => onCopy(candidate)} size="small">In andere Show kopieren</Button>
                         {candidate.id !== selectedCandidateId && <Button onClick={() => onSelectSubmission(candidate)} size="small">Als Einreichung wählen</Button>}
-                        <Button color="error" onClick={() => onDelete(candidate)} size="small">Löschen</Button>
+                        <Button
+                          color="error"
+                          disabled={candidate.id === selectedCandidateId}
+                          onClick={() => onDelete(candidate)}
+                          size="small"
+                          title={candidate.id === selectedCandidateId ? 'Einreichung zuerst aufheben oder ersetzen' : undefined}
+                        >Löschen</Button>
                       </CardActions>
                     </Card>
                   )}
@@ -571,6 +597,21 @@ function ClearSubmissionDialog({ open, onClose, onConfirm }: { open: boolean, on
       <DialogActions>
         <Button onClick={onClose}>Abbrechen</Button>
         <Button color="warning" onClick={onConfirm} variant="contained">Einreichung aufheben</Button>
+      </DialogActions>
+    </Dialog>
+  )
+}
+
+function DeleteCandidateDialog({ candidate, onClose, onConfirm }: { candidate: Candidate | null, onClose: () => void, onConfirm: () => void }) {
+  return (
+    <Dialog onClose={onClose} open={candidate !== null}>
+      <DialogTitle>Kandidat löschen?</DialogTitle>
+      <DialogContent>
+        <Typography>{candidate === null ? '' : `${candidate.artist} – ${candidate.title}`} wird dauerhaft aus dieser Mottoshow entfernt.</Typography>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>Abbrechen</Button>
+        <Button color="error" onClick={onConfirm} variant="contained">Kandidat löschen</Button>
       </DialogActions>
     </Dialog>
   )
