@@ -14,7 +14,7 @@ Das Tool begleitet den praktischen Ablauf einer Mottoshow:
 
 ## Projektstatus
 
-Das Repository befindet sich in der Spezifikations- und Bootstrap-Phase. Produktumfang, Bedienmodell und technische Grundrichtung sind dokumentiert; Anwendungscode existiert noch nicht.
+Produktspezifikation, technische Architektur und phasenweiser Implementierungsplan sind festgelegt. Die Entwicklung beginnt mit dem technischen Bootstrap aus [Issue #4](https://github.com/venomenon328/csc-x-tool/issues/4); Anwendungscode existiert derzeit noch nicht.
 
 ## Festgelegte Grundrichtung
 
@@ -32,8 +32,10 @@ Das Repository befindet sich in der Spezifikations- und Bootstrap-Phase. Produkt
 
 - [Produktspezifikation](docs/specification.md)
 - [Technische Architektur](docs/architecture.md)
+- [Implementierungsplan](docs/implementation-plan.md)
 - [Entscheidungsprotokoll](docs/decisions.md)
 - [Abgrenzung der fachlichen Quellen](docs/reference/README.md)
+- [GitHub-Roadmap bis 0.1.0](https://github.com/venomenon328/csc-x-tool/issues/3)
 
 ## Geplante Repository-Struktur
 
@@ -42,7 +44,7 @@ Das Repository befindet sich in der Spezifikations- und Bootstrap-Phase. Produkt
 ├── backend/       Spring Boot, REST-API, SQLite und Datensicherung
 ├── frontend/      React, TypeScript und Benutzeroberfläche
 ├── launcher/      Windows-Start, Browseröffnung und Paketierung
-└── docs/          Spezifikation, Architektur und Entscheidungen
+└── docs/          Spezifikation, Architektur, Entscheidungen und Implementierungsplan
 ```
 
 ## Bewusste Abgrenzung
@@ -51,4 +53,4 @@ Das Tool recherchiert keine Kandidaten, prüft keine Mottoregeln und gleicht Son
 
 ## Nächster sinnvoller Schritt
 
-Nach Freigabe der Spezifikation folgt der technische Bootstrap des Monorepos mit Datenbankschema, Backend-Grundgerüst, Frontend-Shell und erstem ausführbaren lokalen Paket.
+Der nächste Arbeitsauftrag ist [P0: Technischen Bootstrap und gemeinsamen Build aufsetzen](https://github.com/venomenon328/csc-x-tool/issues/4). Danach folgen SQLite, Liquibase und die persistente Mottoshow-Übersicht in [P1](https://github.com/venomenon328/csc-x-tool/issues/5).
