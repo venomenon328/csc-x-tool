@@ -245,6 +245,12 @@ Der P0-Spike legt **Material UI 9.3.1** als Komponentenbibliothek fest; die ben�
 
 Diese Entscheidung umfasst ausdrücklich **keine** Drag-and-drop-Bibliothek. Deren Wahl bleibt für die echte Kandidatenliste in P2 offen.
 
+### A-013 – SQLite-WAL und verbindungslokale Regeln
+
+P1 verwendet den WAL-Modus als SQLite-Baseline. Der Spike läuft gegen echte temporäre Datenbankdateien: WAL bleibt nach erneutem Öffnen aktiv, und ein schreibender Zugriff gelingt, während eine zweite Verbindung einen konsistenten Lesesnapshot hält.
+
+`foreign_keys=ON` und ein `busy_timeout` von fünf Sekunden werden beim Öffnen **jeder** Verbindung gesetzt, weil beide SQLite-Pragmas verbindungslokal sind. Liquibase und die fachlichen Repositories verwenden dieselbe konfigurierte Datasource. Migrationsfehler brechen den Start mit einer verständlichen Meldung ab, werden nicht in Storage-Fehler übersetzt und behalten ihre SQLite-Ursache in der Fehlerkette.
+
 ## Bewusst vertagte Entscheidungen
 
 ### O-001 – Vollständiger Import-Testblock

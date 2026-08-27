@@ -14,7 +14,7 @@ Das Tool begleitet den praktischen Ablauf einer Mottoshow:
 
 ## Projektstatus
 
-Der technische Bootstrap aus [Issue #4](https://github.com/venomenon328/csc-x-tool/issues/4) ist umgesetzt: Das Monorepo enthält ein minimales Spring-Boot-Backend und eine React-App mit gemeinsamem, reproduzierbarem Root-Build. Fachliche Persistenz folgt erst in [Issue #5](https://github.com/venomenon328/csc-x-tool/issues/5).
+P1 aus [Issue #5](https://github.com/venomenon328/csc-x-tool/issues/5) ist umgesetzt: Die Anwendung speichert zwölf Mottoshows lokal in SQLite, migriert ihr Schema mit Liquibase und zeigt die persistente Übersicht. Kandidaten, Teilnehmer, Beiträge, Ranking und Ergebnisse folgen bewusst erst in den vorgesehenen Entwicklungspaketen.
 
 ## Festgelegte Grundrichtung
 
@@ -111,5 +111,19 @@ npm run dev
 ```
 
 Vite leitet `/api` dabei an das lokale Backend weiter. Im Produktionsbetrieb gibt es keinen separaten Node-Prozess und keine CORS-Freigabe: Nach `./mvnw clean package` liefert das ausführbare JAR die SPA und `GET /api/system/health` unter derselben Origin aus.
+
+## Lokale Datenablage
+
+Im produktiven Betrieb verwendet das Tool ausschließlich `%LOCALAPPDATA%/CSC-X-Tool/` mit den Unterverzeichnissen `data`, `backups/automatic`, `backups/manual`, `exports`, `logs` und `runtime`. Die Datenbank liegt unter `data/csc-x-tool.db`; es werden keine fachlichen Daten im Checkout oder Installationsverzeichnis abgelegt.
+
+Für Entwicklung, Tests oder einen isolierten Start wird der Root explizit gesetzt, zum Beispiel:
+
+```powershell
+.\mvnw.cmd "-Dspring-boot.run.arguments=--csc-x-tool.storage.root=C:\temp\csc-x-tool-data" -pl backend -Pdev spring-boot:run
+```
+
+Zusätzlich wird die dokumentierte Umgebungsvariable `CSC_X_TOOL_STORAGE_ROOT` explizit als Alias für denselben Override unterstützt. Ist weder dieser Override noch `LOCALAPPDATA` verfügbar, bricht der Start mit einer pfadbezogenen Fehlermeldung ab.
+
+`GET /api/shows` liefert die zwölf Shows; `PATCH /api/shows/{showId}` mit `{ "name": "…" }` benennt eine Show um.
 
 Vorgesehene Browserrouten sind `/`, `/participants`, `/data` sowie `/shows/:showId/candidates`, `/shows/:showId/voting` und `/shows/:showId/result`. Direkte Aufrufe dieser Routen landen in der SPA; `/api/**` wird davon ausdrücklich ausgenommen.

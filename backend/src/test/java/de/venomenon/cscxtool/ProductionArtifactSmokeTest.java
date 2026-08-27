@@ -6,27 +6,40 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class ProductionArtifactSmokeTest {
 
+    private static final Path STORAGE_ROOT = temporaryStorageRoot();
     private final HttpClient client = HttpClient.newHttpClient();
 
     @LocalServerPort
     private int port;
 
+    @DynamicPropertySource
+    static void storageProperties(DynamicPropertyRegistry registry) {
+        registry.add("csc-x-tool.storage.root", () -> STORAGE_ROOT.toString());
+    }
+
     @Test
     void servesTheSpaAndTheHealthApiFromOneOrigin() throws Exception {
         HttpResponse<String> home = get("/");
         HttpResponse<String> health = get("/api/system/health");
+        HttpResponse<String> shows = get("/api/shows");
 
         assertThat(home.statusCode()).isEqualTo(200);
         assertThat(home.body()).contains("<div id=\"root\">");
         assertThat(health.statusCode()).isEqualTo(200);
         assertThat(health.body()).contains("\"status\":\"UP\"");
+        assertThat(shows.statusCode()).isEqualTo(200);
+        assertThat(shows.body()).contains("\"showNumber\":1", "\"showNumber\":12");
     }
 
     @Test
@@ -56,5 +69,13 @@ class ProductionArtifactSmokeTest {
     private HttpResponse<String> get(String path) throws Exception {
         HttpRequest request = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + path)).GET().build();
         return client.send(request, HttpResponse.BodyHandlers.ofString());
+    }
+
+    private static Path temporaryStorageRoot() {
+        try {
+            return Files.createTempDirectory("csc-x-tool-artifact-");
+        } catch (Exception exception) {
+            throw new IllegalStateException("Temporäres Storage Root für den Artifact-Smoke-Test konnte nicht angelegt werden.", exception);
+        }
     }
 }

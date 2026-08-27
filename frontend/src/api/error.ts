@@ -12,7 +12,7 @@ export async function readApiError(response: Response): Promise<ApiError> {
     status: response.status,
     code: 'HTTP_ERROR',
     message: 'Die Anfrage konnte nicht verarbeitet werden.',
-    path: new URL(response.url).pathname,
+    path: new URL(response.url || window.location.href).pathname,
   }
 
   try {

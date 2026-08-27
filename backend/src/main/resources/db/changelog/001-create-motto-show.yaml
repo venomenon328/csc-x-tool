@@ -1,0 +1,16 @@
+databaseChangeLog:
+  - changeSet:
+      id: 001-create-motto-show
+      author: venomenon328
+      changes:
+        - sql:
+            sql: |-
+              CREATE TABLE motto_show (
+                id INTEGER PRIMARY KEY,
+                show_number INTEGER NOT NULL UNIQUE
+                  CONSTRAINT ck_motto_show_number CHECK (show_number BETWEEN 1 AND 12),
+                name TEXT NOT NULL
+                  CONSTRAINT ck_motto_show_name_not_blank CHECK (length(trim(name)) > 0),
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+              )
