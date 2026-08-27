@@ -1,12 +1,13 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { ParticipantSelect } from './ParticipantSelect'
 import type { Participant } from './api'
 
 const participants: Participant[] = [
   { id: 1, displayName: 'Alex', countryCode: 'DE', countryName: 'Deutschland', active: true, aliases: ['Lex'], createdAt: '', updatedAt: '' },
   { id: 2, displayName: 'Mira', countryCode: 'AT', countryName: 'Österreich', active: false, aliases: ['Maus'], createdAt: '', updatedAt: '' },
+  { id: 3, displayName: 'Nora', countryCode: 'CH', countryName: 'Schweiz', active: false, aliases: ['Nori'], createdAt: '', updatedAt: '' },
 ]
 
 describe('ParticipantSelect', () => {
@@ -31,5 +32,20 @@ describe('ParticipantSelect', () => {
 
     expect(await screen.findByRole('option', { name: /Mira/ })).toHaveTextContent('Österreich')
     expect(screen.getByText('Mira (inaktiv)')).toBeVisible()
+  })
+
+  it('keeps an already assigned inactive participant visible without offering other inactive participants', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    render(<ParticipantSelect onChange={onChange} options={participants} value={participants[1]} />)
+
+    expect(screen.getByRole('combobox', { name: 'Teilnehmer' })).toHaveValue('Mira – Österreich (inaktiv)')
+    await user.click(screen.getByRole('combobox', { name: 'Teilnehmer' }))
+
+    expect(await screen.findByRole('option', { name: /Mira/ })).toBeVisible()
+    expect(screen.getByRole('option', { name: /Alex/ })).toBeVisible()
+    expect(screen.queryByRole('option', { name: /Nora/ })).not.toBeInTheDocument()
+    await user.click(screen.getByLabelText('Clear'))
+    expect(onChange).toHaveBeenCalledWith(null)
   })
 })

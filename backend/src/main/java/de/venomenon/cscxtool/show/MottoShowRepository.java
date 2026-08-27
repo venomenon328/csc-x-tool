@@ -27,7 +27,20 @@ class MottoShowRepository {
                        (SELECT COUNT(*) FROM contest_entry WHERE contest_entry.motto_show_id = motto_show.id) AS contest_entry_count,
                        (SELECT COUNT(*) FROM contest_entry WHERE contest_entry.motto_show_id = motto_show.id AND contest_entry.listened = 1) AS listened_entry_count,
                        (SELECT COUNT(*) FROM contest_entry WHERE contest_entry.motto_show_id = motto_show.id AND contest_entry.ranking_position IS NOT NULL) AS ranked_entry_count,
+                       (SELECT COUNT(*) FROM contest_entry WHERE contest_entry.motto_show_id = motto_show.id AND contest_entry.participant_id IS NOT NULL) AS assigned_entry_count,
+                       (SELECT COUNT(*) FROM participant WHERE participant.active = 1) AS active_participant_count,
+                       (SELECT COUNT(*) FROM participant
+                        WHERE participant.active = 1 AND EXISTS (
+                          SELECT 1 FROM received_score
+                          WHERE received_score.motto_show_id = motto_show.id
+                            AND received_score.participant_id = participant.id
+                            AND received_score.status <> 'UNBEKANNT'
+                        )) AS known_active_result_count,
                        motto_show.ballot_closed_at,
+                       motto_show.results_closed_at,
+                       (SELECT COALESCE(SUM(points), 0) FROM received_score
+                        WHERE received_score.motto_show_id = motto_show.id AND status = 'ABGESTIMMT') AS calculated_total_points,
+                       motto_show.official_total_points, motto_show.final_place, motto_show.final_place_tied,
                        selected_candidate.id AS selected_candidate_id,
                        selected_candidate.artist AS selected_candidate_artist,
                        selected_candidate.title AS selected_candidate_title,
@@ -46,7 +59,20 @@ class MottoShowRepository {
                        (SELECT COUNT(*) FROM contest_entry WHERE contest_entry.motto_show_id = motto_show.id) AS contest_entry_count,
                        (SELECT COUNT(*) FROM contest_entry WHERE contest_entry.motto_show_id = motto_show.id AND contest_entry.listened = 1) AS listened_entry_count,
                        (SELECT COUNT(*) FROM contest_entry WHERE contest_entry.motto_show_id = motto_show.id AND contest_entry.ranking_position IS NOT NULL) AS ranked_entry_count,
+                       (SELECT COUNT(*) FROM contest_entry WHERE contest_entry.motto_show_id = motto_show.id AND contest_entry.participant_id IS NOT NULL) AS assigned_entry_count,
+                       (SELECT COUNT(*) FROM participant WHERE participant.active = 1) AS active_participant_count,
+                       (SELECT COUNT(*) FROM participant
+                        WHERE participant.active = 1 AND EXISTS (
+                          SELECT 1 FROM received_score
+                          WHERE received_score.motto_show_id = motto_show.id
+                            AND received_score.participant_id = participant.id
+                            AND received_score.status <> 'UNBEKANNT'
+                        )) AS known_active_result_count,
                        motto_show.ballot_closed_at,
+                       motto_show.results_closed_at,
+                       (SELECT COALESCE(SUM(points), 0) FROM received_score
+                        WHERE received_score.motto_show_id = motto_show.id AND status = 'ABGESTIMMT') AS calculated_total_points,
+                       motto_show.official_total_points, motto_show.final_place, motto_show.final_place_tied,
                        selected_candidate.id AS selected_candidate_id,
                        selected_candidate.artist AS selected_candidate_artist,
                        selected_candidate.title AS selected_candidate_title,
@@ -75,7 +101,15 @@ class MottoShowRepository {
                 resultSet.getInt("contest_entry_count"),
                 resultSet.getInt("listened_entry_count"),
                 resultSet.getInt("ranked_entry_count"),
+                resultSet.getInt("assigned_entry_count"),
+                resultSet.getInt("active_participant_count"),
+                resultSet.getInt("known_active_result_count"),
                 nullableInstant(resultSet, "ballot_closed_at"),
+                nullableInstant(resultSet, "results_closed_at"),
+                resultSet.getInt("calculated_total_points"),
+                nullableInt(resultSet, "official_total_points"),
+                nullableInt(resultSet, "final_place"),
+                resultSet.getBoolean("final_place_tied"),
                 selectedCandidate(resultSet),
                 resultSet.getTimestamp("created_at").toInstant(),
                 resultSet.getTimestamp("updated_at").toInstant()
@@ -85,6 +119,11 @@ class MottoShowRepository {
     private static Instant nullableInstant(ResultSet resultSet, String columnName) throws SQLException {
         java.sql.Timestamp timestamp = resultSet.getTimestamp(columnName);
         return timestamp == null ? null : timestamp.toInstant();
+    }
+
+    private static Integer nullableInt(ResultSet resultSet, String columnName) throws SQLException {
+        int value = resultSet.getInt(columnName);
+        return resultSet.wasNull() ? null : value;
     }
 
     private static SelectedCandidate selectedCandidate(ResultSet resultSet) throws SQLException {

@@ -66,10 +66,10 @@ class ParticipantService {
     @Transactional
     void delete(long participantId) {
         requireParticipant(participantId);
-        if (repository.isReferencedByContestEntry(participantId)) {
+        if (repository.isReferencedByContestEntry(participantId) || repository.isReferencedByReceivedScore(participantId)) {
             throw new ApiConflictException(
                     "PARTICIPANT_IN_USE",
-                    "Der Teilnehmer kann nicht gel\u00f6scht werden, weil ihm Wettbewerbsbeitr\u00e4ge zugeordnet sind."
+                    "Der Teilnehmer kann nicht gel\u00f6scht werden, weil ihm Wettbewerbsbeitr\u00e4ge oder Ergebnisdaten zugeordnet sind."
             );
         }
         if (!repository.delete(participantId)) {

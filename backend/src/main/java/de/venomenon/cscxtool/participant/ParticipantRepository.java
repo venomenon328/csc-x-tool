@@ -89,6 +89,12 @@ class ParticipantRepository {
         ));
     }
 
+    boolean isReferencedByReceivedScore(long participantId) {
+        return Boolean.TRUE.equals(jdbcTemplate.queryForObject(
+                "SELECT EXISTS(SELECT 1 FROM received_score WHERE participant_id = ?)", Boolean.class, participantId
+        ));
+    }
+
     private List<Participant> attachAliases(List<ParticipantRow> rows) {
         if (rows.isEmpty()) {
             return List.of();

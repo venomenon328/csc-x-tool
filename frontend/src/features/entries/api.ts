@@ -68,6 +68,10 @@ export function updateEntry(showId: number, entry: ContestEntry): Promise<Contes
   }))
 }
 
+export function updateParticipantAssignment(showId: number, entryId: number, participantId: number | null): Promise<ContestEntry> {
+  return request(`/api/shows/${showId}/entries/${entryId}/participant`, json('PUT', { participantId }))
+}
+
 export function deleteEntry(showId: number, entryId: number): Promise<void> {
   return request(`/api/shows/${showId}/entries/${entryId}`, { method: 'DELETE' })
 }

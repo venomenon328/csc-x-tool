@@ -8,7 +8,16 @@ export type MottoShow = {
   contestEntryCount: number
   listenedEntryCount: number
   rankedEntryCount: number
+  assignedEntryCount: number
+  activeParticipantCount: number
+  knownActiveResultCount: number
   ballotClosedAt: string | null
+  resultsClosedAt: string | null
+  calculatedTotalPoints: number
+  officialTotalPoints: number | null
+  officialTotalDifference: number | null
+  finalPlace: number | null
+  finalPlaceTied: boolean
   selectedCandidate: SelectedCandidate | null
 }
 

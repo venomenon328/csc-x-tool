@@ -89,6 +89,33 @@ class ContestEntryRepository {
         ));
     }
 
+    boolean participantExists(long participantId) {
+        return Boolean.TRUE.equals(jdbcTemplate.queryForObject(
+                "SELECT EXISTS(SELECT 1 FROM participant WHERE id = ?)", Boolean.class, participantId
+        ));
+    }
+
+    boolean participantIsActive(long participantId) {
+        return Boolean.TRUE.equals(jdbcTemplate.queryForObject(
+                "SELECT active FROM participant WHERE id = ?", Boolean.class, participantId
+        ));
+    }
+
+    Optional<Long> findEntryIdByParticipant(long showId, long participantId) {
+        return jdbcTemplate.query(
+                "SELECT id FROM contest_entry WHERE motto_show_id = ? AND participant_id = ?",
+                (resultSet, rowNumber) -> resultSet.getLong("id"), showId, participantId
+        ).stream().findFirst();
+    }
+
+    boolean updateParticipantAssignment(long entryId, long showId, Long participantId) {
+        return jdbcTemplate.update("""
+                UPDATE contest_entry
+                SET participant_id = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ? AND motto_show_id = ?
+                """, participantId, entryId, showId) == 1;
+    }
+
     List<Long> findRankedEntryIds(long showId) {
         return jdbcTemplate.query(
                 "SELECT id FROM contest_entry WHERE motto_show_id = ? AND ranking_position IS NOT NULL ORDER BY ranking_position",

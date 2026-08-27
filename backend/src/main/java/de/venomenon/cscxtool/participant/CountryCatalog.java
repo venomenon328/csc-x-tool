@@ -14,7 +14,7 @@ import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
 @Component
-class CountryCatalog {
+public class CountryCatalog {
 
     private static final String CATALOG_RESOURCE = "countries/countries-de.json";
 
@@ -41,11 +41,11 @@ class CountryCatalog {
         this.countriesByCode = Map.copyOf(byCode);
     }
 
-    List<Country> findAll() {
+    public List<Country> findAll() {
         return countries;
     }
 
-    Country findRequired(String countryCode) {
+    public Country findRequired(String countryCode) {
         String normalizedCode = normalize(countryCode);
         Country country = countriesByCode.get(normalizedCode);
         if (country == null) {

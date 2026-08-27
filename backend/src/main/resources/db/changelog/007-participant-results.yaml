@@ -1,0 +1,48 @@
+databaseChangeLog:
+  - changeSet:
+      id: 007-participant-results
+      author: venomenon328
+      changes:
+        - sql:
+            sql: |-
+              ALTER TABLE motto_show ADD COLUMN results_closed_at TEXT;
+              ALTER TABLE motto_show ADD COLUMN final_place INTEGER
+                CONSTRAINT ck_motto_show_final_place_positive CHECK (final_place IS NULL OR final_place > 0);
+              ALTER TABLE motto_show ADD COLUMN final_place_tied INTEGER NOT NULL DEFAULT 0
+                CONSTRAINT ck_motto_show_final_place_tied_boolean CHECK (
+                  final_place_tied IN (0, 1)
+                  AND (final_place_tied = 0 OR final_place IS NOT NULL)
+                );
+              ALTER TABLE motto_show ADD COLUMN official_total_points INTEGER
+                CONSTRAINT ck_motto_show_official_total_points_non_negative CHECK (
+                  official_total_points IS NULL OR official_total_points >= 0
+                );
+
+              CREATE UNIQUE INDEX ux_contest_entry_show_participant
+                ON contest_entry (motto_show_id, participant_id)
+                WHERE participant_id IS NOT NULL;
+
+              CREATE TABLE received_score (
+                id INTEGER PRIMARY KEY,
+                motto_show_id INTEGER NOT NULL,
+                participant_id INTEGER NOT NULL,
+                status TEXT NOT NULL
+                  CONSTRAINT ck_received_score_status CHECK (
+                    status IN ('UNBEKANNT', 'NICHT_ABGESTIMMT', 'ABGESTIMMT')
+                  ),
+                points INTEGER,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                CONSTRAINT fk_received_score_motto_show
+                  FOREIGN KEY (motto_show_id) REFERENCES motto_show (id) ON DELETE RESTRICT,
+                CONSTRAINT fk_received_score_participant
+                  FOREIGN KEY (participant_id) REFERENCES participant (id) ON DELETE RESTRICT,
+                CONSTRAINT uq_received_score_show_participant UNIQUE (motto_show_id, participant_id),
+                CONSTRAINT ck_received_score_status_points CHECK (
+                  (status = 'ABGESTIMMT' AND points IN (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 16, 20, 25))
+                  OR (status IN ('UNBEKANNT', 'NICHT_ABGESTIMMT') AND points IS NULL)
+                )
+              );
+
+              CREATE INDEX ix_received_score_motto_show ON received_score (motto_show_id);
+              CREATE INDEX ix_received_score_participant ON received_score (participant_id);

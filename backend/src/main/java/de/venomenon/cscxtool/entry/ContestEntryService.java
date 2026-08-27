@@ -2,6 +2,7 @@ package de.venomenon.cscxtool.entry;
 
 import de.venomenon.cscxtool.shared.ApiBadRequestException;
 import de.venomenon.cscxtool.shared.ApiConflictException;
+import de.venomenon.cscxtool.participant.ParticipantNotFoundException;
 import de.venomenon.cscxtool.show.ShowNotFoundException;
 import de.venomenon.cscxtool.song.YoutubeUrlNormalizer;
 import java.util.HashMap;
@@ -12,6 +13,7 @@ import java.util.Map;
 import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.dao.DataIntegrityViolationException;
 
 @Service
 class ContestEntryService {
@@ -64,6 +66,47 @@ class ContestEntryService {
         }
         return repository.findByIdAndShowId(entryId, showId)
                 .orElseThrow(() -> new ContestEntryNotFoundException(entryId, showId));
+    }
+
+    @Transactional
+    ContestEntry updateParticipantAssignment(long showId, long entryId, UpdateParticipantAssignmentRequest request) {
+        requireShow(showId);
+        if (!repository.isBallotClosed(showId)) {
+            throw new ApiConflictException(
+                    "PARTICIPANT_ASSIGNMENT_REQUIRES_CLOSED_BALLOT",
+                    "Teilnehmer können erst nach dem Abschluss der eigenen Top 15 zugeordnet werden."
+            );
+        }
+        ContestEntry entry = repository.findByIdAndShowId(entryId, showId)
+                .orElseThrow(() -> new ContestEntryNotFoundException(entryId, showId));
+        Long participantId = request == null ? null : request.participantId();
+        if (participantId != null) {
+            if (!repository.participantExists(participantId)) {
+                throw new ParticipantNotFoundException(participantId);
+            }
+            if (!repository.participantIsActive(participantId) && !participantId.equals(entry.participantId())) {
+                throw new ApiConflictException(
+                        "INACTIVE_PARTICIPANT_CANNOT_BE_ASSIGNED",
+                        "Inaktive Teilnehmer können nicht neu einem Wettbewerbsbeitrag zugeordnet werden."
+                );
+            }
+            repository.findEntryIdByParticipant(showId, participantId)
+                    .filter(assignedEntryId -> assignedEntryId != entry.id())
+                    .ifPresent(assignedEntryId -> {
+                        throw duplicateParticipantAssignment();
+                    });
+        }
+        try {
+            if (!repository.updateParticipantAssignment(entryId, showId, participantId)) {
+                throw new ContestEntryNotFoundException(entryId, showId);
+            }
+        } catch (DataIntegrityViolationException exception) {
+            if (isParticipantAssignmentUniqueConstraint(exception)) {
+                throw duplicateParticipantAssignment();
+            }
+            throw exception;
+        }
+        return repository.findByIdAndShowId(entryId, showId).orElseThrow(() -> new ContestEntryNotFoundException(entryId, showId));
     }
 
     @Transactional
@@ -166,6 +209,23 @@ class ContestEntryService {
         if (!repository.showExists(showId)) {
             throw new ShowNotFoundException(showId);
         }
+    }
+
+    private static ApiConflictException duplicateParticipantAssignment() {
+        return new ApiConflictException(
+                "PARTICIPANT_ALREADY_ASSIGNED_IN_SHOW",
+                "Ein Teilnehmer kann innerhalb derselben Mottoshow nur einem Wettbewerbsbeitrag zugeordnet werden."
+        );
+    }
+
+    private static boolean isParticipantAssignmentUniqueConstraint(Throwable exception) {
+        for (Throwable current = exception; current != null; current = current.getCause()) {
+            String message = current.getMessage();
+            if (message != null && message.contains("contest_entry.motto_show_id, contest_entry.participant_id")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static String requiredText(String value, String message) {

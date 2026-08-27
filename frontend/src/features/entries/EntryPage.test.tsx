@@ -158,4 +158,35 @@ describe('EntryPage', () => {
     await user.click(screen.getByRole('button', { name: 'Speichern' }))
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/shows/1/entries', expect.objectContaining({ method: 'POST' })))
   })
+
+  it('unlocks bundled participant assignment and the without-participant filter only after ballot closure', async () => {
+    const user = userEvent.setup()
+    const closedBallot = { ballotClosedAt: '2026-08-27T10:00:00Z', currentSnapshot: { id: 1, snapshotNumber: 1, createdAt: '2026-08-27T10:00:00Z', current: true, items: [] }, snapshots: [], renderedText: null }
+    const participant = { id: 31, displayName: 'Mira', countryCode: 'AT', countryName: 'Österreich', active: true, aliases: ['Maus'], createdAt: '2026-08-27T00:00:00Z', updatedAt: '2026-08-27T00:00:00Z' }
+    let entries = [first, second]
+    fetchMock.mockImplementation(async (input, init) => {
+      const path = String(input)
+      if (path === '/api/shows') return jsonResponse([{ ...show, ballotClosedAt: closedBallot.ballotClosedAt, assignedEntryCount: 0, activeParticipantCount: 1, knownActiveResultCount: 0, resultsClosedAt: null }])
+      if (path === '/api/shows/1/ballot') return jsonResponse(closedBallot)
+      if (path === '/api/participants?includeInactive=true') return jsonResponse([participant])
+      if (path === '/api/shows/1/entries/11/participant' && init?.method === 'PUT') {
+        entries = [{ ...first, participantId: 31 }, second]
+        return jsonResponse(entries[0])
+      }
+      if (path === '/api/shows/1/entries') return jsonResponse(entries)
+      throw new Error(`Unexpected request ${path}`)
+    })
+    render(<App />)
+
+    await screen.findByLabelText('Ohne Teilnehmer')
+    expect(fetchMock).toHaveBeenCalledWith('/api/participants?includeInactive=true')
+    await user.click(screen.getAllByText('Imminence – Paralyzed')[1]!)
+    await user.click(screen.getByLabelText('Teilnehmer dieses Beitrags'))
+    await user.click(await screen.findByText('Mira'))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/shows/1/entries/11/participant', expect.objectContaining({
+      method: 'PUT', body: JSON.stringify({ participantId: 31 }),
+    })))
+    await user.click(screen.getByLabelText('Ohne Teilnehmer'))
+    expect(within(screen.getByLabelText('Beitragspool')).queryByText('Imminence – Paralyzed')).not.toBeInTheDocument()
+  })
 })
