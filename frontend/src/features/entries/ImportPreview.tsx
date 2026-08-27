@@ -15,7 +15,9 @@ import type { ImportPreviewLine } from './api'
 export type EditableImportLine = ImportPreviewLine & { included: boolean }
 
 function hasImportFields(line: EditableImportLine) {
-  return line.artist?.trim() !== '' && line.title?.trim() !== ''
+  const artist = line.artist?.trim() ?? ''
+  const title = line.title?.trim() ?? ''
+  return artist !== '' && title !== ''
     && /^https?:\/\/(?:www\.)?(?:youtube\.com|m\.youtube\.com|music\.youtube\.com|youtu\.be)\//i.test(line.youtubeUrl?.trim() ?? '')
 }
 
