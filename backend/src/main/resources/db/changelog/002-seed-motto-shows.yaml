@@ -1,0 +1,89 @@
+databaseChangeLog:
+  - changeSet:
+      id: 002-seed-initial-motto-shows
+      author: venomenon328
+      changes:
+        - insert:
+            tableName: motto_show
+            columns:
+              - column: { name: show_number, valueNumeric: 1 }
+              - column: { name: name, value: "Super Men" }
+              - column: { name: created_at, valueComputed: CURRENT_TIMESTAMP }
+              - column: { name: updated_at, valueComputed: CURRENT_TIMESTAMP }
+        - insert:
+            tableName: motto_show
+            columns:
+              - column: { name: show_number, valueNumeric: 2 }
+              - column: { name: name, value: "Original Sin – Reverse Cover" }
+              - column: { name: created_at, valueComputed: CURRENT_TIMESTAMP }
+              - column: { name: updated_at, valueComputed: CURRENT_TIMESTAMP }
+        - insert:
+            tableName: motto_show
+            columns:
+              - column: { name: show_number, valueNumeric: 3 }
+              - column: { name: name, value: "ESC in the CSC" }
+              - column: { name: created_at, valueComputed: CURRENT_TIMESTAMP }
+              - column: { name: updated_at, valueComputed: CURRENT_TIMESTAMP }
+        - insert:
+            tableName: motto_show
+            columns:
+              - column: { name: show_number, valueNumeric: 4 }
+              - column: { name: name, value: "Say My Name" }
+              - column: { name: created_at, valueComputed: CURRENT_TIMESTAMP }
+              - column: { name: updated_at, valueComputed: CURRENT_TIMESTAMP }
+        - insert:
+            tableName: motto_show
+            columns:
+              - column: { name: show_number, valueNumeric: 5 }
+              - column: { name: name, value: "It takes two" }
+              - column: { name: created_at, valueComputed: CURRENT_TIMESTAMP }
+              - column: { name: updated_at, valueComputed: CURRENT_TIMESTAMP }
+        - insert:
+            tableName: motto_show
+            columns:
+              - column: { name: show_number, valueNumeric: 6 }
+              - column: { name: name, value: "No comprende!" }
+              - column: { name: created_at, valueComputed: CURRENT_TIMESTAMP }
+              - column: { name: updated_at, valueComputed: CURRENT_TIMESTAMP }
+        - insert:
+            tableName: motto_show
+            columns:
+              - column: { name: show_number, valueNumeric: 7 }
+              - column: { name: name, value: "Twist & Shout" }
+              - column: { name: created_at, valueComputed: CURRENT_TIMESTAMP }
+              - column: { name: updated_at, valueComputed: CURRENT_TIMESTAMP }
+        - insert:
+            tableName: motto_show
+            columns:
+              - column: { name: show_number, valueNumeric: 8 }
+              - column: { name: name, value: "The Today Playlist" }
+              - column: { name: created_at, valueComputed: CURRENT_TIMESTAMP }
+              - column: { name: updated_at, valueComputed: CURRENT_TIMESTAMP }
+        - insert:
+            tableName: motto_show
+            columns:
+              - column: { name: show_number, valueNumeric: 9 }
+              - column: { name: name, value: "TBA" }
+              - column: { name: created_at, valueComputed: CURRENT_TIMESTAMP }
+              - column: { name: updated_at, valueComputed: CURRENT_TIMESTAMP }
+        - insert:
+            tableName: motto_show
+            columns:
+              - column: { name: show_number, valueNumeric: 10 }
+              - column: { name: name, value: "Country Roads" }
+              - column: { name: created_at, valueComputed: CURRENT_TIMESTAMP }
+              - column: { name: updated_at, valueComputed: CURRENT_TIMESTAMP }
+        - insert:
+            tableName: motto_show
+            columns:
+              - column: { name: show_number, valueNumeric: 11 }
+              - column: { name: name, value: "Live will always be life" }
+              - column: { name: created_at, valueComputed: CURRENT_TIMESTAMP }
+              - column: { name: updated_at, valueComputed: CURRENT_TIMESTAMP }
+        - insert:
+            tableName: motto_show
+            columns:
+              - column: { name: show_number, valueNumeric: 12 }
+              - column: { name: name, value: "Wonder Women" }
+              - column: { name: created_at, valueComputed: CURRENT_TIMESTAMP }
+              - column: { name: updated_at, valueComputed: CURRENT_TIMESTAMP }

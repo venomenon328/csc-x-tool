@@ -4,6 +4,8 @@ server:
 spring:
   application:
     name: csc-x-tool
+  liquibase:
+    change-log: classpath:/db/changelog/db.changelog-master.yaml
   mvc:
     problemdetails:
       enabled: false

@@ -1,0 +1,7 @@
+databaseChangeLog:
+  - changeSet:
+      id: invalid-sql-for-cause-propagation
+      author: test
+      changes:
+        - sql:
+            sql: CREATE TABLE this statement is deliberately invalid
