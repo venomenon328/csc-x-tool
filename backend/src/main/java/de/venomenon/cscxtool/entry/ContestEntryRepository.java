@@ -31,7 +31,7 @@ class ContestEntryRepository {
     }
 
     List<ContestEntry> findAllByShowId(long showId) {
-        return jdbcTemplate.query(selectSql("WHERE motto_show_id = ? ORDER BY id"), ROW_MAPPER, showId);
+        return jdbcTemplate.query(selectSql("WHERE motto_show_id = ? ORDER BY ranking_position IS NULL, ranking_position, id"), ROW_MAPPER, showId);
     }
 
     Optional<ContestEntry> findByIdAndShowId(long entryId, long showId) {
@@ -81,6 +81,37 @@ class ContestEntryRepository {
 
     boolean delete(long entryId, long showId) {
         return jdbcTemplate.update("DELETE FROM contest_entry WHERE id = ? AND motto_show_id = ?", entryId, showId) == 1;
+    }
+
+    boolean isBallotClosed(long showId) {
+        return Boolean.TRUE.equals(jdbcTemplate.queryForObject(
+                "SELECT ballot_closed_at IS NOT NULL FROM motto_show WHERE id = ?", Boolean.class, showId
+        ));
+    }
+
+    List<Long> findRankedEntryIds(long showId) {
+        return jdbcTemplate.query(
+                "SELECT id FROM contest_entry WHERE motto_show_id = ? AND ranking_position IS NOT NULL ORDER BY ranking_position",
+                (resultSet, rowNumber) -> resultSet.getLong(1), showId
+        );
+    }
+
+    void replaceRanking(long showId, List<Long> rankedEntryIds) {
+        jdbcTemplate.update("""
+                UPDATE contest_entry
+                SET ranking_position = NULL, updated_at = CURRENT_TIMESTAMP
+                WHERE motto_show_id = ?
+                """, showId);
+        for (int index = 0; index < rankedEntryIds.size(); index++) {
+            int changed = jdbcTemplate.update("""
+                    UPDATE contest_entry
+                    SET ranking_position = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ? AND motto_show_id = ?
+                    """, index + 1, rankedEntryIds.get(index), showId);
+            if (changed != 1) {
+                throw new IllegalStateException("A contest entry disappeared while closing a ranking gap.");
+            }
+        }
     }
 
     private static String selectSql(String whereClause) {

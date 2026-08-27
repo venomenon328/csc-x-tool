@@ -1,0 +1,47 @@
+databaseChangeLog:
+  - changeSet:
+      id: 006-ballot-ranking
+      author: venomenon328
+      changes:
+        - sql:
+            sql: |-
+              ALTER TABLE motto_show ADD COLUMN ballot_closed_at TEXT;
+
+              CREATE TABLE ballot_snapshot (
+                id INTEGER PRIMARY KEY,
+                motto_show_id INTEGER NOT NULL,
+                snapshot_number INTEGER NOT NULL
+                  CONSTRAINT ck_ballot_snapshot_number_positive CHECK (snapshot_number > 0),
+                created_at TEXT NOT NULL,
+                is_current INTEGER NOT NULL
+                  CONSTRAINT ck_ballot_snapshot_is_current_boolean CHECK (is_current IN (0, 1)),
+                CONSTRAINT fk_ballot_snapshot_motto_show
+                  FOREIGN KEY (motto_show_id) REFERENCES motto_show (id) ON DELETE RESTRICT,
+                CONSTRAINT uq_ballot_snapshot_show_number UNIQUE (motto_show_id, snapshot_number)
+              );
+
+              CREATE UNIQUE INDEX ux_ballot_snapshot_one_current_per_show
+                ON ballot_snapshot (motto_show_id) WHERE is_current = 1;
+
+              CREATE TABLE ballot_snapshot_item (
+                id INTEGER PRIMARY KEY,
+                ballot_snapshot_id INTEGER NOT NULL,
+                rank INTEGER NOT NULL
+                  CONSTRAINT ck_ballot_snapshot_item_rank_range CHECK (rank BETWEEN 1 AND 15),
+                contest_entry_id INTEGER,
+                artist_snapshot TEXT NOT NULL
+                  CONSTRAINT ck_ballot_snapshot_item_artist_not_blank CHECK (length(trim(artist_snapshot)) > 0),
+                title_snapshot TEXT NOT NULL
+                  CONSTRAINT ck_ballot_snapshot_item_title_not_blank CHECK (length(trim(title_snapshot)) > 0),
+                youtube_url_snapshot TEXT NOT NULL
+                  CONSTRAINT ck_ballot_snapshot_item_youtube_url_not_blank CHECK (length(trim(youtube_url_snapshot)) > 0),
+                CONSTRAINT fk_ballot_snapshot_item_snapshot
+                  FOREIGN KEY (ballot_snapshot_id) REFERENCES ballot_snapshot (id) ON DELETE CASCADE,
+                CONSTRAINT fk_ballot_snapshot_item_contest_entry
+                  FOREIGN KEY (contest_entry_id) REFERENCES contest_entry (id) ON DELETE SET NULL,
+                CONSTRAINT uq_ballot_snapshot_item_rank UNIQUE (ballot_snapshot_id, rank),
+                CONSTRAINT uq_ballot_snapshot_item_entry UNIQUE (ballot_snapshot_id, contest_entry_id)
+              );
+
+              CREATE INDEX ix_ballot_snapshot_motto_show ON ballot_snapshot (motto_show_id);
+              CREATE INDEX ix_ballot_snapshot_item_snapshot ON ballot_snapshot_item (ballot_snapshot_id);

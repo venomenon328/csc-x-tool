@@ -136,6 +136,10 @@ function ShowCard({ show, onRename }: { show: MottoShow, onRename: () => void })
     ? 'Eigene Einreichung: noch nicht festgelegt'
     : `Eigene Einreichung: ${show.selectedCandidate.artist} – ${show.selectedCandidate.title}`
   const candidateCount = show.candidateCount ?? 0
+  const rankedEntryCount = show.rankedEntryCount ?? 0
+  const ballotStatus = show.ballotClosedAt === null || show.ballotClosedAt === undefined
+    ? 'Top 15: noch nicht abgeschlossen'
+    : 'Top 15: abgeschlossen'
   return (
     <Card component="section" elevation={0} sx={{ border: 1, borderColor: 'divider' }}>
       <CardContent>
@@ -152,7 +156,10 @@ function ShowCard({ show, onRename }: { show: MottoShow, onRename: () => void })
           <Typography color="text.secondary" variant="body2">
             Gehört: {show.listenedEntryCount === 1 ? '1 Beitrag' : `${show.listenedEntryCount} Beiträge`}
           </Typography>
-          <Typography color="text.secondary" variant="body2">Rangliste und Ergebnis: noch nicht begonnen</Typography>
+          <Typography color="text.secondary" variant="body2">
+            Eingeordnet: {rankedEntryCount === 1 ? '1 Beitrag' : `${rankedEntryCount} Beiträge`}
+          </Typography>
+          <Typography color="text.secondary" variant="body2">{ballotStatus}</Typography>
         </Stack>
       </CardContent>
       <CardActions sx={{ flexWrap: 'wrap' }}>

@@ -18,5 +18,8 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: './src/test/setup.ts',
     globals: true,
+    // The application shell deliberately imports all working areas; allow Windows/CI enough time
+    // for the first jsdom interaction without weakening any assertion or retry logic.
+    testTimeout: 10_000,
   },
 })

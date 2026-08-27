@@ -7,6 +7,8 @@ export type MottoShow = {
   candidateCount: number
   contestEntryCount: number
   listenedEntryCount: number
+  rankedEntryCount: number
+  ballotClosedAt: string | null
   selectedCandidate: SelectedCandidate | null
 }
 
