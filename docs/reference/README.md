@@ -59,7 +59,6 @@ Die im Dokument beschriebene Gleichstandslogik der Gesamtauswertung. Die eigene 
 - eine eindeutige persönliche Top 15
 - die nachträgliche Teilnehmerzuordnung nach Abschluss der eigenen Abstimmung
 - Teilnehmerländer als Teil des ESC-inspirierten Contest-Rahmens
-- den Umstand, dass der Benutzer für die Philippinen antritt, soweit dies später für Darstellung oder Statistik nützlich wird
 
 ### Wird nicht verwendet für
 
@@ -71,6 +70,7 @@ Die im Dokument beschriebene Gleichstandslogik der Gesamtauswertung. Die eigene 
 - Quellenrecherche
 - Finalistenprüfung
 - Philippinen-Bonuskandidaten
+- einen eigenen Teilnehmer- oder Länderstammdatensatz für den Benutzer
 
 Diese Arbeit geschieht vor dem Eintragen und bleibt bewusst außerhalb des Tools.
 
