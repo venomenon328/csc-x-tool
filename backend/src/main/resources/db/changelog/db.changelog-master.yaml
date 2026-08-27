@@ -8,3 +8,6 @@ databaseChangeLog:
   - include:
       file: 003-candidate-management.yaml
       relativeToChangelogFile: true
+  - include:
+      file: 004-participant-master-data.yaml
+      relativeToChangelogFile: true

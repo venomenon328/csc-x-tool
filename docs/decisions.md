@@ -257,6 +257,12 @@ Der P2-Spike verwendet **`@hello-pangea/dnd` 18.0.1** in der echten Kandidatenli
 
 Der Spike zeigte keinen Kompatibilitätsblocker. Die Bibliothek bleibt daher die einzige DnD-Abhängigkeit; ihre Droppable-/Draggable-Struktur unterstützt auch den späteren Zwei-Listen-Fall in P5, ohne Ranking-Fachlogik vorwegzunehmen. Ein Drop sendet genau einen vollständigen Reorder-Command; bei Fehler stellt die Oberfläche den letzten serverbestätigten Stand wieder her.
 
+### A-015 – Lokaler ISO-Länderkatalog und Flaggenassets
+
+P3 führt einen versionierten, serverseitig validierten Katalog aller regulären ISO-3166-1-Alpha-2-Codes mit deutschen Ländernamen unter `backend/src/main/resources/countries/countries-de.json` ein. Die Teilnehmer-API liefert ausschließlich diesen Katalog, nach deutschem Anzeigenamen sortiert; das Frontend pflegt keine zweite Länderliste. Gespeichert werden nur aus diesem Katalog stammende, kanonisch großgeschriebene Codes.
+
+Für Flaggen verwendet das Frontend `country-flag-icons` **1.6.20** als lokal gebündelte MIT-Abhängigkeit in ihrem 3:2-React-Format. Weder Bilder noch Daten werden von einem CDN oder einer Flaggen-API geladen. `CountryFlag` kapselt die lokale Darstellung inklusive neutralem Fallback. Der erforderliche MIT-Lizenzhinweis ist in `frontend/THIRD-PARTY-NOTICES.md` enthalten und wird zusammen mit dem Produkt beibehalten.
+
 ## Bewusst vertagte Entscheidungen
 
 ### O-001 – Vollständiger Import-Testblock

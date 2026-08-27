@@ -17,6 +17,7 @@
     "allowImportingTsExtensions": false,
     "verbatimModuleSyntax": true,
     "moduleDetection": "force",
+    "types": ["node", "vitest/globals"],
     "noEmit": true,
     "jsx": "react-jsx"
   },

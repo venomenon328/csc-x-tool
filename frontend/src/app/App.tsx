@@ -13,6 +13,7 @@ import {
 import { BrowserRouter, Link as RouterLink, Route, Routes, useLocation } from 'react-router-dom'
 import { ShowOverview } from '../features/shows/ShowOverview'
 import { CandidatePage } from '../features/candidates/CandidatePage'
+import { ParticipantPage } from '../features/participants/ParticipantPage'
 import { ErrorBoundary } from './ErrorBoundary'
 import { theme } from './theme'
 
@@ -62,7 +63,7 @@ function AppShell() {
       <Box component="main" sx={{ flexGrow: 1, ml: '272px', p: { xs: 3, md: 5 } }}>
         <Routes>
           <Route element={<ShowOverview />} path="/" />
-          <Route element={<PlaceholderPage title="Teilnehmer" />} path="/participants" />
+          <Route element={<ParticipantPage />} path="/participants" />
           <Route element={<PlaceholderPage title="Daten und Sicherungen" />} path="/data" />
           <Route element={<CandidatePage />} path="/shows/:showId/candidates" />
           <Route element={<PlaceholderPage title="Abstimmung" />} path="/shows/:showId/voting" />
