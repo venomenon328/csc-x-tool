@@ -97,8 +97,10 @@ npm run build
 Terminal 1 startet das Backend auf `127.0.0.1:8080`:
 
 ```text
-./mvnw -pl backend spring-boot:run
+./mvnw -pl backend -Pdev spring-boot:run
 ```
+
+Das Maven-Profil `dev` lässt dabei bewusst die paketierte Frontend-JAR-Abhängigkeit weg, weil die Oberfläche im Entwicklungsbetrieb vom Vite-Server kommt. Dadurch funktioniert der Backend-Start auch auf einem frischen Checkout ohne vorheriges Installieren des Frontend-Artefakts in das lokale Maven-Repository.
 
 Terminal 2 startet den Vite-Entwicklungsserver mit Hot Reload auf `http://127.0.0.1:5173`:
 

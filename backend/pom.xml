@@ -15,11 +15,6 @@
 
   <dependencies>
     <dependency>
-      <groupId>de.venomenon</groupId>
-      <artifactId>csc-x-tool-frontend</artifactId>
-      <version>${project.version}</version>
-    </dependency>
-    <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-webmvc</artifactId>
     </dependency>
@@ -33,6 +28,26 @@
       <scope>test</scope>
     </dependency>
   </dependencies>
+
+  <profiles>
+    <profile>
+      <id>production-frontend</id>
+      <activation>
+        <activeByDefault>true</activeByDefault>
+      </activation>
+      <dependencies>
+        <dependency>
+          <groupId>de.venomenon</groupId>
+          <artifactId>csc-x-tool-frontend</artifactId>
+          <version>${project.version}</version>
+          <scope>runtime</scope>
+        </dependency>
+      </dependencies>
+    </profile>
+    <profile>
+      <id>dev</id>
+    </profile>
+  </profiles>
 
   <build>
     <plugins>

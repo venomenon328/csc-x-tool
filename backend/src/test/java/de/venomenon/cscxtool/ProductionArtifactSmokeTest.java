@@ -49,6 +49,8 @@ class ProductionArtifactSmokeTest {
         assertThat(missingApi.statusCode()).isEqualTo(404);
         assertThat(missingApi.body()).doesNotContain("<div id=\"root\">");
         assertThat(missingApi.body()).contains("\"status\":404");
+        assertThat(missingApi.body()).contains("\"code\":\"RESOURCE_NOT_FOUND\"");
+        assertThat(missingApi.body()).contains("\"message\":\"Die angeforderte Ressource wurde nicht gefunden.\"");
     }
 
     private HttpResponse<String> get(String path) throws Exception {

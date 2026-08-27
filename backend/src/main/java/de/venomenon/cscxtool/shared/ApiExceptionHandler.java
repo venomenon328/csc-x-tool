@@ -12,13 +12,13 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 class ApiExceptionHandler {
 
     @ExceptionHandler(NoResourceFoundException.class)
-    ResponseEntity<ApiError> noResourceFound(NoResourceFoundException exception, HttpServletRequest request) {
+    ResponseEntity<ApiError> noResourceFound(HttpServletRequest request) {
         HttpStatus status = HttpStatus.NOT_FOUND;
         ApiError error = new ApiError(
                 Instant.now(),
                 status.value(),
-                status.getReasonPhrase(),
-                exception.getMessage(),
+                "RESOURCE_NOT_FOUND",
+                "Die angeforderte Ressource wurde nicht gefunden.",
                 request.getRequestURI()
         );
         return ResponseEntity.status(status).body(error);

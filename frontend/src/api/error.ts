@@ -1,7 +1,7 @@
 export type ApiError = {
   timestamp: string
   status: number
-  error: string
+  code: string
   message: string
   path: string
 }
@@ -10,7 +10,7 @@ export async function readApiError(response: Response): Promise<ApiError> {
   const fallback: ApiError = {
     timestamp: new Date().toISOString(),
     status: response.status,
-    error: response.statusText || 'Unbekannter Fehler',
+    code: 'HTTP_ERROR',
     message: 'Die Anfrage konnte nicht verarbeitet werden.',
     path: new URL(response.url).pathname,
   }
