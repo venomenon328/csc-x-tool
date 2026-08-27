@@ -8,7 +8,8 @@ Dieser Ordner ist für das lokale Spring-Boot-Backend vorgesehen.
 - SQLite-Persistenz
 - Liquibase-Migrationen
 - fachliche Validierungen
-- Textblockimport und Importvorschau
+- Beitragsblockimport aus Rich-Text-/HTML- und Plaintext-Zwischenablagedaten
+- Importvorschau und Parserwarnungen
 - Kandidaten- und Ranking-Reihenfolgen
 - Top-15-Snapshots
 - Teilnehmerzuordnung
@@ -33,6 +34,21 @@ src/main/java/de/venomenon/cscxtool/
 
 Die Struktur ist vertikal nach Fachfunktion gegliedert. Gemeinsame Infrastruktur gehört nur dann nach `shared`, wenn sie tatsächlich von mehreren Modulen benötigt wird; `shared` ist kein höflicher Name für eine Gerümpelschublade.
 
+## Beitragsblockparser
+
+Das `entry`-Modul erhält eine klar getrennte Import-Preview-Komponente. Das Frontend liefert aus einem vom Benutzer ausgelösten Paste-Event nach Möglichkeit sowohl `text/html` als auch `text/plain`.
+
+Der Parser priorisiert:
+
+1. HTML mit anklickbaren Links
+2. markdownartige Links
+3. Plaintext mit expliziter URL
+4. Plaintext ohne URL als unvollständige Preview
+
+Im HTML-Normalfall werden Linktext und `href` extrahiert. Der sichtbare CSC-Linktext wird anschließend als `Interpret - Titel` interpretiert. Unsichere Trennungen oder ungewöhnliche URLs erzeugen Warnungen und bleiben vor dem Import korrigierbar.
+
+Clipboard-HTML gilt vollständig als nicht vertrauenswürdig. Es wird weder gerendert noch dauerhaft gespeichert. Für serverseitige HTML-Verarbeitung soll beim Bootstrap ein kleiner Parser wie jsoup geprüft werden; Regex auf beliebiges HTML ist nicht die Zielarchitektur.
+
 ## Geplante Ressourcen
 
 ```text
@@ -53,7 +69,11 @@ src/main/resources/
 - Snapshot-Integrität
 - Punktwerte und Ergebniszustände
 - Backup und Restore
-- Parser mit realistischen Textressourcen
+- Parser mit realistischen HTML-Clipboard-Fixtures
+- Markdown- und Plaintext-Fallbacks
+- Bindestriche und Unicode-Trenner in Linktexten
+- fehlende und ungewöhnliche Linkziele
+- Importvorschau ohne stillen Datenverlust
 
 ## Noch nicht enthalten
 
