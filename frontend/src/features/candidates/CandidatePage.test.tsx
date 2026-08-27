@@ -142,6 +142,20 @@ describe('CandidatePage', () => {
     expect(await screen.findByText('Verworfen – Titel')).toBeVisible()
   })
 
+  it('keeps drag-and-drop enabled for a fresh manual list without rejected candidates', async () => {
+    fetchMock.mockImplementation(async (input) => {
+      const path = String(input)
+      if (path === '/api/shows') return jsonResponse([{ id: 1, showNumber: 1, name: 'Show Eins', candidateCount: 1, selectedCandidate: null }])
+      if (path === '/api/shows/1/candidates') return jsonResponse([candidate])
+      throw new Error(`Unexpected request ${path}`)
+    })
+    render(<App />)
+
+    await screen.findByRole('heading', { name: 'Original – Titel', level: 3 })
+    expect(screen.getByRole('button', { name: 'Original verschieben' })).toBeEnabled()
+    expect(screen.queryByText(/Drag-and-drop ist nur bei manueller Reihenfolge/)).not.toBeInTheDocument()
+  })
+
   it('requires confirmation for candidate deletion and blocks deleting the active submission', async () => {
     const user = userEvent.setup()
     const selectedCandidate = { id: candidate.id, artist: candidate.artist, title: candidate.title, youtubeUrl: candidate.youtubeUrl }

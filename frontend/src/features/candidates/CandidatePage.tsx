@@ -83,7 +83,8 @@ export function CandidatePage() {
     () => candidates === null ? [] : visibleCandidates(candidates, search, statusFilter, showRejected, sortMode),
     [candidates, search, showRejected, sortMode, statusFilter],
   )
-  const dragEnabled = sortMode === 'MANUAL' && search.trim() === '' && statusFilter === 'ALL' && showRejected && !reordering
+  const hasHiddenRejectedCandidates = !showRejected && candidates?.some((candidate) => candidate.status === 'VERWORFEN') === true
+  const dragEnabled = sortMode === 'MANUAL' && search.trim() === '' && statusFilter === 'ALL' && !hasHiddenRejectedCandidates && !reordering
 
   const load = useCallback(async () => {
     if (showId === null) return
