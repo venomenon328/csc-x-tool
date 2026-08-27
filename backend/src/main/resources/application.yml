@@ -1,0 +1,13 @@
+server:
+  address: 127.0.0.1
+
+spring:
+  application:
+    name: csc-x-tool
+  mvc:
+    problemdetails:
+      enabled: false
+
+logging:
+  level:
+    org.springframework: INFO

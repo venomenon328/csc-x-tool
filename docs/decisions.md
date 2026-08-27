@@ -239,6 +239,12 @@ Die Baseline sieht vor, `text/html` und `text/plain` vom Frontend an einen Impor
 
 Falls ein technischer Spike eine kleine Vorverarbeitung im Browser erforderlich macht, darf die reine Linkextraktion verschoben werden; Vorschau, Validierung und fachliche Importregeln bleiben zentral reproduzierbar.
 
+### A-012 – Material UI für die Komponentenbasis
+
+Der P0-Spike legt **Material UI 9.3.1** als Komponentenbibliothek fest; die benötigten Emotion-Pakete werden lokal mit dem Frontend gebündelt. Der Spike prüft das dunkle Theme sowie Drawer, Formularfeld, Tabelle und Dialog in einer kleinen rein technischen App-Shell. Die Bibliothek liefert dafür eine konsistente, gut wartbare React-Basis ohne eigenen Runtime-Service und ohne in späteren Paketen Fachlogik vorwegzunehmen.
+
+Diese Entscheidung umfasst ausdrücklich **keine** Drag-and-drop-Bibliothek. Deren Wahl bleibt für die echte Kandidatenliste in P2 offen.
+
 ## Bewusst vertagte Entscheidungen
 
 ### O-001 – Vollständiger Import-Testblock
@@ -255,9 +261,9 @@ Offen bis ein reales oder gewünschtes Einreichungsformat vorliegt.
 
 Werden anhand realer Daten separat priorisiert. Das initiale Datenmodell soll die spätere Auswertung ermöglichen, ohne bereits eine Berichtssammlung vorzutäuschen.
 
-### O-004 – Konkrete UI- und Drag-and-drop-Bibliothek
+### O-004 – Drag-and-drop-Bibliothek
 
-Wird nach einem kleinen technischen Spike entschieden. Maßgeblich ist die Bedienqualität, nicht die Loyalität zu einem JavaScript-Paket.
+Die konkrete Bibliothek wird erst mit der echten Kandidatenliste in P2 gewählt. Maßgeblich sind mehrere Listen, Auto-Scroll, Einfügeindikator und die Desktopbedienung; P0 zieht keine Drag-and-drop-Implementierung vor.
 
 ### O-005 – HTML-Parser und genaue Parseraufteilung
 

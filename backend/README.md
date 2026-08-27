@@ -1,23 +1,16 @@
 # Backend
 
-Dieser Ordner ist für das lokale Spring-Boot-Backend vorgesehen.
+Dieses Modul enthält das lokale Spring-Boot-Backend. Es liefert die API und im Produktionsbuild die vom Frontend-Modul bereitgestellte SPA aus.
 
 ## Verantwortlichkeiten
 
 - REST-API und Auslieferung des gebauten Frontends
-- SQLite-Persistenz
-- Liquibase-Migrationen
-- fachliche Validierungen
-- Beitragsblockimport aus Rich-Text-/HTML- und Plaintext-Zwischenablagedaten
-- Importvorschau und Parserwarnungen
-- Kandidaten- und Ranking-Reihenfolgen
-- Top-15-Snapshots
-- Teilnehmerzuordnung
-- Ergebniserfassung und Summen
-- Backup, Restore und Exporte
-- Health-Check und kontrolliertes Herunterfahren
+- `GET /api/system/health` als technischer Health-Endpunkt
+- einheitliches API-Fehlerobjekt als Basis für spätere Endpunkte
+- Auslieferung der gebauten React-SPA unter derselben Origin
+- explizite SPA-Weiterleitung nur für die vorgesehenen Browserrouten
 
-## Geplante fachliche Module
+## P0-Paketgrenze
 
 ```text
 src/main/java/de/venomenon/cscxtool/
@@ -32,24 +25,9 @@ src/main/java/de/venomenon/cscxtool/
 └── shared/
 ```
 
-Die Struktur ist vertikal nach Fachfunktion gegliedert. Gemeinsame Infrastruktur gehört nur dann nach `shared`, wenn sie tatsächlich von mehreren Modulen benötigt wird; `shared` ist kein höflicher Name für eine Gerümpelschublade.
+Die Verzeichnisse `system` und `shared` enthalten in P0 nur technische Grundlagen. Es gibt noch keine Datenbank, Liquibase-Migration, fachlichen API-Endpunkt, Parser oder Launcher-Code. Diese Pakete folgen erst gemäß Roadmap.
 
-## Beitragsblockparser
-
-Das `entry`-Modul erhält eine klar getrennte Import-Preview-Komponente. Das Frontend liefert aus einem vom Benutzer ausgelösten Paste-Event nach Möglichkeit sowohl `text/html` als auch `text/plain`.
-
-Der Parser priorisiert:
-
-1. HTML mit anklickbaren Links
-2. markdownartige Links
-3. Plaintext mit expliziter URL
-4. Plaintext ohne URL als unvollständige Preview
-
-Im HTML-Normalfall werden Linktext und `href` extrahiert. Der sichtbare CSC-Linktext wird anschließend als `Interpret - Titel` interpretiert. Unsichere Trennungen oder ungewöhnliche URLs erzeugen Warnungen und bleiben vor dem Import korrigierbar.
-
-Clipboard-HTML gilt vollständig als nicht vertrauenswürdig. Es wird weder gerendert noch dauerhaft gespeichert. Für serverseitige HTML-Verarbeitung soll beim Bootstrap ein kleiner Parser wie jsoup geprüft werden; Regex auf beliebiges HTML ist nicht die Zielarchitektur.
-
-## Geplante Ressourcen
+## Ressourcen
 
 ```text
 src/main/resources/
@@ -58,23 +36,8 @@ src/main/resources/
 └── static/
 ```
 
-`static` enthält im paketierten Build das erzeugte Frontend. Im Entwicklungsbetrieb darf Vite einen eigenen Dev-Server verwenden; im installierten Produkt existiert nur der Spring-Boot-Prozess.
+Das Frontend-Modul paketiert die Vite-Ausgabe unter `META-INF/resources`; Spring Boot findet sie als statische Anwendung auf dem Klassenpfad. Im Entwicklungsbetrieb kann Vite einen eigenen Dev-Server verwenden; im Produktionsbetrieb existiert nur der Spring-Boot-Prozess.
 
-## Testschwerpunkte
+## Tests
 
-- reale temporäre SQLite-Datenbanken
-- Migrationen von leer bis aktuell
-- Reorder-Transaktionen
-- Abschlussvalidierungen
-- Snapshot-Integrität
-- Punktwerte und Ergebniszustände
-- Backup und Restore
-- Parser mit realistischen HTML-Clipboard-Fixtures
-- Markdown- und Plaintext-Fallbacks
-- Bindestriche und Unicode-Trenner in Linktexten
-- fehlende und ungewöhnliche Linkziele
-- Importvorschau ohne stillen Datenverlust
-
-## Noch nicht enthalten
-
-In diesem Dokumentations-Bootstrap werden bewusst noch keine Builddateien, Anwendungsklassen oder Migrationen angelegt. Sie folgen in einem eigenen technischen Bootstrap-Inkrement.
+Der Smoke-Test startet das Backend mit dem paketierten Frontend und prüft `/`, alle vorgesehenen direkten SPA-Routen, `/api/system/health` und den Schutz davor, dass ein unbekannter `/api/**`-Pfad im SPA-Fallback landet.
