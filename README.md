@@ -119,7 +119,7 @@ Im produktiven Betrieb verwendet das Tool ausschließlich `%LOCALAPPDATA%/CSC-X-
 Für Entwicklung, Tests oder einen isolierten Start wird der Root explizit gesetzt, zum Beispiel:
 
 ```powershell
-.\mvnw.cmd -Dcsc-x-tool.storage.root=C:\temp\csc-x-tool-data -pl backend -Pdev spring-boot:run
+.\mvnw.cmd "-Dspring-boot.run.arguments=--csc-x-tool.storage.root=C:\temp\csc-x-tool-data" -pl backend -Pdev spring-boot:run
 ```
 
 Zusätzlich wird die dokumentierte Umgebungsvariable `CSC_X_TOOL_STORAGE_ROOT` explizit als Alias für denselben Override unterstützt. Ist weder dieser Override noch `LOCALAPPDATA` verfügbar, bricht der Start mit einer pfadbezogenen Fehlermeldung ab.
