@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -41,6 +42,15 @@ class ContestEntryController {
             @Valid @RequestBody UpdateContestEntryRequest request
     ) {
         return ContestEntryResponse.from(service.update(showId, entryId, request));
+    }
+
+    @PutMapping("/{entryId}/participant")
+    ContestEntryResponse updateParticipantAssignment(
+            @PathVariable long showId,
+            @PathVariable long entryId,
+            @RequestBody(required = false) UpdateParticipantAssignmentRequest request
+    ) {
+        return ContestEntryResponse.from(service.updateParticipantAssignment(showId, entryId, request));
     }
 
     @DeleteMapping("/{entryId}")

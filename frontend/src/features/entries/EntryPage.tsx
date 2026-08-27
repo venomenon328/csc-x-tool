@@ -26,6 +26,8 @@ import { BallotPanel } from '../ballot/BallotPanel'
 import { BallotApiError, closeBallot, fetchBallot, reopenBallot, reorderBallot, type Ballot } from '../ballot/api'
 import { combineBallotLists, persistDroppedBallot, splitBallotEntries } from '../ballot/ballotReorder'
 import { fetchShows, type MottoShow } from '../shows/api'
+import { fetchParticipants, type Participant } from '../participants/api'
+import { ParticipantSelect } from '../participants/ParticipantSelect'
 import { YoutubePlayerPanel } from '../songs/YoutubePlayerPanel'
 import { ClipboardImportArea } from './ClipboardImportArea'
 import { ImportPreview, type EditableImportLine } from './ImportPreview'
@@ -36,6 +38,7 @@ import {
   fetchEntries,
   importEntries,
   previewImport,
+  updateParticipantAssignment,
   updateEntry,
   type ContestEntry,
   type ContestEntryInput,
@@ -49,12 +52,14 @@ export function EntryPage() {
   const [shows, setShows] = useState<MottoShow[] | null>(null)
   const [entries, setEntries] = useState<ContestEntry[] | null>(null)
   const [ballot, setBallot] = useState<Ballot | null>(null)
+  const [participants, setParticipants] = useState<Participant[] | null>(null)
   const [error, setError] = useState<EntryApiError | null>(null)
   const [activeEntryId, setActiveEntryId] = useState<number | null>(null)
   const [search, setSearch] = useState('')
   const [onlyUnlistened, setOnlyUnlistened] = useState(false)
   const [onlyRelisten, setOnlyRelisten] = useState(false)
   const [onlyUnranked, setOnlyUnranked] = useState(false)
+  const [onlyWithoutParticipant, setOnlyWithoutParticipant] = useState(false)
   const [previewLines, setPreviewLines] = useState<EditableImportLine[] | null>(null)
   const [importing, setImporting] = useState(false)
   const [editing, setEditing] = useState<ContestEntry | null>(null)
@@ -64,13 +69,15 @@ export function EntryPage() {
   const [reordering, setReordering] = useState(false)
 
   const show = shows?.find((item) => item.id === showId) ?? null
+  const participantAssignmentOpen = ballot?.ballotClosedAt !== null && ballot?.ballotClosedAt !== undefined
   const visibleEntries = useMemo(() => (entries ?? []).filter((entry) => {
     const needle = search.trim().toLocaleLowerCase()
     return (!needle || `${entry.artist} ${entry.title}`.toLocaleLowerCase().includes(needle))
       && (!onlyUnlistened || !entry.listened)
       && (!onlyRelisten || entry.relisten)
       && (!onlyUnranked || entry.rankingPosition === null)
-  }), [entries, onlyRelisten, onlyUnlistened, onlyUnranked, search])
+      && (!onlyWithoutParticipant || entry.participantId === null)
+  }), [entries, onlyRelisten, onlyUnlistened, onlyUnranked, onlyWithoutParticipant, search])
   const activeEntry = activeEntryId === null ? null : visibleEntries.find((entry) => entry.id === activeEntryId) ?? null
   const activeIndex = activeEntry === null ? -1 : visibleEntries.findIndex((entry) => entry.id === activeEntry.id)
 
@@ -82,9 +89,11 @@ export function EntryPage() {
       setShows(loadedShows)
       setEntries(loadedEntries)
       setBallot(loadedBallot)
+      setParticipants(loadedBallot.ballotClosedAt === null ? null : await fetchParticipants({ includeInactive: true }))
     } catch (caught) {
       setEntries(null)
       setBallot(null)
+      setParticipants(null)
       setError(asEntryApiError(caught, `/api/shows/${showId}/entries`))
     }
   }, [showId])
@@ -204,7 +213,9 @@ export function EntryPage() {
     if (showId === null) return
     setError(null)
     try {
-      setBallot(await closeBallot(showId))
+      const closedBallot = await closeBallot(showId)
+      setBallot(closedBallot)
+      setParticipants(await fetchParticipants({ includeInactive: true }))
       void reloadShows()
     } catch (caught) {
       setError(asEntryApiError(caught, `/api/shows/${showId}/ballot/close`))
@@ -216,9 +227,22 @@ export function EntryPage() {
     setError(null)
     try {
       setBallot(await reopenBallot(showId))
+      setParticipants(null)
       void reloadShows()
     } catch (caught) {
       setError(asEntryApiError(caught, `/api/shows/${showId}/ballot/reopen`))
+    }
+  }
+
+  async function saveParticipantAssignment(entry: ContestEntry, participant: Participant | null) {
+    if (showId === null) return
+    setError(null)
+    try {
+      const updated = await updateParticipantAssignment(showId, entry.id, participant?.id ?? null)
+      setEntries((current) => current?.map((item) => item.id === updated.id ? updated : item) ?? null)
+      void reloadShows()
+    } catch (caught) {
+      setError(asEntryApiError(caught, `/api/shows/${showId}/entries/${entry.id}/participant`))
     }
   }
 
@@ -235,6 +259,16 @@ export function EntryPage() {
           <Typography color="text.secondary" sx={{ mt: 1 }}>
             Wettbewerbsbeiträge importieren, anhören, bewerten und als eindeutige Top 15 abschließen.
           </Typography>
+          {show.ballotClosedAt != null && <Stack spacing={0.5} sx={{ mt: 1 }}>
+            <Typography color="text.secondary" variant="body2">
+              Teilnehmerzuordnung: {show.assignedEntryCount}/{show.contestEntryCount} · Ergebnis: {show.resultsClosedAt === null ? `${show.knownActiveResultCount}/${show.activeParticipantCount} aktive Teilnehmer erfasst` : 'abgeschlossen'}
+            </Typography>
+            <Typography color="text.secondary" variant="body2">
+              Berechnet: {show.calculatedTotalPoints ?? 0} Punkte{show.officialTotalPoints != null ? ` · Offiziell: ${show.officialTotalPoints} Punkte` : ''}
+            </Typography>
+            {show.officialTotalDifference != null && show.officialTotalDifference !== 0 && <Alert severity="warning">Die offizielle Summe weicht um {Math.abs(show.officialTotalDifference)} Punkte ab.</Alert>}
+            {show.finalPlace != null && <Typography color="text.secondary" variant="body2">Endplatzierung: {show.finalPlace}. Platz{show.finalPlaceTied ? ' (geteilt)' : ''}</Typography>}
+          </Stack>}
         </Box>
       )}
       {error !== null && <ApiErrorNotice error={error.apiError} />}
@@ -256,6 +290,7 @@ export function EntryPage() {
                   <FormControlLabel control={<Checkbox checked={onlyUnlistened} onChange={(event) => setOnlyUnlistened(event.target.checked)} />} label="Ungehört" />
                   <FormControlLabel control={<Checkbox checked={onlyRelisten} onChange={(event) => setOnlyRelisten(event.target.checked)} />} label="Erneut anhören" />
                   <FormControlLabel control={<Checkbox checked={onlyUnranked} onChange={(event) => setOnlyUnranked(event.target.checked)} />} label="Noch nicht eingeordnet" />
+                  {participantAssignmentOpen && <FormControlLabel control={<Checkbox checked={onlyWithoutParticipant} onChange={(event) => setOnlyWithoutParticipant(event.target.checked)} />} label="Ohne Teilnehmer" />}
                 </Stack>
                 {entries.length === 0 && <Alert severity="info">Noch keine Wettbewerbsbeiträge. Lege einen Beitrag an oder füge einen CSC-Beitragsblock ein.</Alert>}
                 {entries.length > 0 && visibleEntries.length === 0 && <Alert severity="info">Kein Beitrag erfüllt die aktuelle Suche und Filterkombination.</Alert>}
@@ -267,7 +302,7 @@ export function EntryPage() {
                         <ListItemButton aria-current={activeEntry?.id === entry.id ? 'true' : undefined} onClick={() => setActiveEntryId(entry.id)} selected={activeEntry?.id === entry.id}>
                           <ListItemText
                             primary={`${entry.artist} – ${entry.title}`}
-                            secondary={`${entry.listened ? 'Gehört' : 'Ungelesen'} · ${entry.relisten ? 'erneut anhören' : 'keine Wiedervorlage'}${entry.rankingPosition === null ? ' · noch nicht eingeordnet' : ` · Rang ${entry.rankingPosition}`}`}
+                            secondary={`${entry.listened ? 'Gehört' : 'Ungelesen'} · ${entry.relisten ? 'erneut anhören' : 'keine Wiedervorlage'}${entry.rankingPosition === null ? ' · noch nicht eingeordnet' : ` · Rang ${entry.rankingPosition}`}${participantAssignmentOpen ? ` · ${entry.participantId === null ? 'ohne Teilnehmer' : participantLabel(entry.participantId, participants)}` : ''}`}
                           />
                         </ListItemButton>
                       </Box>
@@ -296,6 +331,21 @@ export function EntryPage() {
                       <Button onClick={() => setEditing(activeEntry)}>Bearbeiten</Button>
                       <Button color="error" onClick={() => setEntryPendingDeletion(activeEntry)}>Löschen</Button>
                     </Stack>
+                    {participantAssignmentOpen && (
+                      <Stack spacing={1}>
+                        <Typography component="h2" variant="subtitle1">Teilnehmerzuordnung</Typography>
+                        {participants === null ? <Skeleton height={56} variant="rounded" /> : (
+                          <ParticipantSelect
+                            includeInactive
+                            label="Teilnehmer dieses Beitrags"
+                            onChange={(participant) => void saveParticipantAssignment(activeEntry, participant)}
+                            options={participants}
+                            value={participants.find((participant) => participant.id === activeEntry.participantId) ?? null}
+                          />
+                        )}
+                        {activeEntry.participantId === null && <Alert severity="warning">Diesem Beitrag ist noch kein Teilnehmer zugeordnet.</Alert>}
+                      </Stack>
+                    )}
                   </>
                 )}
               </Stack>
@@ -363,4 +413,9 @@ function asEntryApiError(error: unknown, path: string): EntryApiError {
     timestamp: new Date().toISOString(), status: 0, code: 'NETWORK_ERROR',
     message: 'Die Wettbewerbsbeiträge konnten nicht verarbeitet werden.', path,
   })
+}
+
+function participantLabel(participantId: number, participants: Participant[] | null): string {
+  const participant = participants?.find((item) => item.id === participantId)
+  return participant === undefined ? 'Teilnehmer wird geladen' : participant.displayName
 }

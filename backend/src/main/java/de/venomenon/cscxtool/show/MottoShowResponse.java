@@ -10,7 +10,16 @@ record MottoShowResponse(
         int contestEntryCount,
         int listenedEntryCount,
         int rankedEntryCount,
+        int assignedEntryCount,
+        int activeParticipantCount,
+        int knownActiveResultCount,
         Instant ballotClosedAt,
+        Instant resultsClosedAt,
+        int calculatedTotalPoints,
+        Integer officialTotalPoints,
+        Integer officialTotalDifference,
+        Integer finalPlace,
+        boolean finalPlaceTied,
         SelectedCandidateResponse selectedCandidate
 ) {
 
@@ -23,7 +32,16 @@ record MottoShowResponse(
                 show.contestEntryCount(),
                 show.listenedEntryCount(),
                 show.rankedEntryCount(),
+                show.assignedEntryCount(),
+                show.activeParticipantCount(),
+                show.knownActiveResultCount(),
                 show.ballotClosedAt(),
+                show.resultsClosedAt(),
+                show.calculatedTotalPoints(),
+                show.officialTotalPoints(),
+                show.officialTotalPoints() == null ? null : show.officialTotalPoints() - show.calculatedTotalPoints(),
+                show.finalPlace(),
+                show.finalPlaceTied(),
                 show.selectedCandidate() == null ? null : SelectedCandidateResponse.from(show.selectedCandidate())
         );
     }

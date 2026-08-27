@@ -140,6 +140,12 @@ function ShowCard({ show, onRename }: { show: MottoShow, onRename: () => void })
   const ballotStatus = show.ballotClosedAt === null || show.ballotClosedAt === undefined
     ? 'Top 15: noch nicht abgeschlossen'
     : 'Top 15: abgeschlossen'
+  const assignmentProgress = `${show.assignedEntryCount ?? 0}/${show.contestEntryCount ?? 0}`
+  const resultStatus = show.ballotClosedAt === null || show.ballotClosedAt === undefined
+    ? 'Ergebnis: nach Abschluss der Top 15'
+    : show.resultsClosedAt === null || show.resultsClosedAt === undefined
+    ? `Ergebnis: ${show.knownActiveResultCount ?? 0}/${show.activeParticipantCount ?? 0} aktive Teilnehmer erfasst`
+    : 'Ergebnis: abgeschlossen'
   return (
     <Card component="section" elevation={0} sx={{ border: 1, borderColor: 'divider' }}>
       <CardContent>
@@ -160,6 +166,11 @@ function ShowCard({ show, onRename }: { show: MottoShow, onRename: () => void })
             Eingeordnet: {rankedEntryCount === 1 ? '1 Beitrag' : `${rankedEntryCount} Beiträge`}
           </Typography>
           <Typography color="text.secondary" variant="body2">{ballotStatus}</Typography>
+          {show.ballotClosedAt !== null && show.ballotClosedAt !== undefined && <Typography color="text.secondary" variant="body2">Teilnehmer zugeordnet: {assignmentProgress}</Typography>}
+          <Typography color="text.secondary" variant="body2">{resultStatus}</Typography>
+          {show.ballotClosedAt !== null && show.ballotClosedAt !== undefined && <Typography color="text.secondary" variant="body2">Berechnet: {show.calculatedTotalPoints ?? 0} Punkte{show.officialTotalPoints != null ? ` · Offiziell: ${show.officialTotalPoints} Punkte` : ''}</Typography>}
+          {show.officialTotalDifference != null && show.officialTotalDifference !== 0 && <Alert severity="warning">Die offizielle Summe weicht um {Math.abs(show.officialTotalDifference)} Punkte ab.</Alert>}
+          {show.finalPlace !== null && <Typography color="text.secondary" variant="body2">Endplatzierung: {show.finalPlace}. Platz{show.finalPlaceTied ? ' (geteilt)' : ''}</Typography>}
         </Stack>
       </CardContent>
       <CardActions sx={{ flexWrap: 'wrap' }}>

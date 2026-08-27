@@ -1,0 +1,19 @@
+databaseChangeLog:
+  - include:
+      file: db/changelog/001-create-motto-show.yaml
+      relativeToChangelogFile: false
+  - include:
+      file: db/changelog/002-seed-motto-shows.yaml
+      relativeToChangelogFile: false
+  - include:
+      file: db/changelog/003-candidate-management.yaml
+      relativeToChangelogFile: false
+  - include:
+      file: db/changelog/004-participant-master-data.yaml
+      relativeToChangelogFile: false
+  - include:
+      file: db/changelog/005-contest-entry-import.yaml
+      relativeToChangelogFile: false
+  - include:
+      file: db/changelog/006-ballot-ranking.yaml
+      relativeToChangelogFile: false
