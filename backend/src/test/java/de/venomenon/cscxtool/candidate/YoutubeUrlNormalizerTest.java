@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import de.venomenon.cscxtool.shared.ApiBadRequestException;
+import de.venomenon.cscxtool.song.YoutubeUrlNormalizer;
 import org.junit.jupiter.api.Test;
 
 class YoutubeUrlNormalizerTest {

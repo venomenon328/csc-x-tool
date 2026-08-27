@@ -1,6 +1,6 @@
 import { Alert, Box, Button, Link, Stack, Typography } from '@mui/material'
 import { useEffect, useRef, useState } from 'react'
-import type { Candidate } from './api'
+import type { PlayableSong } from './PlayableSong'
 
 function videoIdFromYoutubeUrl(youtubeUrl: string): string | null {
   try {
@@ -26,33 +26,35 @@ function startSecondsFromYoutubeUrl(youtubeUrl: string): number | null {
 }
 
 /** A single reusable player surface; rows deliberately never mount their own iframe. */
-export function YoutubePlayerPanel({ candidate }: { candidate: Candidate | null }) {
-  const [failedCandidateId, setFailedCandidateId] = useState<number | null>(null)
+export function YoutubePlayerPanel({ song, emptyMessage, contextLabel }: {
+  song: PlayableSong | null
+  emptyMessage: string
+  contextLabel: string
+}) {
+  const [failedSongId, setFailedSongId] = useState<number | null>(null)
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
-  const videoId = candidate === null ? null : videoIdFromYoutubeUrl(candidate.youtubeUrl)
-  const startSeconds = candidate === null ? null : startSecondsFromYoutubeUrl(candidate.youtubeUrl)
+  const videoId = song === null ? null : videoIdFromYoutubeUrl(song.youtubeUrl)
+  const startSeconds = song === null ? null : startSecondsFromYoutubeUrl(song.youtubeUrl)
   const embedUrl = videoId === null ? null : `https://www.youtube-nocookie.com/embed/${videoId}${startSeconds === null ? '' : `?start=${startSeconds}`}`
-  const embedFailed = candidate !== null && failedCandidateId === candidate.id
+  const embedFailed = song !== null && failedSongId === song.id
 
   useEffect(() => {
     const iframe = iframeRef.current
-    if (iframe === null || candidate === null || embedUrl === null || embedFailed) return
-    const handleError = () => setFailedCandidateId(candidate.id)
+    if (iframe === null || song === null || embedUrl === null || embedFailed) return
+    const handleError = () => setFailedSongId(song.id)
     iframe.addEventListener('error', handleError)
     return () => iframe.removeEventListener('error', handleError)
-  }, [candidate, embedFailed, embedUrl])
+  }, [song, embedFailed, embedUrl])
 
-  if (candidate === null) {
-    return (
-      <Alert severity="info">Wähle einen Kandidaten aus, um ihn hier anzuhören.</Alert>
-    )
+  if (song === null) {
+    return <Alert severity="info">{emptyMessage}</Alert>
   }
 
   return (
     <Stack component="section" spacing={1.5} aria-label="YouTube-Player" sx={{ minWidth: 0 }}>
       <Box>
-        <Typography component="h2" variant="h6">{candidate.artist} – {candidate.title}</Typography>
-        <Typography color="text.secondary" variant="body2">Aktuell ausgewählter Kandidat</Typography>
+        <Typography component="h2" variant="h6">{song.artist} – {song.title}</Typography>
+        <Typography color="text.secondary" variant="body2">{contextLabel}</Typography>
       </Box>
       {embedUrl !== null && !embedFailed && (
         <Box sx={{ aspectRatio: '16 / 9', maxWidth: 760, width: '100%' }}>
@@ -64,7 +66,7 @@ export function YoutubePlayerPanel({ candidate }: { candidate: Candidate | null 
             referrerPolicy="strict-origin-when-cross-origin"
             src={embedUrl}
             sx={{ border: 0, height: '100%', width: '100%' }}
-            title={`YouTube: ${candidate.artist} – ${candidate.title}`}
+            title={`YouTube: ${song.artist} – ${song.title}`}
           />
         </Box>
       )}
@@ -73,7 +75,7 @@ export function YoutubePlayerPanel({ candidate }: { candidate: Candidate | null 
           Der eingebettete Player konnte lokal nicht geladen werden. Der externe Link bleibt verfügbar.
         </Alert>
       )}
-      <Link href={candidate.youtubeUrl} rel="noreferrer" target="_blank">
+      <Link href={song.youtubeUrl} rel="noreferrer" target="_blank">
         <Button component="span" variant="outlined">Auf YouTube öffnen</Button>
       </Link>
     </Stack>

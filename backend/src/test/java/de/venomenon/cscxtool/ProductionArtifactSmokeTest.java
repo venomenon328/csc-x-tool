@@ -35,6 +35,7 @@ class ProductionArtifactSmokeTest {
         HttpResponse<String> shows = get("/api/shows");
         HttpResponse<String> countries = get("/api/countries");
         HttpResponse<String> participants = get("/api/participants");
+        HttpResponse<String> entries = get("/api/shows/1/entries");
 
         assertThat(home.statusCode()).isEqualTo(200);
         assertThat(home.body()).contains("<div id=\"root\">");
@@ -46,6 +47,8 @@ class ProductionArtifactSmokeTest {
         assertThat(countries.body()).contains("\"code\":\"DE\"", "\"name\":\"Deutschland\"");
         assertThat(participants.statusCode()).isEqualTo(200);
         assertThat(participants.body()).isEqualTo("[]");
+        assertThat(entries.statusCode()).isEqualTo(200);
+        assertThat(entries.body()).isEqualTo("[]");
     }
 
     @Test

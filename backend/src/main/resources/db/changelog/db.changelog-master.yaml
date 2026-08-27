@@ -11,3 +11,6 @@ databaseChangeLog:
   - include:
       file: 004-participant-master-data.yaml
       relativeToChangelogFile: true
+  - include:
+      file: 005-contest-entry-import.yaml
+      relativeToChangelogFile: true

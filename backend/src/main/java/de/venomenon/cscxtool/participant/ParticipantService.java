@@ -1,6 +1,7 @@
 package de.venomenon.cscxtool.participant;
 
 import de.venomenon.cscxtool.shared.ApiBadRequestException;
+import de.venomenon.cscxtool.shared.ApiConflictException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -64,6 +65,13 @@ class ParticipantService {
 
     @Transactional
     void delete(long participantId) {
+        requireParticipant(participantId);
+        if (repository.isReferencedByContestEntry(participantId)) {
+            throw new ApiConflictException(
+                    "PARTICIPANT_IN_USE",
+                    "Der Teilnehmer kann nicht gel\u00f6scht werden, weil ihm Wettbewerbsbeitr\u00e4ge zugeordnet sind."
+            );
+        }
         if (!repository.delete(participantId)) {
             throw new ParticipantNotFoundException(participantId);
         }

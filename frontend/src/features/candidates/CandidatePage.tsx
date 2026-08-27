@@ -41,7 +41,7 @@ import {
   type CandidateInput,
   type CandidateStatus,
 } from './api'
-import { YoutubePlayerPanel } from './YoutubePlayerPanel'
+import { YoutubePlayerPanel } from '../songs/YoutubePlayerPanel'
 import { visibleCandidates, type SortMode, type StatusFilter } from './candidateListUtils'
 import { persistDroppedCandidateOrder } from './candidateReorder'
 
@@ -323,7 +323,7 @@ export function CandidatePage() {
           )}
         </Box>
         <Paper component="aside" elevation={0} sx={{ border: 1, borderColor: 'divider', p: 2, position: { md: 'sticky' }, top: 24, width: { md: 390, xs: '100%' } }}>
-          <YoutubePlayerPanel candidate={activeCandidate} />
+          <YoutubePlayerPanel contextLabel="Aktuell ausgewählter Kandidat" emptyMessage="Wähle einen Kandidaten aus, um ihn hier anzuhören." song={activeCandidate} />
         </Paper>
       </Stack>
       <EditCandidateDialog candidate={editing} key={editing?.id ?? 'none'} onClose={() => setEditing(null)} onSave={(candidate) => void saveCandidate(candidate)} />
