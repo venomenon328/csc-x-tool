@@ -41,7 +41,7 @@ describe('App', () => {
     vi.unstubAllGlobals()
   })
 
-  it('loads the persistent show overview and offers the prepared work-area navigation', async () => {
+  it('loads a compact accessible show overview and keeps the prepared work-area navigation', async () => {
     fetchMock.mockResolvedValue(jsonResponse(shows))
     render(<App />)
 
@@ -54,20 +54,35 @@ describe('App', () => {
     expect(card.getByText('Artist')).toBeVisible()
     expect(card.getByText('Titel')).toBeVisible()
     expect(card.getByText('2 Kandidaten')).toBeVisible()
-    expect(card.getByText('18 / 18')).toBeVisible()
-    expect(card.getByText('16 / 18')).toBeVisible()
-    expect(card.getByText('15 / 18')).toBeVisible()
-    expect(card.getByText('Noch nicht abgeschlossen')).toBeVisible()
-    expect(card.getByText('Nach Abschluss der Top 15 verfügbar')).toBeVisible()
+
+    const entriesMetric = card.getByRole('group', { name: '18 Beiträge' })
+    expect(within(entriesMetric).getByText('18')).toBeVisible()
+    expect(within(entriesMetric).getByText('Beiträge')).toBeVisible()
+    expect(card.queryByText('18 / 18')).not.toBeInTheDocument()
+
+    const listenedMetric = card.getByRole('group', { name: '16 von 18 Beiträgen gehört' })
+    expect(within(listenedMetric).getByText('16 / 18')).toBeVisible()
+    expect(within(listenedMetric).getByText('Gehört')).toBeVisible()
+
+    const rankedMetric = card.getByRole('group', { name: '15 von 18 Beiträgen eingeordnet' })
+    expect(within(rankedMetric).getByText('15 / 18')).toBeVisible()
+    expect(within(rankedMetric).getByText('Eingeordnet')).toBeVisible()
+
+    expect(card.getByLabelText('Top 15: Offen')).toBeVisible()
+    expect(card.getByLabelText('Ergebnis: Wartet auf Top 15')).toBeVisible()
     expect(card.getByRole('link', { name: 'Kandidaten' })).toHaveAttribute('href', '/shows/1/candidates')
     expect(card.getByRole('link', { name: 'Abstimmung' })).toHaveAttribute('href', '/shows/1/voting')
     expect(card.getByRole('link', { name: 'Ergebnis' })).toHaveAttribute('href', '/shows/1/result')
 
     const tbaCard = screen.getByRole('heading', { name: 'TBA' }).closest('section')
     expect(tbaCard).not.toBeNull()
-    expect(within(tbaCard!).getByText('Noch nicht festgelegt')).toBeVisible()
-    expect(within(tbaCard!).getByText('0 Kandidaten')).toBeVisible()
-    expect(within(tbaCard!).getAllByText('0')).toHaveLength(3)
+    const emptyCard = within(tbaCard!)
+    expect(emptyCard.getByText('Noch nicht festgelegt')).toBeVisible()
+    expect(emptyCard.getByText('0 Kandidaten')).toBeVisible()
+    expect(emptyCard.getByRole('group', { name: '0 Beiträge' })).toBeVisible()
+    expect(emptyCard.getByRole('group', { name: '0 Beiträge gehört' })).toBeVisible()
+    expect(emptyCard.getByRole('group', { name: '0 Beiträge eingeordnet' })).toBeVisible()
+    expect(emptyCard.queryByText('0 / 0')).not.toBeInTheDocument()
   })
 
   it('renders a clear empty state when the API has no shows', async () => {
@@ -101,9 +116,9 @@ describe('App', () => {
     }]))
     render(<App />)
 
-    expect(await screen.findByText('Abgeschlossen')).toBeVisible()
-    expect(screen.getByText('17 / 18 Beiträge')).toBeVisible()
-    expect(screen.getByText('18 / 20 aktive Teilnehmer erfasst')).toBeVisible()
+    expect(await screen.findByLabelText('Top 15: Abgeschlossen')).toBeVisible()
+    expect(screen.getByLabelText('Zugeordnet: 17 / 18 Beiträge')).toBeVisible()
+    expect(screen.getByLabelText('Ergebnis: In Arbeit · 18 / 20 erfasst')).toBeVisible()
     expect(screen.getByText('42 Punkte')).toBeVisible()
     expect(screen.getByText('Berechnet')).toBeVisible()
     expect(screen.getByText('40 Punkte')).toBeVisible()
@@ -119,6 +134,8 @@ describe('App', () => {
     render(<App />)
 
     expect(await screen.findAllByText('Abgeschlossen')).toHaveLength(2)
+    expect(screen.getByLabelText('Top 15: Abgeschlossen')).toBeVisible()
+    expect(screen.getByLabelText('Ergebnis: Abgeschlossen')).toBeVisible()
   })
 
   it('persists a renamed show and updates the overview', async () => {

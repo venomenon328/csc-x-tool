@@ -4,7 +4,6 @@ import {
   Box,
   Button,
   Card,
-  CardActions,
   CardContent,
   Checkbox,
   Chip,
@@ -14,19 +13,39 @@ import {
   DialogTitle,
   Divider,
   FormControlLabel,
-  Link,
+  IconButton,
+  InputAdornment,
+  Menu,
   MenuItem,
   Paper,
   Select,
   Skeleton,
   Stack,
   TextField,
+  Tooltip,
   Typography,
 } from '@mui/material'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link as RouterLink, useParams } from 'react-router-dom'
+import {
+  AddIcon,
+  CopyIcon,
+  DeleteIcon,
+  DragIcon,
+  EditIcon,
+  ExternalLinkIcon,
+  FilterIcon,
+  InfoIcon,
+  MoreIcon,
+  PlayIcon,
+  RejectedIcon,
+  SearchIcon,
+  SortIcon,
+  SubmissionIcon,
+} from '../../components/AppIcons'
 import { ApiErrorNotice } from '../../components/ApiErrorNotice'
 import { fetchShows, type MottoShow } from '../shows/api'
+import { YoutubePlayerPanel } from '../songs/YoutubePlayerPanel'
 import {
   CandidateApiError,
   clearSubmission,
@@ -41,7 +60,6 @@ import {
   type CandidateInput,
   type CandidateStatus,
 } from './api'
-import { YoutubePlayerPanel } from '../songs/YoutubePlayerPanel'
 import { visibleCandidates, type SortMode, type StatusFilter } from './candidateListUtils'
 import { persistDroppedCandidateOrder } from './candidateReorder'
 
@@ -258,6 +276,12 @@ export function CandidatePage() {
     return <Alert severity="error">Die Mottoshow-ID ist ungültig.</Alert>
   }
 
+  const visibleCountLabel = candidates === null
+    ? null
+    : displayedCandidates.length === candidates.length
+    ? `${candidates.length} insgesamt`
+    : `${displayedCandidates.length} / ${candidates.length} sichtbar`
+
   return (
     <Stack spacing={3}>
       <Button component={RouterLink} sx={{ alignSelf: 'flex-start' }} to="/">Zur Übersicht</Button>
@@ -292,7 +316,10 @@ export function CandidatePage() {
       />
       <Stack direction={{ md: 'row', xs: 'column' }} spacing={3} sx={{ alignItems: 'flex-start' }}>
         <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Typography component="h2" variant="h5">Kandidaten</Typography>
+          <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+            <Typography component="h2" variant="h5">Kandidaten</Typography>
+            {visibleCountLabel !== null && <Chip label={visibleCountLabel} size="small" />}
+          </Stack>
           <CandidateControls
             onSearch={setSearch}
             onShowRejected={setShowRejected}
@@ -304,14 +331,14 @@ export function CandidatePage() {
             statusFilter={statusFilter}
           />
           {!dragEnabled && candidates !== null && (
-            <Alert severity="info" sx={{ mt: 2 }}>
+            <InlineHint>
               Drag-and-drop ist nur bei manueller Reihenfolge ohne Suche oder Statusfilter aktiv.
-            </Alert>
+            </InlineHint>
           )}
           {dragEnabled && hiddenRejectedCount > 0 && (
-            <Typography color="text.secondary" sx={{ mt: 2 }} variant="body2">
+            <InlineHint>
               {hiddenRejectedCount === 1 ? 'Ein verworfener Kandidat bleibt' : `${hiddenRejectedCount} verworfene Kandidaten bleiben`} ausgeblendet und {hiddenRejectedCount === 1 ? 'wird' : 'werden'} bei der Reihenfolge vollständig berücksichtigt.
-            </Typography>
+            </InlineHint>
           )}
           {candidates === null && error === null && <CandidateLoading />}
           {candidates !== null && displayedCandidates.length === 0 && (
@@ -337,7 +364,11 @@ export function CandidatePage() {
             />
           )}
         </Box>
-        <Paper component="aside" elevation={0} sx={{ border: 1, borderColor: 'divider', p: 2, position: { md: 'sticky' }, top: 24, width: { md: 390, xs: '100%' } }}>
+        <Paper
+          component="aside"
+          elevation={0}
+          sx={{ backgroundColor: 'action.hover', border: 1, borderColor: 'divider', p: 2, position: { md: 'sticky' }, top: 24, width: { md: 390, xs: '100%' } }}
+        >
           <YoutubePlayerPanel contextLabel="Aktuell ausgewählter Kandidat" emptyMessage="Wähle einen Kandidaten aus, um ihn hier anzuhören." song={activeCandidate} />
         </Paper>
       </Stack>
@@ -364,21 +395,64 @@ function SubmissionHeader({ selectedCandidate, onClear, onCopy }: {
   onCopy: (value: string) => void
 }) {
   if (selectedCandidate === null) {
-    return <Alert severity="info">Eigene Einreichung: noch nicht festgelegt.</Alert>
+    return (
+      <Paper aria-label="Eigene Einreichung" component="section" elevation={0} sx={{ backgroundColor: 'action.hover', border: 1, borderColor: 'divider', p: 1.5 }}>
+        <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center' }}>
+          <Box sx={{ alignItems: 'center', borderRadius: '50%', color: 'text.secondary', display: 'inline-flex', justifyContent: 'center', p: 1 }}>
+            <SubmissionIcon aria-hidden="true" />
+          </Box>
+          <Box>
+            <Typography color="text.secondary" variant="overline">Eigene Einreichung</Typography>
+            <Typography variant="body2">Noch nicht festgelegt</Typography>
+          </Box>
+        </Stack>
+      </Paper>
+    )
   }
+
   return (
-    <Alert severity="success" action={<Button color="inherit" onClick={onClear} size="small">Aufheben</Button>}>
-      <Stack spacing={0.5}>
-        <Typography><strong>Eigene Einreichung:</strong> {selectedCandidate.artist} – {selectedCandidate.title}</Typography>
-        <Link href={selectedCandidate.youtubeUrl} rel="noreferrer" sx={{ overflowWrap: 'anywhere' }} target="_blank">
-          {selectedCandidate.youtubeUrl}
-        </Link>
-        <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }} useFlexGap>
-          <Button onClick={() => void onCopy(`${selectedCandidate.artist} – ${selectedCandidate.title}`)} size="small">Interpret &amp; Titel kopieren</Button>
-          <Button onClick={() => void onCopy(selectedCandidate.youtubeUrl)} size="small">Link kopieren</Button>
+    <Paper
+      aria-label="Eigene Einreichung"
+      component="section"
+      elevation={0}
+      sx={{ backgroundColor: 'action.hover', border: 1, borderColor: 'success.main', borderLeft: 3, p: 1.5 }}
+    >
+      <Stack direction={{ sm: 'row', xs: 'column' }} spacing={2} sx={{ alignItems: { sm: 'center', xs: 'stretch' }, justifyContent: 'space-between' }}>
+        <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center', minWidth: 0 }}>
+          <Box sx={{ alignItems: 'center', borderRadius: '50%', color: 'success.main', display: 'inline-flex', flexShrink: 0, justifyContent: 'center', p: 1 }}>
+            <SubmissionIcon aria-hidden="true" />
+          </Box>
+          <Box sx={{ minWidth: 0 }}>
+            <Typography color="text.secondary" variant="overline">Eigene Einreichung</Typography>
+            <Typography component="h2" sx={{ overflowWrap: 'anywhere' }} variant="h6">{selectedCandidate.title}</Typography>
+            <Typography color="text.secondary" sx={{ overflowWrap: 'anywhere' }} variant="body2">{selectedCandidate.artist}</Typography>
+          </Box>
+        </Stack>
+        <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', flexWrap: 'wrap', justifyContent: { sm: 'flex-end' } }} useFlexGap>
+          <Tooltip title="Interpret und Titel kopieren">
+            <IconButton aria-label="Interpret & Titel kopieren" color="primary" onClick={() => void onCopy(`${selectedCandidate.artist} – ${selectedCandidate.title}`)} size="small">
+              <CopyIcon aria-hidden="true" fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="YouTube-Link kopieren">
+            <IconButton aria-label="Link kopieren" color="primary" onClick={() => void onCopy(selectedCandidate.youtubeUrl)} size="small">
+              <CopyIcon aria-hidden="true" fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          <Button
+            component="a"
+            href={selectedCandidate.youtubeUrl}
+            rel="noreferrer"
+            size="small"
+            startIcon={<ExternalLinkIcon aria-hidden="true" fontSize="small" />}
+            target="_blank"
+          >
+            Auf YouTube öffnen
+          </Button>
+          <Button color="warning" onClick={onClear} size="small">Aufheben</Button>
         </Stack>
       </Stack>
-    </Alert>
+    </Paper>
   )
 }
 
@@ -391,13 +465,20 @@ function QuickEntry({ input, onChange, onSave, saving, open, onToggle }: {
   onToggle: () => void
 }) {
   return (
-    <Paper component="section" elevation={0} sx={{ border: 1, borderColor: 'divider', p: { xs: 1.5, md: 2 } }}>
+    <Paper
+      component="section"
+      elevation={0}
+      sx={{ backgroundColor: open ? 'background.paper' : 'action.hover', border: 1, borderColor: 'divider', p: { xs: 1.25, md: open ? 2 : 1.25 } }}
+    >
       <Stack direction="row" spacing={2} sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
-        <Box>
-          <Typography component="h2" variant="h6">Kandidaten schnell erfassen</Typography>
-          {!open && <Typography color="text.secondary" variant="body2">Interpret, Titel und YouTube-Link direkt hinzufügen.</Typography>}
-        </Box>
-        <Button aria-expanded={open} onClick={onToggle} variant={open ? 'text' : 'contained'}>
+        <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center', minWidth: 0 }}>
+          <Box sx={{ color: 'secondary.main', display: 'inline-flex', flexShrink: 0 }}><AddIcon aria-hidden="true" /></Box>
+          <Box sx={{ minWidth: 0 }}>
+            <Typography component="h2" variant="h6">Kandidaten schnell erfassen</Typography>
+            {!open && <Typography color="text.secondary" variant="body2">Songdaten direkt hinzufügen.</Typography>}
+          </Box>
+        </Stack>
+        <Button aria-expanded={open} onClick={onToggle} startIcon={!open ? <AddIcon aria-hidden="true" fontSize="small" /> : undefined} variant={open ? 'text' : 'contained'}>
           {open ? 'Erfassung einklappen' : 'Kandidat hinzufügen'}
         </Button>
       </Stack>
@@ -425,23 +506,62 @@ function CandidateControls({ search, statusFilter, showRejected, sortMode, onSea
   onSortMode: (value: SortMode) => void
 }) {
   return (
-    <Paper component="section" elevation={0} sx={{ border: 1, borderColor: 'divider', mt: 1.5, p: 1.25 }}>
-      <Stack aria-label="Kandidaten filtern und sortieren" direction={{ md: 'row', xs: 'column' }} role="toolbar" spacing={1.25}>
-      <TextField label="Interpret oder Titel suchen" onChange={(event) => onSearch(event.target.value)} size="small" sx={{ flex: 1, minWidth: { md: 220 } }} value={search} />
-      <TextField label="Status" onChange={(event) => onStatusFilter(event.target.value as StatusFilter)} select size="small" value={statusFilter}>
-        <MenuItem value="ALL">Alle Status</MenuItem>
-        {statuses.map((status) => <MenuItem key={status.value} value={status.value}>{status.label}</MenuItem>)}
-      </TextField>
-      <TextField label="Darstellung sortieren" onChange={(event) => onSortMode(event.target.value as SortMode)} select size="small" value={sortMode}>
-        <MenuItem value="MANUAL">Manuelle Reihenfolge</MenuItem>
-        <MenuItem value="ARTIST">Interpret</MenuItem>
-        <MenuItem value="TITLE">Titel</MenuItem>
-        <MenuItem value="STATUS">Status</MenuItem>
-        <MenuItem value="CREATED">Erfassungszeitpunkt</MenuItem>
-      </TextField>
-      <FormControlLabel control={<Checkbox checked={showRejected} onChange={(event) => onShowRejected(event.target.checked)} />} label="Verworfene anzeigen" sx={{ ml: { md: 0 } }} />
+    <Paper component="section" elevation={0} sx={{ backgroundColor: 'action.hover', border: 1, borderColor: 'divider', mt: 1.5, p: 1 }}>
+      <Stack aria-label="Kandidaten filtern und sortieren" direction={{ md: 'row', xs: 'column' }} role="toolbar" spacing={1}>
+        <TextField
+          label="Kandidaten suchen"
+          onChange={(event) => onSearch(event.target.value)}
+          placeholder="Interpret oder Titel"
+          size="small"
+          slotProps={{ input: { startAdornment: <InputAdornment position="start"><SearchIcon aria-hidden="true" color="secondary" fontSize="small" /></InputAdornment> } }}
+          sx={{ flex: 1, minWidth: { md: 220 } }}
+          value={search}
+        />
+        <TextField
+          label="Status"
+          onChange={(event) => onStatusFilter(event.target.value as StatusFilter)}
+          select
+          size="small"
+          slotProps={{ input: { startAdornment: <InputAdornment position="start"><FilterIcon aria-hidden="true" color="secondary" fontSize="small" /></InputAdornment> } }}
+          value={statusFilter}
+        >
+          <MenuItem value="ALL">Alle Status</MenuItem>
+          {statuses.map((status) => <MenuItem key={status.value} value={status.value}>{status.label}</MenuItem>)}
+        </TextField>
+        <TextField
+          label="Sortierung"
+          onChange={(event) => onSortMode(event.target.value as SortMode)}
+          select
+          size="small"
+          slotProps={{ input: { startAdornment: <InputAdornment position="start"><SortIcon aria-hidden="true" color="secondary" fontSize="small" /></InputAdornment> } }}
+          value={sortMode}
+        >
+          <MenuItem value="MANUAL">Manuelle Reihenfolge</MenuItem>
+          <MenuItem value="ARTIST">Interpret</MenuItem>
+          <MenuItem value="TITLE">Titel</MenuItem>
+          <MenuItem value="STATUS">Status</MenuItem>
+          <MenuItem value="CREATED">Erfassungszeitpunkt</MenuItem>
+        </TextField>
+        <Button
+          aria-label="Verworfene anzeigen"
+          aria-pressed={showRejected}
+          onClick={() => onShowRejected(!showRejected)}
+          startIcon={<RejectedIcon aria-hidden="true" fontSize="small" />}
+          variant={showRejected ? 'contained' : 'outlined'}
+        >
+          Verworfene
+        </Button>
       </Stack>
     </Paper>
+  )
+}
+
+function InlineHint({ children }: { children: ReactNode }) {
+  return (
+    <Stack direction="row" role="note" spacing={0.75} sx={{ alignItems: 'center', color: 'text.secondary', mt: 1.25, px: 0.5 }}>
+      <InfoIcon aria-hidden="true" fontSize="small" />
+      <Typography color="inherit" variant="caption">{children}</Typography>
+    </Stack>
   )
 }
 
@@ -467,81 +587,108 @@ function ManualCandidateList({ candidates, dragEnabled, reordering, selectedCand
             {...provided.droppableProps}
             aria-label="Manuelle Kandidatenreihenfolge"
             ref={provided.innerRef}
-            sx={{ mt: 1.5 }}
+            sx={{ mt: 1.25 }}
           >
             {snapshot.isDraggingOver && <Alert aria-live="polite" severity="info" sx={{ mb: 1, pointerEvents: 'none' }}>Loslassen, um den Kandidaten an dieser Position einzufügen.</Alert>}
             <Stack spacing={0.75}>
               {candidates.map((candidate, index) => (
                 <Draggable draggableId={String(candidate.id)} index={index} isDragDisabled={!dragEnabled} key={candidate.id}>
-                  {(dragProvided, dragSnapshot) => (
-                    <Card
-                      {...dragProvided.draggableProps}
-                      elevation={dragSnapshot.isDragging ? 8 : 0}
-                      ref={dragProvided.innerRef}
-                      sx={{
-                        border: 1,
-                        borderColor: candidate.id === selectedCandidateId ? 'success.main' : dragSnapshot.isDragging ? 'secondary.main' : 'divider',
-                        bgcolor: candidate.id === activeCandidateId ? 'action.selected' : 'background.paper',
-                        opacity: candidate.status === 'VERWORFEN' ? 0.72 : 1,
-                        outline: dragSnapshot.isDragging ? '2px solid' : 'none',
-                        outlineColor: 'secondary.main',
-                        transition: 'border-color 120ms ease, background-color 120ms ease, box-shadow 120ms ease',
-                      }}
-                    >
-                      <CardContent sx={{ pb: 0.75, pt: 1.25, px: { xs: 1.25, md: 1.5 } }}>
-                        <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-start' }}>
-                          <Box
-                            {...dragProvided.dragHandleProps}
-                            aria-disabled={!dragEnabled}
-                            aria-label={`${candidate.artist} verschieben`}
-                            sx={{
-                              alignItems: 'center',
-                              borderRadius: 1,
-                              color: dragEnabled ? 'inherit' : 'action.disabled',
-                              cursor: dragSnapshot.isDragging ? 'grabbing' : dragEnabled ? 'grab' : 'default',
-                              display: 'inline-flex',
-                              fontSize: 20,
-                              justifyContent: 'center',
-                              minHeight: 32,
-                              minWidth: 40,
-                              mt: 0.25,
-                              px: 0.5,
-                            }}
-                          >⋮⋮</Box>
-                          <Box sx={{ flex: 1, minWidth: 0 }}>
-                            <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }} useFlexGap>
-                              <Typography component="h3" variant="subtitle1">{candidate.artist} – {candidate.title}</Typography>
-                              {candidate.id === selectedCandidateId && <Chip color="success" label="Einreichung" size="small" />}
-                              {candidate.id === activeCandidateId && <Chip color="secondary" label="Wird angehört" size="small" />}
-                              {candidate.status === 'VERWORFEN' && <Chip label="Verworfen" size="small" />}
+                  {(dragProvided, dragSnapshot) => {
+                    const selected = candidate.id === selectedCandidateId
+                    const active = candidate.id === activeCandidateId
+                    return (
+                      <Card
+                        {...dragProvided.draggableProps}
+                        elevation={dragSnapshot.isDragging ? 8 : 0}
+                        ref={dragProvided.innerRef}
+                        sx={{
+                          border: 1,
+                          borderColor: selected ? 'success.main' : dragSnapshot.isDragging ? 'secondary.main' : 'divider',
+                          bgcolor: active ? 'action.selected' : 'background.paper',
+                          opacity: candidate.status === 'VERWORFEN' ? 0.72 : 1,
+                          outline: dragSnapshot.isDragging ? '2px solid' : 'none',
+                          outlineColor: 'secondary.main',
+                          transition: 'border-color 120ms ease, background-color 120ms ease, box-shadow 120ms ease',
+                        }}
+                      >
+                        <CardContent sx={{ p: { xs: 1, md: 1.25 }, '&:last-child': { pb: { xs: 1, md: 1.25 } } }}>
+                          <Stack direction={{ sm: 'row', xs: 'column' }} spacing={1} sx={{ alignItems: { sm: 'center', xs: 'stretch' } }}>
+                            <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flex: 1, minWidth: 0 }}>
+                              <Tooltip title={dragEnabled ? 'Ziehen, um die Reihenfolge zu ändern' : 'Drag-and-drop ist in dieser Ansicht nicht verfügbar'}>
+                                <Box
+                                  {...dragProvided.dragHandleProps}
+                                  aria-disabled={!dragEnabled}
+                                  aria-label={`${candidate.artist} verschieben`}
+                                  sx={{
+                                    alignItems: 'center',
+                                    borderRadius: 1,
+                                    color: dragEnabled ? 'text.secondary' : 'action.disabled',
+                                    cursor: dragSnapshot.isDragging ? 'grabbing' : dragEnabled ? 'grab' : 'default',
+                                    display: 'inline-flex',
+                                    flexShrink: 0,
+                                    justifyContent: 'center',
+                                    minHeight: 40,
+                                    minWidth: 40,
+                                  }}
+                                >
+                                  <DragIcon aria-hidden="true" />
+                                </Box>
+                              </Tooltip>
+                              <Box sx={{ flex: 1, minWidth: 0 }}>
+                                <Typography component="h3" sx={{ fontWeight: 650, overflowWrap: 'anywhere' }} variant="subtitle1">{candidate.title}</Typography>
+                                <Typography color="text.secondary" sx={{ overflowWrap: 'anywhere' }} variant="body2">{candidate.artist}</Typography>
+                                {(selected || active || candidate.status === 'VERWORFEN') && (
+                                  <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap', mt: 0.5 }} useFlexGap>
+                                    {selected && <Chip icon={<SubmissionIcon aria-hidden="true" />} label="Einreichung" size="small" />}
+                                    {active && <Chip color="secondary" icon={<PlayIcon aria-hidden="true" />} label="Wird angehört" size="small" />}
+                                    {candidate.status === 'VERWORFEN' && <Chip icon={<RejectedIcon aria-hidden="true" />} label="Verworfen" size="small" />}
+                                  </Stack>
+                                )}
+                                {candidate.comment !== null && candidate.comment.trim() !== '' && (
+                                  <Typography color="text.secondary" sx={{ mt: 0.5, overflowWrap: 'anywhere' }} variant="body2">{candidate.comment}</Typography>
+                                )}
+                              </Box>
                             </Stack>
-                            {candidate.comment !== null && <Typography color="text.secondary" sx={{ mt: 0.5 }} variant="body2">{candidate.comment}</Typography>}
-                          </Box>
-                          <Select
-                            aria-label={`Status von ${candidate.artist}`}
-                            onChange={(event) => onChangeStatus(candidate, event.target.value as CandidateStatus)}
-                            size="small"
-                            value={candidate.status}
-                          >
-                            {statuses.map((status) => <MenuItem key={status.value} value={status.value}>{status.label}</MenuItem>)}
-                          </Select>
-                        </Stack>
-                      </CardContent>
-                      <CardActions sx={{ justifyContent: 'space-between', pl: 6.25, pr: 1.25, pt: 0, pb: 0.75 }}>
-                        <Button onClick={() => onPlay(candidate)} size="small">Anhören</Button>
-                        <Button onClick={() => onEdit(candidate)} size="small">Bearbeiten</Button>
-                        <Button onClick={() => onCopy(candidate)} size="small">In andere Show kopieren</Button>
-                        {candidate.id !== selectedCandidateId && <Button onClick={() => onSelectSubmission(candidate)} size="small">Als Einreichung wählen</Button>}
-                        <Button
-                          color="error"
-                          disabled={candidate.id === selectedCandidateId}
-                          onClick={() => onDelete(candidate)}
-                          size="small"
-                          title={candidate.id === selectedCandidateId ? 'Einreichung zuerst aufheben oder ersetzen' : undefined}
-                        >Löschen</Button>
-                      </CardActions>
-                    </Card>
-                  )}
+                            <Stack direction="row" spacing={0.25} sx={{ alignItems: 'center', flexShrink: 0, justifyContent: { xs: 'flex-end' } }}>
+                              <Select
+                                aria-label={`Status von ${candidate.artist}`}
+                                onChange={(event) => onChangeStatus(candidate, event.target.value as CandidateStatus)}
+                                size="small"
+                                sx={{ minWidth: 132 }}
+                                value={candidate.status}
+                              >
+                                {statuses.map((status) => <MenuItem key={status.value} value={status.value}>{status.label}</MenuItem>)}
+                              </Select>
+                              <Tooltip title="Anhören">
+                                <IconButton
+                                  aria-label={`${candidate.artist} – ${candidate.title} anhören`}
+                                  color={active ? 'secondary' : 'primary'}
+                                  onClick={() => onPlay(candidate)}
+                                  size="small"
+                                >
+                                  <PlayIcon aria-hidden="true" fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                              {!selected && (
+                                <Tooltip title="Als Einreichung wählen">
+                                  <IconButton aria-label="Als Einreichung wählen" color="primary" onClick={() => onSelectSubmission(candidate)} size="small">
+                                    <SubmissionIcon aria-hidden="true" fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+                              )}
+                              <CandidateOverflowMenu
+                                candidate={candidate}
+                                onCopy={() => onCopy(candidate)}
+                                onDelete={() => onDelete(candidate)}
+                                onEdit={() => onEdit(candidate)}
+                                selected={selected}
+                              />
+                            </Stack>
+                          </Stack>
+                        </CardContent>
+                      </Card>
+                    )
+                  }}
                 </Draggable>
               ))}
               {provided.placeholder}
@@ -551,6 +698,59 @@ function ManualCandidateList({ candidates, dragEnabled, reordering, selectedCand
         )}
       </Droppable>
     </DragDropContext>
+  )
+}
+
+function CandidateOverflowMenu({ candidate, selected, onEdit, onCopy, onDelete }: {
+  candidate: Candidate
+  selected: boolean
+  onEdit: () => void
+  onCopy: () => void
+  onDelete: () => void
+}) {
+  const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null)
+  const open = anchorEl !== null
+
+  function run(action: () => void) {
+    setAnchorEl(null)
+    action()
+  }
+
+  return (
+    <>
+      <Tooltip title="Weitere Aktionen">
+        <IconButton
+          aria-controls={open ? `candidate-${candidate.id}-actions` : undefined}
+          aria-expanded={open ? 'true' : undefined}
+          aria-haspopup="menu"
+          aria-label={`Weitere Aktionen für ${candidate.artist} – ${candidate.title}`}
+          color="primary"
+          onClick={(event) => setAnchorEl(event.currentTarget)}
+          size="small"
+        >
+          <MoreIcon aria-hidden="true" fontSize="small" />
+        </IconButton>
+      </Tooltip>
+      <Menu anchorEl={anchorEl} id={`candidate-${candidate.id}-actions`} onClose={() => setAnchorEl(null)} open={open}>
+        <MenuItem onClick={() => run(onEdit)}>
+          <EditIcon aria-hidden="true" fontSize="small" sx={{ mr: 1 }} />
+          Bearbeiten
+        </MenuItem>
+        <MenuItem onClick={() => run(onCopy)}>
+          <CopyIcon aria-hidden="true" fontSize="small" sx={{ mr: 1 }} />
+          In andere Show kopieren
+        </MenuItem>
+        <MenuItem
+          disabled={selected}
+          onClick={() => run(onDelete)}
+          sx={{ color: selected ? 'text.disabled' : 'error.main' }}
+          title={selected ? 'Einreichung zuerst aufheben oder ersetzen' : undefined}
+        >
+          <DeleteIcon aria-hidden="true" fontSize="small" sx={{ mr: 1 }} />
+          Löschen
+        </MenuItem>
+      </Menu>
+    </>
   )
 }
 
@@ -661,7 +861,7 @@ function DeleteCandidateDialog({ candidate, onClose, onConfirm }: { candidate: C
 }
 
 function CandidateLoading() {
-  return <Stack spacing={1} sx={{ mt: 2 }}>{Array.from({ length: 3 }, (_, index) => <Skeleton height={120} key={index} variant="rounded" />)}</Stack>
+  return <Stack spacing={1} sx={{ mt: 1.5 }}>{Array.from({ length: 3 }, (_, index) => <Skeleton height={76} key={index} variant="rounded" />)}</Stack>
 }
 
 function asCandidateApiError(error: unknown, path: string): CandidateApiError {

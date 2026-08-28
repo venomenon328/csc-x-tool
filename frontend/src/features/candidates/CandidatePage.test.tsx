@@ -55,7 +55,8 @@ describe('CandidatePage', () => {
     await user.clear(youtubeUrl)
     await user.type(youtubeUrl, 'https://youtu.be/dQw4w9WgXcQ')
     await user.click(screen.getByRole('button', { name: 'Kandidat anlegen' }))
-    await screen.findByText('Neu – Song')
+    expect(await screen.findByRole('heading', { name: 'Song', level: 3 })).toBeVisible()
+    expect(screen.getByText('Neu')).toBeVisible()
     expect(fetchMock).toHaveBeenCalledWith('/api/shows/1/candidates', expect.objectContaining({
       method: 'POST', body: JSON.stringify({ artist: 'Neu', title: 'Song', youtubeUrl: 'https://youtu.be/dQw4w9WgXcQ', comment: '' }),
     }))
@@ -71,7 +72,8 @@ describe('CandidatePage', () => {
     })
     render(<App />)
 
-    await screen.findByRole('heading', { name: 'Original – Titel', level: 3 })
+    await screen.findByRole('heading', { name: 'Titel', level: 3 })
+    expect(screen.getByText('Original')).toBeVisible()
     const addButton = screen.getByRole('button', { name: 'Kandidat hinzufügen' })
     expect(addButton).toHaveAttribute('aria-expanded', 'false')
     await user.click(addButton)
@@ -86,7 +88,7 @@ describe('CandidatePage', () => {
     expect(reopenedArtist).toHaveValue('Entwurf')
   })
 
-  it('offers multi-show copying and conscious submission replacement and clearing', async () => {
+  it('presents the submission as a compact surface and keeps copy, open, replace and clear workflows', async () => {
     const user = userEvent.setup()
     const shows = [
       { id: 1, showNumber: 1, name: 'Show Eins', candidateCount: 1, selectedCandidate: { id: 99, artist: 'Alt', title: 'Beitrag', youtubeUrl: candidate.youtubeUrl } },
@@ -103,9 +105,16 @@ describe('CandidatePage', () => {
     })
     render(<App />)
 
-    await screen.findByRole('heading', { name: 'Original – Titel', level: 3 })
-    expect(screen.getByRole('link', { name: candidate.youtubeUrl })).toHaveAttribute('href', candidate.youtubeUrl)
-    await user.click(screen.getByRole('button', { name: 'In andere Show kopieren' }))
+    await screen.findByRole('heading', { name: 'Titel', level: 3 })
+    const submission = screen.getByRole('region', { name: 'Eigene Einreichung' })
+    expect(within(submission).getByRole('heading', { name: 'Beitrag', level: 2 })).toBeVisible()
+    expect(within(submission).getByText('Alt')).toBeVisible()
+    expect(within(submission).getByRole('button', { name: 'Interpret & Titel kopieren' })).toBeVisible()
+    expect(within(submission).getByRole('button', { name: 'Link kopieren' })).toBeVisible()
+    expect(within(submission).getByRole('link', { name: 'Auf YouTube öffnen' })).toHaveAttribute('href', candidate.youtubeUrl)
+
+    await user.click(screen.getByRole('button', { name: 'Weitere Aktionen für Original – Titel' }))
+    await user.click(screen.getByRole('menuitem', { name: 'In andere Show kopieren' }))
     expect(screen.getByRole('heading', { name: 'In andere Mottoshow kopieren' })).toBeVisible()
     await user.click(screen.getByLabelText('Show 2: Show Zwei'))
     await user.click(screen.getByRole('button', { name: 'Kopieren' }))
@@ -140,7 +149,8 @@ describe('CandidatePage', () => {
     })
     render(<App />)
 
-    await screen.findByRole('heading', { name: 'Original – Titel', level: 3 })
+    await screen.findByRole('heading', { name: 'Titel', level: 3 })
+    expect(screen.getByRole('region', { name: 'Eigene Einreichung' })).toHaveTextContent('Noch nicht festgelegt')
     await user.click(screen.getByRole('button', { name: 'Als Einreichung wählen' }))
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/shows/1/submission', expect.objectContaining({
@@ -149,9 +159,9 @@ describe('CandidatePage', () => {
     expect(screen.queryByRole('dialog', { name: 'Einreichung bewusst ersetzen?' })).not.toBeInTheDocument()
   })
 
-  it('hides rejected candidates by default and shows them on request', async () => {
+  it('hides rejected candidates by default and shows them through the compact filter toggle', async () => {
     const user = userEvent.setup()
-    const rejectedCandidate = { ...candidate, id: 2, artist: 'Verworfen', title: 'Titel', status: 'VERWORFEN' as const, manualPosition: 2 }
+    const rejectedCandidate = { ...candidate, id: 2, artist: 'Verworfen', title: 'Verworfen Song', status: 'VERWORFEN' as const, manualPosition: 2 }
     fetchMock.mockImplementation(async (input) => {
       const path = String(input)
       if (path === '/api/shows') return jsonResponse([{ id: 1, showNumber: 1, name: 'Show Eins', candidateCount: 2, selectedCandidate: null }])
@@ -160,13 +170,15 @@ describe('CandidatePage', () => {
     })
     render(<App />)
 
-    await screen.findByRole('heading', { name: 'Original – Titel', level: 3 })
-    expect(screen.getByLabelText('Verworfene anzeigen')).not.toBeChecked()
-    expect(screen.queryByText('Verworfen – Titel')).not.toBeInTheDocument()
+    await screen.findByRole('heading', { name: 'Titel', level: 3 })
+    const rejectedToggle = screen.getByRole('button', { name: 'Verworfene anzeigen' })
+    expect(rejectedToggle).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.queryByRole('heading', { name: 'Verworfen Song', level: 3 })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Original verschieben' })).toBeEnabled()
 
-    await user.click(screen.getByLabelText('Verworfene anzeigen'))
-    expect(await screen.findByText('Verworfen – Titel')).toBeVisible()
+    await user.click(rejectedToggle)
+    expect(rejectedToggle).toHaveAttribute('aria-pressed', 'true')
+    expect(await screen.findByRole('heading', { name: 'Verworfen Song', level: 3 })).toBeVisible()
     expect(screen.getByRole('button', { name: 'Verworfen verschieben' })).toBeEnabled()
   })
 
@@ -179,12 +191,28 @@ describe('CandidatePage', () => {
     })
     render(<App />)
 
-    await screen.findByRole('heading', { name: 'Original – Titel', level: 3 })
+    await screen.findByRole('heading', { name: 'Titel', level: 3 })
     expect(screen.getByRole('button', { name: 'Original verschieben' })).toBeEnabled()
     expect(screen.queryByText(/Drag-and-drop ist nur bei manueller Reihenfolge/)).not.toBeInTheDocument()
   })
 
-  it('requires confirmation for candidate deletion and blocks deleting the active submission', async () => {
+  it('marks the currently played candidate textually as well as visually', async () => {
+    const user = userEvent.setup()
+    fetchMock.mockImplementation(async (input) => {
+      const path = String(input)
+      if (path === '/api/shows') return jsonResponse([{ id: 1, showNumber: 1, name: 'Show Eins', candidateCount: 1, selectedCandidate: null }])
+      if (path === '/api/shows/1/candidates') return jsonResponse([candidate])
+      throw new Error(`Unexpected request ${path}`)
+    })
+    render(<App />)
+
+    await screen.findByRole('heading', { name: 'Titel', level: 3 })
+    await user.click(screen.getByRole('button', { name: 'Original – Titel anhören' }))
+    expect(await screen.findByText('Wird angehört')).toBeVisible()
+    expect(screen.getByLabelText('YouTube-Player')).toBeVisible()
+  })
+
+  it('requires clearing the active submission before the overflow delete action becomes available', async () => {
     const user = userEvent.setup()
     const selectedCandidate = { id: candidate.id, artist: candidate.artist, title: candidate.title, youtubeUrl: candidate.youtubeUrl }
     let deletionAllowed = false
@@ -201,17 +229,22 @@ describe('CandidatePage', () => {
     })
     render(<App />)
 
-    await screen.findByRole('heading', { name: 'Original – Titel', level: 3 })
-    const deleteButton = screen.getByRole('button', { name: 'Löschen' })
-    expect(deleteButton).toBeDisabled()
+    await screen.findByRole('heading', { name: 'Titel', level: 3 })
+    const overflow = screen.getByRole('button', { name: 'Weitere Aktionen für Original – Titel' })
+    await user.click(overflow)
+    expect(screen.getByRole('menuitem', { name: 'Löschen' })).toHaveAttribute('aria-disabled', 'true')
     expect(fetchMock).not.toHaveBeenCalledWith('/api/shows/1/candidates/1', expect.objectContaining({ method: 'DELETE' }))
+    await user.keyboard('{Escape}')
 
     await user.click(screen.getByRole('button', { name: 'Aufheben' }))
     await user.click(screen.getByRole('button', { name: 'Einreichung aufheben' }))
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Löschen' })).toBeEnabled())
+    await waitFor(() => expect(screen.getByRole('region', { name: 'Eigene Einreichung' })).toHaveTextContent('Noch nicht festgelegt'))
+
+    await user.click(screen.getByRole('button', { name: 'Weitere Aktionen für Original – Titel' }))
+    expect(screen.getByRole('menuitem', { name: 'Löschen' })).not.toHaveAttribute('aria-disabled', 'true')
   })
 
-  it('does not delete a non-selected candidate before its confirmation', async () => {
+  it('does not delete a non-selected candidate before its overflow confirmation', async () => {
     const user = userEvent.setup()
     fetchMock.mockImplementation(async (input, init) => {
       const path = String(input)
@@ -222,8 +255,9 @@ describe('CandidatePage', () => {
     })
     render(<App />)
 
-    await screen.findByRole('heading', { name: 'Original – Titel', level: 3 })
-    await user.click(screen.getByRole('button', { name: 'Löschen' }))
+    await screen.findByRole('heading', { name: 'Titel', level: 3 })
+    await user.click(screen.getByRole('button', { name: 'Weitere Aktionen für Original – Titel' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Löschen' }))
     expect(screen.getByRole('heading', { name: 'Kandidat löschen?' })).toBeVisible()
     expect(fetchMock).not.toHaveBeenCalledWith('/api/shows/1/candidates/1', expect.objectContaining({ method: 'DELETE' }))
 

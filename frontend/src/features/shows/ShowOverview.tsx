@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import {
   Alert,
   Box,
@@ -22,6 +22,17 @@ import {
   Typography,
 } from '@mui/material'
 import { Link as RouterLink } from 'react-router-dom'
+import {
+  CandidateIcon,
+  CheckIcon,
+  ClockIcon,
+  EntriesIcon,
+  MoreIcon,
+  PlayIcon,
+  RankIcon,
+  ResultIcon,
+  SubmissionIcon,
+} from '../../components/AppIcons'
 import { ApiErrorNotice } from '../../components/ApiErrorNotice'
 import { fetchShows, renameShow, ShowApiError, type MottoShow } from './api'
 
@@ -146,6 +157,11 @@ function ShowCard({ show, onRename }: { show: MottoShow, onRename: () => void })
   const ballotClosed = show.ballotClosedAt !== null && show.ballotClosedAt !== undefined
   const resultsClosed = show.resultsClosedAt !== null && show.resultsClosedAt !== undefined
   const actionMenuOpen = actionMenuAnchor !== null
+  const resultStatus = !ballotClosed
+    ? 'Wartet auf Top 15'
+    : resultsClosed
+    ? 'Abgeschlossen'
+    : `In Arbeit · ${show.knownActiveResultCount ?? 0} / ${show.activeParticipantCount ?? 0} erfasst`
 
   function closeActionMenu() {
     setActionMenuAnchor(null)
@@ -171,10 +187,10 @@ function ShowCard({ show, onRename }: { show: MottoShow, onRename: () => void })
 
         <Box aria-label="Arbeitsfortschritt">
           <Typography color="text.secondary" variant="overline">Arbeitsfortschritt</Typography>
-          <Box sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', mt: 0.5 }}>
-            <ProgressMetric count={contestEntryCount} label="Wettbewerbsbeiträge" total={contestEntryCount} />
-            <ProgressMetric count={listenedEntryCount} label="Gehört" total={contestEntryCount} />
-            <ProgressMetric count={rankedEntryCount} label="Eingeordnet" total={contestEntryCount} />
+          <Box sx={{ display: 'grid', gap: 0.75, gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', mt: 0.5 }}>
+            <ProgressMetric count={contestEntryCount} kind="entries" label="Beiträge" total={contestEntryCount} />
+            <ProgressMetric count={listenedEntryCount} kind="listened" label="Gehört" total={contestEntryCount} />
+            <ProgressMetric count={rankedEntryCount} kind="ranked" label="Eingeordnet" total={contestEntryCount} />
           </Box>
         </Box>
 
@@ -182,23 +198,22 @@ function ShowCard({ show, onRename }: { show: MottoShow, onRename: () => void })
           <Typography color="text.secondary" variant="overline">Workflowstatus</Typography>
           <Stack divider={<Divider flexItem />} spacing={1} sx={{ mt: 0.5 }}>
             <WorkflowStatus
+              icon={ballotClosed ? <CheckIcon fontSize="small" /> : <ClockIcon fontSize="small" />}
               label="Top 15"
-              status={ballotClosed ? 'Abgeschlossen' : 'Noch nicht abgeschlossen'}
+              status={ballotClosed ? 'Abgeschlossen' : 'Offen'}
               tone={ballotClosed ? 'success.main' : 'text.secondary'}
             />
             {ballotClosed && (
               <WorkflowStatus
-                label="Teilnehmer zugeordnet"
+                icon={<CandidateIcon fontSize="small" />}
+                label="Zugeordnet"
                 status={`${show.assignedEntryCount ?? 0} / ${contestEntryCount} Beiträge`}
               />
             )}
             <WorkflowStatus
+              icon={resultsClosed ? <CheckIcon fontSize="small" /> : <ResultIcon fontSize="small" />}
               label="Ergebnis"
-              status={!ballotClosed
-                ? 'Nach Abschluss der Top 15 verfügbar'
-                : resultsClosed
-                ? 'Abgeschlossen'
-                : `${show.knownActiveResultCount ?? 0} / ${show.activeParticipantCount ?? 0} aktive Teilnehmer erfasst`}
+              status={resultStatus}
               tone={resultsClosed ? 'success.main' : undefined}
             />
           </Stack>
@@ -209,9 +224,9 @@ function ShowCard({ show, onRename }: { show: MottoShow, onRename: () => void })
       </CardContent>
       <CardActions sx={{ borderTop: 1, borderColor: 'divider', display: 'grid', gap: 1, gridTemplateColumns: 'minmax(0, 1fr) auto', p: 2 }}>
         <Box aria-label={`Arbeitsbereiche für Show ${show.showNumber}`} component="nav" sx={{ display: 'grid', gap: 0.5, gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
-          <Button component={RouterLink} size="small" sx={{ minWidth: 0, whiteSpace: 'normal' }} to={`/shows/${show.id}/candidates`} variant="outlined">Kandidaten</Button>
-          <Button component={RouterLink} size="small" sx={{ minWidth: 0, whiteSpace: 'normal' }} to={`/shows/${show.id}/voting`} variant="outlined">Abstimmung</Button>
-          <Button component={RouterLink} size="small" sx={{ minWidth: 0, whiteSpace: 'normal' }} to={`/shows/${show.id}/result`} variant="outlined">Ergebnis</Button>
+          <Button component={RouterLink} size="small" startIcon={<CandidateIcon aria-hidden="true" fontSize="small" />} sx={{ minWidth: 0, whiteSpace: 'normal' }} to={`/shows/${show.id}/candidates`} variant="outlined">Kandidaten</Button>
+          <Button component={RouterLink} size="small" startIcon={<PlayIcon aria-hidden="true" fontSize="small" />} sx={{ minWidth: 0, whiteSpace: 'normal' }} to={`/shows/${show.id}/voting`} variant="outlined">Abstimmung</Button>
+          <Button component={RouterLink} size="small" startIcon={<ResultIcon aria-hidden="true" fontSize="small" />} sx={{ minWidth: 0, whiteSpace: 'normal' }} to={`/shows/${show.id}/result`} variant="outlined">Ergebnis</Button>
         </Box>
         <Tooltip title="Weitere Aktionen">
           <IconButton
@@ -221,7 +236,7 @@ function ShowCard({ show, onRename }: { show: MottoShow, onRename: () => void })
             aria-label={`Weitere Aktionen für Show ${show.showNumber}`}
             onClick={(event) => setActionMenuAnchor(event.currentTarget)}
           >
-            <Box aria-hidden="true" component="span" sx={{ fontSize: '1.5rem', lineHeight: 1 }}>⋮</Box>
+            <MoreIcon aria-hidden="true" />
           </IconButton>
         </Tooltip>
         <Menu anchorEl={actionMenuAnchor} id={`show-${show.id}-actions`} onClose={closeActionMenu} open={actionMenuOpen}>
@@ -235,33 +250,56 @@ function ShowCard({ show, onRename }: { show: MottoShow, onRename: () => void })
 function SubmissionBlock({ selectedCandidate }: { selectedCandidate: MottoShow['selectedCandidate'] }) {
   return (
     <Box sx={{ backgroundColor: 'action.hover', borderLeft: 3, borderColor: 'secondary.main', borderRadius: 1, p: 1.5 }}>
-      <Typography color="text.secondary" variant="overline">Dein Beitrag</Typography>
-      {selectedCandidate === null || selectedCandidate === undefined
-        ? <Typography sx={{ mt: 0.25 }} variant="body2">Noch nicht festgelegt</Typography>
-        : <Stack spacing={0.25} sx={{ mt: 0.25 }}>
-          <Typography sx={{ overflowWrap: 'anywhere' }} variant="body2">{selectedCandidate.artist}</Typography>
-          <Typography sx={{ overflowWrap: 'anywhere' }} variant="body1">{selectedCandidate.title}</Typography>
-        </Stack>}
+      <Stack direction="row" spacing={1.25} sx={{ alignItems: 'flex-start' }}>
+        <SubmissionIcon aria-hidden="true" color="secondary" fontSize="small" sx={{ mt: 0.25 }} />
+        <Box sx={{ minWidth: 0 }}>
+          <Typography color="text.secondary" variant="overline">Dein Beitrag</Typography>
+          {selectedCandidate === null || selectedCandidate === undefined
+            ? <Typography sx={{ mt: 0.25 }} variant="body2">Noch nicht festgelegt</Typography>
+            : <Stack spacing={0.25} sx={{ mt: 0.25 }}>
+              <Typography color="text.secondary" sx={{ overflowWrap: 'anywhere' }} variant="body2">{selectedCandidate.artist}</Typography>
+              <Typography sx={{ overflowWrap: 'anywhere' }} variant="body1">{selectedCandidate.title}</Typography>
+            </Stack>}
+        </Box>
+      </Stack>
     </Box>
   )
 }
 
-function ProgressMetric({ count, label, total }: { count: number, label: string, total: number }) {
-  const progress = total > 0 ? `${count} / ${total}` : String(count)
+type ProgressMetricKind = 'entries' | 'listened' | 'ranked'
+
+function ProgressMetric({ count, kind, label, total }: { count: number, kind: ProgressMetricKind, label: string, total: number }) {
+  const Icon = kind === 'entries' ? EntriesIcon : kind === 'listened' ? PlayIcon : RankIcon
+  const visibleValue = kind === 'entries' || total === 0 ? String(count) : `${count} / ${total}`
+  const accessibleLabel = kind === 'entries'
+    ? formatCount(count, 'Beitrag', 'Beiträge')
+    : total === 0
+    ? `0 Beiträge ${kind === 'listened' ? 'gehört' : 'eingeordnet'}`
+    : `${count} von ${total} Beiträgen ${kind === 'listened' ? 'gehört' : 'eingeordnet'}`
+
   return (
-    <Box sx={{ minWidth: 0 }}>
-      <Typography sx={{ fontVariantNumeric: 'tabular-nums', lineHeight: 1.2 }} variant="h6">{progress}</Typography>
-      <Typography color="text.secondary" sx={{ display: 'block', lineHeight: 1.25, mt: 0.5 }} variant="caption">{label}</Typography>
-      <Typography color="text.secondary" sx={{ display: 'block', lineHeight: 1.25 }} variant="caption">{formatCount(count, 'Beitrag', 'Beiträge')}</Typography>
+    <Box
+      aria-label={accessibleLabel}
+      role="group"
+      sx={{ backgroundColor: 'action.hover', borderRadius: 1, minWidth: 0, p: 1 }}
+    >
+      <Stack aria-hidden="true" direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
+        <Icon color="secondary" fontSize="small" sx={{ flexShrink: 0 }} />
+        <Box sx={{ minWidth: 0 }}>
+          <Typography sx={{ fontVariantNumeric: 'tabular-nums', lineHeight: 1.1 }} variant="h6">{visibleValue}</Typography>
+          <Typography color="text.secondary" sx={{ display: 'block', lineHeight: 1.2, mt: 0.25, overflowWrap: 'anywhere' }} variant="caption">{label}</Typography>
+        </Box>
+      </Stack>
     </Box>
   )
 }
 
-function WorkflowStatus({ label, status, tone = 'text.primary' }: { label: string, status: string, tone?: string }) {
+function WorkflowStatus({ icon, label, status, tone = 'text.primary' }: { icon: ReactNode, label: string, status: string, tone?: string }) {
   return (
-    <Stack direction="row" spacing={1} sx={{ alignItems: 'baseline', justifyContent: 'space-between' }}>
-      <Typography sx={{ flexShrink: 0 }} variant="body2">{label}</Typography>
-      <Typography color={tone} sx={{ overflowWrap: 'anywhere', textAlign: 'right' }} variant="body2">{status}</Typography>
+    <Stack aria-label={`${label}: ${status}`} direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
+      <Box aria-hidden="true" sx={{ color: tone, display: 'inline-flex', flexShrink: 0 }}>{icon}</Box>
+      <Typography sx={{ flex: 1, minWidth: 0 }} variant="body2">{label}</Typography>
+      <Typography color={tone} sx={{ maxWidth: '62%', overflowWrap: 'anywhere', textAlign: 'right' }} variant="body2">{status}</Typography>
     </Stack>
   )
 }

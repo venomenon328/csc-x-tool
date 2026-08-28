@@ -9,8 +9,16 @@ const candidate: Candidate = {
 }
 
 describe('YoutubePlayerPanel', () => {
-  it('uses the privacy-enhanced embed with the requested start time while retaining the external link', () => {
+  it('renders a compact non-alert empty state', () => {
+    render(<YoutubePlayerPanel contextLabel="Aktuell ausgewählter Kandidat" emptyMessage="Leer" song={null} />)
+
+    expect(screen.getByRole('status', { name: 'Kein Song ausgewählt' })).toHaveTextContent('Leer')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('uses the privacy-enhanced embed with the requested start time while retaining the shared heading contract and external link', () => {
     render(<YoutubePlayerPanel contextLabel="Aktuell ausgewählter Kandidat" emptyMessage="Leer" song={candidate} />)
+    expect(screen.getByRole('heading', { name: 'Interpret – Titel', level: 2 })).toBeVisible()
     expect(screen.getByTitle('YouTube: Interpret – Titel')).toHaveAttribute('src', 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?start=42')
     expect(screen.getByRole('link', { name: 'Auf YouTube öffnen' })).toHaveAttribute('href', candidate.youtubeUrl)
   })
