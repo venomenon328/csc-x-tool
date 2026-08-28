@@ -107,7 +107,17 @@ function Test-ParticipantName {
     return $false
 }
 
-$existing = @(Invoke-RestMethod -Uri "$BaseUrl/api/participants?includeInactive=true" -Method Get -WebSession $session)
+# Windows PowerShell 5.1 can emit a JSON array returned by Invoke-RestMethod as one
+# non-enumerated Object[] pipeline item. Store the response first and enumerate the
+# variable explicitly so $existing always contains participant objects, not a nested array.
+$participantResponse = Invoke-RestMethod -Uri "$BaseUrl/api/participants?includeInactive=true" -Method Get -WebSession $session
+$existing = @($participantResponse | ForEach-Object { $_ })
+foreach ($participant in $existing) {
+    if ($null -eq $participant -or $null -eq $participant.PSObject.Properties['displayName']) {
+        throw 'Unexpected response from /api/participants: an item has no displayName property.'
+    }
+}
+
 $createdCount = 0
 $updatedCount = 0
 $skippedCount = 0
