@@ -74,8 +74,10 @@ Voraussetzungen für lokale Entwicklung sind Java 21 sowie Node.js 24.20.0 mit n
 Unter Windows ist die maßgebliche vollständige Prüfung:
 
 ```powershell
-.\scripts\mvn-safe.ps1 clean verify
+.\scripts\mvn-safe.cmd clean verify
 ```
+
+Der `.cmd`-Starter ruft die eigentlichen PowerShell-Schutzregeln nur für diesen Prozess mit einer passenden Execution Policy auf; eine globale Änderung der PowerShell-Ausführungsrichtlinie ist dafür nicht erforderlich.
 
 Unter CI beziehungsweise auf Nicht-Windows-Systemen bleibt der entsprechende Gesamtbuild:
 
@@ -86,9 +88,9 @@ Unter CI beziehungsweise auf Nicht-Windows-Systemen bleibt der entsprechende Ges
 Der Root-Build führt bereits die Backendtests sowie im Frontend `npm ci`, Tests, Build, Linting und TypeScript-Check aus. Die vollständige Frontend-Prüfsequenz soll deshalb nicht unmittelbar davor oder danach noch einmal separat ausgeführt werden. Für gezielte Frontendprüfungen wird unter Windows der ressourcenbegrenzte npm-Wrapper verwendet, zum Beispiel:
 
 ```powershell
-.\scripts\npm-safe.ps1 test
-.\scripts\npm-safe.ps1 run lint
-.\scripts\npm-safe.ps1 run typecheck
+.\scripts\npm-safe.cmd test
+.\scripts\npm-safe.cmd run lint
+.\scripts\npm-safe.cmd run typecheck
 ```
 
 Weitere Details stehen unter [Resource-safe local development](scripts/README-resource-safety.md). Agenten beachten zusätzlich die verbindlichen Regeln aus `AGENTS.md`.
@@ -98,7 +100,7 @@ Weitere Details stehen unter [Resource-safe local development](scripts/README-re
 Terminal 1 startet das Backend auf `127.0.0.1:8080`. Unter Windows wird auch dafür der Maven-Wrapper verwendet:
 
 ```powershell
-.\scripts\mvn-safe.ps1 -pl backend -Pdev spring-boot:run
+.\scripts\mvn-safe.cmd -pl backend -Pdev spring-boot:run
 ```
 
 Auf Nicht-Windows-Systemen lautet der entsprechende Befehl:
@@ -112,8 +114,8 @@ Das Maven-Profil `dev` lässt dabei bewusst die paketierte Frontend-JAR-Abhängi
 Terminal 2 startet den Vite-Entwicklungsserver mit Hot Reload auf `http://127.0.0.1:5173`. Unter Windows:
 
 ```powershell
-.\scripts\npm-safe.ps1 ci
-.\scripts\npm-safe.ps1 run dev
+.\scripts\npm-safe.cmd ci
+.\scripts\npm-safe.cmd run dev
 ```
 
 Auf Nicht-Windows-Systemen:
@@ -133,7 +135,7 @@ Im produktiven Betrieb verwendet das Tool ausschließlich `%LOCALAPPDATA%/CSC-X-
 Für Entwicklung, Tests oder einen isolierten Start wird der Root explizit gesetzt, zum Beispiel:
 
 ```powershell
-.\scripts\mvn-safe.ps1 "-Dspring-boot.run.arguments=--csc-x-tool.storage.root=C:\temp\csc-x-tool-data" -pl backend -Pdev spring-boot:run
+.\scripts\mvn-safe.cmd "-Dspring-boot.run.arguments=--csc-x-tool.storage.root=C:\temp\csc-x-tool-data" -pl backend -Pdev spring-boot:run
 ```
 
 Zusätzlich wird die dokumentierte Umgebungsvariable `CSC_X_TOOL_STORAGE_ROOT` explizit als Alias für denselben Override unterstützt. Ist weder dieser Override noch `LOCALAPPDATA` verfügbar, bricht der Start mit einer pfadbezogenen Fehlermeldung ab.
