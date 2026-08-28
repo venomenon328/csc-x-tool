@@ -1,6 +1,5 @@
 package de.venomenon.cscxtool.system;
 
-import java.awt.Desktop;
 import java.awt.GraphicsEnvironment;
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -18,6 +17,7 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.regex.Matcher;
@@ -47,16 +47,26 @@ public final class DesktopLaunchCoordinator implements AutoCloseable {
     private final ApplicationStorage storage;
     private final FileChannel lockChannel;
     private final FileLock lock;
+    private final BrowserLauncher browserLauncher;
+    private final ErrorReporter errorReporter;
     private boolean closed;
 
     private DesktopLaunchCoordinator(
-            boolean enabled, boolean suppressBrowser, ApplicationStorage storage, FileChannel lockChannel, FileLock lock
+            boolean enabled,
+            boolean suppressBrowser,
+            ApplicationStorage storage,
+            FileChannel lockChannel,
+            FileLock lock,
+            BrowserLauncher browserLauncher,
+            ErrorReporter errorReporter
     ) {
         this.enabled = enabled;
         this.suppressBrowser = suppressBrowser;
         this.storage = storage;
         this.lockChannel = lockChannel;
         this.lock = lock;
+        this.browserLauncher = browserLauncher;
+        this.errorReporter = errorReporter;
     }
 
     public static DesktopLaunchCoordinator prepare(String[] arguments) {
@@ -76,8 +86,9 @@ public final class DesktopLaunchCoordinator implements AutoCloseable {
 
         Integer knownPort = healthyPort(storage);
         if (knownPort != null) {
-            if (!suppressBrowser) openExistingOrReport(knownPort, storage);
-            return new DesktopLaunchCoordinator(true, suppressBrowser, storage, null, null);
+            DesktopLaunchCoordinator existing = enabledCoordinator(suppressBrowser, storage, null, null);
+            if (!suppressBrowser) existing.openExistingOrReport(knownPort);
+            return existing;
         }
 
         Path lockFile = storage.runtimeDirectory().resolve(LOCK_FILE);
@@ -88,24 +99,26 @@ public final class DesktopLaunchCoordinator implements AutoCloseable {
                 Integer racePort = healthyPort(storage);
                 if (racePort != null) {
                     release(channel, lock);
-                    if (!suppressBrowser) openExistingOrReport(racePort, storage);
-                    return new DesktopLaunchCoordinator(true, suppressBrowser, storage, null, null);
+                    DesktopLaunchCoordinator existing = enabledCoordinator(suppressBrowser, storage, null, null);
+                    if (!suppressBrowser) existing.openExistingOrReport(racePort);
+                    return existing;
                 }
                 deleteStaleInstance(storage);
-                return new DesktopLaunchCoordinator(true, suppressBrowser, storage, channel, lock);
+                return enabledCoordinator(suppressBrowser, storage, channel, lock);
             }
             channel.close();
         } catch (IOException exception) {
             showError("CSC X Tool konnte die lokale Instanzsperre nicht anlegen.", exception);
-            return new DesktopLaunchCoordinator(true, suppressBrowser, storage, null, null);
+            return enabledCoordinator(suppressBrowser, storage, null, null);
         }
 
         Instant deadline = Instant.now().plus(INSTANCE_START_TIMEOUT);
         while (Instant.now().isBefore(deadline)) {
             Integer port = healthyPort(storage);
             if (port != null) {
-                if (!suppressBrowser) openExistingOrReport(port, storage);
-                return new DesktopLaunchCoordinator(true, suppressBrowser, storage, null, null);
+                DesktopLaunchCoordinator existing = enabledCoordinator(suppressBrowser, storage, null, null);
+                if (!suppressBrowser) existing.openExistingOrReport(port);
+                return existing;
             }
             try {
                 Thread.sleep(INSTANCE_START_POLL);
@@ -118,7 +131,7 @@ public final class DesktopLaunchCoordinator implements AutoCloseable {
                 "CSC X Tool startet bereits, wurde aber nicht rechtzeitig bereit. Bitte warten Sie einen Moment und versuchen Sie es erneut.",
                 null
         );
-        return new DesktopLaunchCoordinator(true, suppressBrowser, storage, null, null);
+        return enabledCoordinator(suppressBrowser, storage, null, null);
     }
 
     public boolean shouldStartServer() {
@@ -126,7 +139,7 @@ public final class DesktopLaunchCoordinator implements AutoCloseable {
     }
 
     public static DesktopLaunchCoordinator disabled() {
-        return new DesktopLaunchCoordinator(false, false, null, null, null);
+        return new DesktopLaunchCoordinator(false, false, null, null, null, null, null);
     }
 
     public boolean enabled() {
@@ -170,7 +183,7 @@ public final class DesktopLaunchCoordinator implements AutoCloseable {
 
     public void openPublishedInstance(int port) {
         if (!enabled || suppressBrowser) return;
-        openExistingOrReport(port, storage);
+        openExistingOrReport(port);
     }
 
     @Override
@@ -269,16 +282,56 @@ public final class DesktopLaunchCoordinator implements AutoCloseable {
         }
     }
 
-    private static void openExistingOrReport(int port, ApplicationStorage storage) {
+    static DesktopLaunchCoordinator forBrowserLaunchTest(BrowserLauncher browserLauncher, ErrorReporter errorReporter) {
+        return new DesktopLaunchCoordinator(true, false, null, null, null, browserLauncher, errorReporter);
+    }
+
+    static List<String> windowsUrlHandlerCommand(URI uri, String systemRoot) {
+        String rundll32 = "rundll32.exe";
+        if (systemRoot != null && !systemRoot.isBlank()) {
+            rundll32 = systemRoot.replaceAll("[\\\\/]+$", "") + "\\System32\\rundll32.exe";
+        }
+        return List.of(rundll32, "url.dll,FileProtocolHandler", uri.toASCIIString());
+    }
+
+    private static DesktopLaunchCoordinator enabledCoordinator(
+            boolean suppressBrowser, ApplicationStorage storage, FileChannel lockChannel, FileLock lock
+    ) {
+        return new DesktopLaunchCoordinator(
+                true,
+                suppressBrowser,
+                storage,
+                lockChannel,
+                lock,
+                DesktopLaunchCoordinator::openWithSystemDefaultBrowser,
+                DesktopLaunchCoordinator::showError
+        );
+    }
+
+    private void openExistingOrReport(int port) {
         URI uri = URI.create(urlFor(port));
         try {
-            if (!Desktop.isDesktopSupported() || !Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
-                throw new UnsupportedOperationException("Der Windows-Standardbrowser ist nicht verfügbar.");
-            }
-            Desktop.getDesktop().browse(uri);
+            browserLauncher.open(uri);
         } catch (Exception exception) {
-            showError("CSC X Tool läuft bereits. Öffnen Sie diese lokale Adresse manuell: " + uri, exception);
+            errorReporter.show(
+                    "CSC X Tool läuft, aber der Windows-Standardbrowser konnte nicht geöffnet werden.\n\n"
+                            + "Öffnen Sie diese lokale Adresse manuell:\n" + uri,
+                    exception
+            );
         }
+    }
+
+    private static void openWithSystemDefaultBrowser(URI uri) throws IOException {
+        if (System.getProperty("os.name", "").startsWith("Windows")) {
+            // url.dll delegates to Windows' configured HTTP(S) protocol handler without a browser-specific path.
+            new ProcessBuilder(windowsUrlHandlerCommand(uri, System.getenv("SystemRoot"))).start();
+            return;
+        }
+        if (!java.awt.Desktop.isDesktopSupported()
+                || !java.awt.Desktop.getDesktop().isSupported(java.awt.Desktop.Action.BROWSE)) {
+            throw new UnsupportedOperationException("Der Standardbrowser ist nicht verfügbar.");
+        }
+        java.awt.Desktop.getDesktop().browse(uri);
     }
 
     private static String urlFor(int port) {
@@ -296,5 +349,15 @@ public final class DesktopLaunchCoordinator implements AutoCloseable {
 
     private static String escape(String value) {
         return value == null ? "" : value.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+
+    @FunctionalInterface
+    interface BrowserLauncher {
+        void open(URI uri) throws Exception;
+    }
+
+    @FunctionalInterface
+    interface ErrorReporter {
+        void show(String message, Exception exception);
     }
 }
