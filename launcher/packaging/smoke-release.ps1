@@ -124,7 +124,7 @@ function Stop-PackagedApp {
 
 function Get-BackupArtifactCount {
     param([string]$StorageRoot)
-    return @(Get-ChildItem -LiteralPath (Join-Path $StorageRoot 'backups') -Filter '*.zip' -File -Recurse -ErrorAction SilentlyContinue).Count
+    return @(Get-ChildItem -LiteralPath (Join-Path $StorageRoot 'backups') -Filter '*.cscbackup' -File -Recurse -ErrorAction SilentlyContinue).Count
 }
 
 function Assert-SecondLaunchReusesInstance {
