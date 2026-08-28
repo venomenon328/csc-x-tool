@@ -69,32 +69,39 @@ Alle direkten Frontend-Abhängigkeiten sind exakt versioniert; `frontend/package
 
 ## Build und Tests
 
-Voraussetzungen für lokale Entwicklung sind Java 21 sowie Node.js 24.20.0 mit npm 12.0.2. Der maßgebliche Gesamtbuild ist:
+Voraussetzungen für lokale Entwicklung sind Java 21 sowie Node.js 24.20.0 mit npm 12.0.2. Die lokale Windows-Workstation soll während Builds und Tests benutzbar bleiben; die dafür festgelegten Heap-, Worker-, CPU- und Prioritätsgrenzen sind deshalb Bestandteil der Entwicklungsinfrastruktur und nicht optionales Tuning.
+
+Unter Windows ist die maßgebliche vollständige Prüfung:
+
+```powershell
+.\scripts\mvn-safe.ps1 clean verify
+```
+
+Unter CI beziehungsweise auf Nicht-Windows-Systemen bleibt der entsprechende Gesamtbuild:
 
 ```text
 ./mvnw clean verify
 ```
 
-Unter PowerShell lautet derselbe Befehl:
+Der Root-Build führt bereits die Backendtests sowie im Frontend `npm ci`, Tests, Build, Linting und TypeScript-Check aus. Die vollständige Frontend-Prüfsequenz soll deshalb nicht unmittelbar davor oder danach noch einmal separat ausgeführt werden. Für gezielte Frontendprüfungen wird unter Windows der ressourcenbegrenzte npm-Wrapper verwendet, zum Beispiel:
 
 ```powershell
-.\mvnw.cmd clean verify
+.\scripts\npm-safe.ps1 test
+.\scripts\npm-safe.ps1 run lint
+.\scripts\npm-safe.ps1 run typecheck
 ```
 
-Er führt die Backendtests sowie im Frontend `npm ci`, Tests, Build, Linting und TypeScript-Check aus. Die Frontend-Prüfungen können separat nachvollzogen werden:
-
-```text
-cd frontend
-npm ci
-npm run lint
-npm run typecheck
-npm run test
-npm run build
-```
+Weitere Details stehen unter [Resource-safe local development](scripts/README-resource-safety.md). Agenten beachten zusätzlich die verbindlichen Regeln aus `AGENTS.md`.
 
 ## Entwicklungsbetrieb
 
-Terminal 1 startet das Backend auf `127.0.0.1:8080`:
+Terminal 1 startet das Backend auf `127.0.0.1:8080`. Unter Windows wird auch dafür der Maven-Wrapper verwendet:
+
+```powershell
+.\scripts\mvn-safe.ps1 -pl backend -Pdev spring-boot:run
+```
+
+Auf Nicht-Windows-Systemen lautet der entsprechende Befehl:
 
 ```text
 ./mvnw -pl backend -Pdev spring-boot:run
@@ -102,7 +109,14 @@ Terminal 1 startet das Backend auf `127.0.0.1:8080`:
 
 Das Maven-Profil `dev` lässt dabei bewusst die paketierte Frontend-JAR-Abhängigkeit weg, weil die Oberfläche im Entwicklungsbetrieb vom Vite-Server kommt. Dadurch funktioniert der Backend-Start auch auf einem frischen Checkout ohne vorheriges Installieren des Frontend-Artefakts in das lokale Maven-Repository.
 
-Terminal 2 startet den Vite-Entwicklungsserver mit Hot Reload auf `http://127.0.0.1:5173`:
+Terminal 2 startet den Vite-Entwicklungsserver mit Hot Reload auf `http://127.0.0.1:5173`. Unter Windows:
+
+```powershell
+.\scripts\npm-safe.ps1 ci
+.\scripts\npm-safe.ps1 run dev
+```
+
+Auf Nicht-Windows-Systemen:
 
 ```text
 cd frontend
@@ -110,7 +124,7 @@ npm ci
 npm run dev
 ```
 
-Vite leitet `/api` dabei an das lokale Backend weiter. Im Produktionsbetrieb gibt es keinen separaten Node-Prozess und keine CORS-Freigabe: Nach `./mvnw clean package` liefert das ausführbare JAR die SPA und `GET /api/system/health` unter derselben Origin aus.
+Vite leitet `/api` dabei an das lokale Backend weiter. Im Produktionsbetrieb gibt es keinen separaten Node-Prozess und keine CORS-Freigabe: Nach einem Produktionsbuild liefert das ausführbare JAR die SPA und `GET /api/system/health` unter derselben Origin aus.
 
 ## Lokale Datenablage
 
@@ -119,7 +133,7 @@ Im produktiven Betrieb verwendet das Tool ausschließlich `%LOCALAPPDATA%/CSC-X-
 Für Entwicklung, Tests oder einen isolierten Start wird der Root explizit gesetzt, zum Beispiel:
 
 ```powershell
-.\mvnw.cmd "-Dspring-boot.run.arguments=--csc-x-tool.storage.root=C:\temp\csc-x-tool-data" -pl backend -Pdev spring-boot:run
+.\scripts\mvn-safe.ps1 "-Dspring-boot.run.arguments=--csc-x-tool.storage.root=C:\temp\csc-x-tool-data" -pl backend -Pdev spring-boot:run
 ```
 
 Zusätzlich wird die dokumentierte Umgebungsvariable `CSC_X_TOOL_STORAGE_ROOT` explizit als Alias für denselben Override unterstützt. Ist weder dieser Override noch `LOCALAPPDATA` verfügbar, bricht der Start mit einer pfadbezogenen Fehlermeldung ab.
