@@ -159,7 +159,7 @@ describe('CandidatePage', () => {
     expect(screen.queryByRole('dialog', { name: 'Einreichung bewusst ersetzen?' })).not.toBeInTheDocument()
   })
 
-  it('hides rejected candidates by default and shows them through the compact filter toggle', async () => {
+  it('hides rejected candidates by default and shows them through the compact filter toggle without a redundant row badge', async () => {
     const user = userEvent.setup()
     const rejectedCandidate = { ...candidate, id: 2, artist: 'Verworfen', title: 'Verworfen Song', status: 'VERWORFEN' as const, manualPosition: 2 }
     fetchMock.mockImplementation(async (input) => {
@@ -178,8 +178,12 @@ describe('CandidatePage', () => {
 
     await user.click(rejectedToggle)
     expect(rejectedToggle).toHaveAttribute('aria-pressed', 'true')
-    expect(await screen.findByRole('heading', { name: 'Verworfen Song', level: 3 })).toBeVisible()
+    const rejectedHeading = await screen.findByRole('heading', { name: 'Verworfen Song', level: 3 })
+    expect(rejectedHeading).toBeVisible()
     expect(screen.getByRole('button', { name: 'Verworfen verschieben' })).toBeEnabled()
+    const rejectedCard = rejectedHeading.closest('.MuiCard-root')
+    expect(rejectedCard).not.toBeNull()
+    expect(within(rejectedCard!).queryByText('Verworfen', { selector: '.MuiChip-label' })).not.toBeInTheDocument()
   })
 
   it('keeps drag-and-drop enabled for a fresh manual list without rejected candidates', async () => {
