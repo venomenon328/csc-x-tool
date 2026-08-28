@@ -24,6 +24,7 @@ import { ErrorBoundary } from './ErrorBoundary'
 import { theme } from './theme'
 import { initializeCsrfProtection, apiFetch } from '../api/request'
 import { GlobalSearch } from '../features/search/GlobalSearch'
+import appLogo from '../assets/csc-x-tool-logo.png'
 
 const navigation = [
   { label: 'Übersicht', to: '/' },
@@ -80,8 +81,25 @@ function AppShell() {
         slotProps={{ paper: { sx: { borderRight: 1, borderColor: 'divider', width: 272 } } }}
         variant="permanent"
       >
-        <Toolbar>
-          <Typography sx={{ fontWeight: 700 }} variant="h6">CSC X Tool</Typography>
+        <Toolbar sx={{ justifyContent: 'center', minHeight: 112 }}>
+          <Box
+            aria-label="CSC X Tool"
+            component={RouterLink}
+            sx={{
+              display: 'block',
+              lineHeight: 0,
+              width: 96,
+              '&:focus-visible': {
+                borderRadius: 1,
+                outline: '2px solid',
+                outlineColor: 'primary.light',
+                outlineOffset: 4,
+              },
+            }}
+            to="/"
+          >
+            <Box alt="CSC X Tool" component="img" src={appLogo} sx={{ display: 'block', height: 'auto', width: '100%' }} />
+          </Box>
         </Toolbar>
         <List aria-label="Hauptnavigation">
           {navigation.map((item) => (
