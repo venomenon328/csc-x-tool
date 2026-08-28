@@ -21,6 +21,12 @@
         <version>${frontend.maven.plugin.version}</version>
         <configuration>
           <workingDirectory>${project.basedir}</workingDirectory>
+          <environmentVariables>
+            <NODE_OPTIONS>--max-old-space-size=512</NODE_OPTIONS>
+            <GOMAXPROCS>2</GOMAXPROCS>
+            <UV_THREADPOOL_SIZE>2</UV_THREADPOOL_SIZE>
+            <VITEST_MAX_WORKERS>1</VITEST_MAX_WORKERS>
+          </environmentVariables>
         </configuration>
         <executions>
           <execution>

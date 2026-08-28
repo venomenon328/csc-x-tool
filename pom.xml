@@ -30,4 +30,18 @@
     <node.version>v24.20.0</node.version>
     <npm.version>12.0.2</npm.version>
   </properties>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <forkCount>1</forkCount>
+          <reuseForks>true</reuseForks>
+          <argLine>-Xms64m -Xmx768m -XX:ActiveProcessorCount=2</argLine>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
 </project>
