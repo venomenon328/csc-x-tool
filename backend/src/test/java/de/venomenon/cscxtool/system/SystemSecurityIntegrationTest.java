@@ -4,10 +4,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.net.CookieManager;
 import java.net.CookiePolicy;
+import java.net.Socket;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.regex.Matcher;
@@ -37,8 +39,12 @@ class SystemSecurityIntegrationTest {
     }
 
     @Test
-    void protectsWritesWithCsrfAndRejectsForeignOriginsWhileKeepingReadsAvailable() throws Exception {
+    void protectsLocalApiHostAndWritesWithCsrfAndOriginChecks() throws Exception {
         assertThat(request("GET", "/api/system/health", null, null, null).statusCode()).isEqualTo(200);
+
+        String foreignHostRead = rawGet("/api/data/export/full", "example.invalid");
+        assertThat(foreignHostRead).startsWith("HTTP/1.1 403");
+        assertThat(foreignHostRead).contains("\"code\":\"LOCAL_HOST_REQUIRED\"");
 
         HttpResponse<String> rejected = request("POST", "/api/shows/1/candidates", candidateJson(), null, null);
         assertThat(rejected.statusCode()).isEqualTo(403);
@@ -72,6 +78,17 @@ class SystemSecurityIntegrationTest {
         if (origin != null) request.header("Origin", origin);
         request.method(method, body == null ? HttpRequest.BodyPublishers.noBody() : HttpRequest.BodyPublishers.ofString(body));
         return client.send(request.build(), HttpResponse.BodyHandlers.ofString());
+    }
+
+    private String rawGet(String path, String host) throws Exception {
+        try (Socket socket = new Socket("127.0.0.1", port)) {
+            String request = "GET " + path + " HTTP/1.1\r\n"
+                    + "Host: " + host + "\r\n"
+                    + "Connection: close\r\n\r\n";
+            socket.getOutputStream().write(request.getBytes(StandardCharsets.US_ASCII));
+            socket.getOutputStream().flush();
+            return new String(socket.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        }
     }
 
     private static String candidateJson() {
