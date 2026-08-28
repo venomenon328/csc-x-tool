@@ -660,14 +660,17 @@ function ManualCandidateList({ candidates, dragEnabled, reordering, selectedCand
                                 flexWrap: { md: 'nowrap', xs: 'wrap' },
                                 justifyContent: 'flex-end',
                                 minHeight: 40,
-                                width: { md: 396, xs: '100%' },
+                                width: { md: 424, xs: '100%' },
                               }}
                             >
-                              <Box sx={{ alignItems: 'center', display: 'flex', flexShrink: 0, justifyContent: 'flex-end', minHeight: 32, width: { md: 88, xs: 'auto' } }}>
+                              <Box sx={{ alignItems: 'center', display: 'flex', flexShrink: 0, justifyContent: 'flex-end', minHeight: 32, pr: { md: 1.25, xs: 0.5 }, width: { md: 116, xs: 'auto' } }}>
                                 {selected && (
-                                  <Typography color="success.main" sx={{ fontWeight: 700, whiteSpace: 'nowrap' }} variant="caption">
-                                    Einreichung
-                                  </Typography>
+                                  <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', color: 'success.main', whiteSpace: 'nowrap' }}>
+                                    <SubmissionIcon aria-hidden="true" sx={{ fontSize: '1rem' }} />
+                                    <Typography color="inherit" sx={{ fontSize: '0.8rem', fontWeight: 700, lineHeight: 1.2 }} variant="body2">
+                                      Einreichung
+                                    </Typography>
+                                  </Stack>
                                 )}
                               </Box>
                               <Select
