@@ -78,4 +78,30 @@ describe('persistDroppedCandidateOrder', () => {
       expect.objectContaining({ id: 11, manualPosition: 3 }),
     ]))
   })
+
+  it('persists a dropped order when rejected candidates are shown', async () => {
+    const rejected = { ...candidates[1], status: 'VERWORFEN' as const }
+    const confirmedCandidates = [candidates[0], rejected, candidates[2]]
+    const save = vi.fn(async (candidateIds: number[]) => confirmedCandidates.map((candidate) => ({
+      ...candidate,
+      manualPosition: candidateIds.indexOf(candidate.id) + 1,
+    })))
+    const onOptimisticChange = vi.fn()
+    const onConfirmedChange = vi.fn()
+
+    await persistDroppedCandidateOrder({
+      result: drop(2, 0),
+      confirmedCandidates,
+      visibleCandidates: confirmedCandidates,
+      save,
+      onOptimisticChange,
+      onConfirmedChange,
+    })
+
+    expect(save).toHaveBeenCalledWith([33, 11, 22])
+    expect(onOptimisticChange).toHaveBeenCalledWith(expect.arrayContaining([
+      expect.objectContaining({ id: 33, manualPosition: 1 }),
+      expect.objectContaining({ id: 22, manualPosition: 3 }),
+    ]))
+  })
 })

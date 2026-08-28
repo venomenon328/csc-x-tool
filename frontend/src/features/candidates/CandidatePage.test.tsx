@@ -167,6 +167,7 @@ describe('CandidatePage', () => {
 
     await user.click(screen.getByLabelText('Verworfene anzeigen'))
     expect(await screen.findByText('Verworfen – Titel')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Verworfen verschieben' })).toBeEnabled()
   })
 
   it('keeps drag-and-drop enabled for a fresh manual list without rejected candidates', async () => {

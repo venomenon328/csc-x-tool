@@ -20,7 +20,7 @@ Diese Checkliste trennt automatisiert nachgewiesene Punkte von der verpflichtend
 - [ ] Realistischen CSC-Forumblock als Rich Clipboard per `Strg+V` einfügen und Linkziele prüfen.
 - [ ] YouTube-Einbettung und vorgesehenen externen Fallback prüfen.
 - [ ] Kandidaten und Votingliste per Drag-and-drop prüfen.
-- [ ] #40 Kandidaten-DnD mit mindestens zehn Kandidaten einschließlich eines ausgeblendeten verworfenen Kandidaten prüfen; Reihenfolge nach Reload und Anwendungsneustart bestätigen.
+- [x] #40 Kandidaten-DnD mit mindestens zehn Kandidaten einschließlich eines ausgeblendeten verworfenen Kandidaten prüfen; Reihenfolge nach Drop, Reload und Anwendungsneustart in Vivaldi unter Windows bestätigt (28.08.2026).
 - [ ] Fachlichen Kernpfad aus Spezifikation §20 mit realistischen Daten bis zum Ergebnisabschluss durchführen.
 - [ ] Backup/Restore, Neustart und `Anwendung beenden` im installierten Produkt prüfen.
 - [ ] Upgrade und Deinstallation mit realem `%LOCALAPPDATA%/CSC-X-Tool/` ohne Datenverlust prüfen.

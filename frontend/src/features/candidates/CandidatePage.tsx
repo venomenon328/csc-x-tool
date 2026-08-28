@@ -310,7 +310,7 @@ export function CandidatePage() {
           )}
           {dragEnabled && hiddenRejectedCount > 0 && (
             <Typography color="text.secondary" sx={{ mt: 2 }} variant="body2">
-              {hiddenRejectedCount} verworfene{hiddenRejectedCount === 1 ? 'r Kandidat bleibt' : ' Kandidaten bleiben'} ausgeblendet und wird bei der Reihenfolge vollständig berücksichtigt.
+              {hiddenRejectedCount === 1 ? 'Ein verworfener Kandidat bleibt' : `${hiddenRejectedCount} verworfene Kandidaten bleiben`} ausgeblendet und {hiddenRejectedCount === 1 ? 'wird' : 'werden'} bei der Reihenfolge vollständig berücksichtigt.
             </Typography>
           )}
           {candidates === null && error === null && <CandidateLoading />}
@@ -392,7 +392,7 @@ function QuickEntry({ input, onChange, onSave, saving, open, onToggle }: {
 }) {
   return (
     <Paper component="section" elevation={0} sx={{ border: 1, borderColor: 'divider', p: { xs: 1.5, md: 2 } }}>
-      <Stack alignItems="center" direction="row" justifyContent="space-between" spacing={2}>
+      <Stack direction="row" spacing={2} sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
         <Box>
           <Typography component="h2" variant="h6">Kandidaten schnell erfassen</Typography>
           {!open && <Typography color="text.secondary" variant="body2">Interpret, Titel und YouTube-Link direkt hinzufügen.</Typography>}
@@ -490,13 +490,24 @@ function ManualCandidateList({ candidates, dragEnabled, reordering, selectedCand
                     >
                       <CardContent sx={{ pb: 0.75, pt: 1.25, px: { xs: 1.25, md: 1.5 } }}>
                         <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-start' }}>
-                          <Button
+                          <Box
                             {...dragProvided.dragHandleProps}
+                            aria-disabled={!dragEnabled}
                             aria-label={`${candidate.artist} verschieben`}
-                            disabled={!dragEnabled}
-                            size="small"
-                            sx={{ cursor: dragSnapshot.isDragging ? 'grabbing' : 'grab', fontSize: 20, minWidth: 40, mt: 0.25, px: 0.5 }}
-                          >⋮⋮</Button>
+                            sx={{
+                              alignItems: 'center',
+                              borderRadius: 1,
+                              color: dragEnabled ? 'inherit' : 'action.disabled',
+                              cursor: dragSnapshot.isDragging ? 'grabbing' : dragEnabled ? 'grab' : 'default',
+                              display: 'inline-flex',
+                              fontSize: 20,
+                              justifyContent: 'center',
+                              minHeight: 32,
+                              minWidth: 40,
+                              mt: 0.25,
+                              px: 0.5,
+                            }}
+                          >⋮⋮</Box>
                           <Box sx={{ flex: 1, minWidth: 0 }}>
                             <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }} useFlexGap>
                               <Typography component="h3" variant="subtitle1">{candidate.artist} – {candidate.title}</Typography>
