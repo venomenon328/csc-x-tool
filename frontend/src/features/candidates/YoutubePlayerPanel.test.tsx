@@ -16,10 +16,9 @@ describe('YoutubePlayerPanel', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
-  it('uses the privacy-enhanced embed with the requested start time while retaining the external link', () => {
+  it('uses the privacy-enhanced embed with the requested start time while retaining the shared heading contract and external link', () => {
     render(<YoutubePlayerPanel contextLabel="Aktuell ausgewählter Kandidat" emptyMessage="Leer" song={candidate} />)
-    expect(screen.getByRole('heading', { name: 'Titel', level: 2 })).toBeVisible()
-    expect(screen.getByText('Interpret')).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'Interpret – Titel', level: 2 })).toBeVisible()
     expect(screen.getByTitle('YouTube: Interpret – Titel')).toHaveAttribute('src', 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?start=42')
     expect(screen.getByRole('link', { name: 'Auf YouTube öffnen' })).toHaveAttribute('href', candidate.youtubeUrl)
   })

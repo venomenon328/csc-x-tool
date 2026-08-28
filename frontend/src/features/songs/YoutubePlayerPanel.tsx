@@ -61,9 +61,8 @@ export function YoutubePlayerPanel({ song, emptyMessage, contextLabel }: {
   return (
     <Stack component="section" spacing={1.5} aria-label="YouTube-Player" sx={{ minWidth: 0 }}>
       <Box>
-        <Typography component="h2" sx={{ overflowWrap: 'anywhere' }} variant="h6">{song.title}</Typography>
-        <Typography color="text.secondary" sx={{ overflowWrap: 'anywhere' }} variant="body2">{song.artist}</Typography>
-        <Typography color="text.secondary" variant="caption">{contextLabel}</Typography>
+        <Typography component="h2" sx={{ overflowWrap: 'anywhere' }} variant="h6">{song.artist} – {song.title}</Typography>
+        <Typography color="text.secondary" variant="body2">{contextLabel}</Typography>
       </Box>
       {embedUrl !== null && !embedFailed && (
         <Box sx={{ aspectRatio: '16 / 9', maxWidth: 760, width: '100%' }}>
