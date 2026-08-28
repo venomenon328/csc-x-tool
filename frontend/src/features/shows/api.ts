@@ -1,4 +1,5 @@
 import { readApiError, type ApiError } from '../../api/error'
+import { apiFetch } from '../../api/request'
 
 export type MottoShow = {
   id: number
@@ -35,7 +36,7 @@ export class ShowApiError extends Error {
 }
 
 export async function fetchShows(): Promise<MottoShow[]> {
-  const response = await fetch('/api/shows')
+  const response = await apiFetch('/api/shows')
   if (!response.ok) {
     throw new ShowApiError(await readApiError(response))
   }
@@ -43,7 +44,7 @@ export async function fetchShows(): Promise<MottoShow[]> {
 }
 
 export async function renameShow(showId: number, name: string): Promise<MottoShow> {
-  const response = await fetch(`/api/shows/${showId}`, {
+  const response = await apiFetch(`/api/shows/${showId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name }),

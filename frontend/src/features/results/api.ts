@@ -1,4 +1,5 @@
 import { readApiError, type ApiError } from '../../api/error'
+import { apiFetch } from '../../api/request'
 
 export type ReceivedScoreStatus = 'UNBEKANNT' | 'NICHT_ABGESTIMMT' | 'ABGESTIMMT'
 
@@ -35,7 +36,7 @@ export class ResultApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, init)
+  const response = await apiFetch(path, init)
   if (!response.ok) throw new ResultApiError(await readApiError(response))
   return response.json() as Promise<T>
 }

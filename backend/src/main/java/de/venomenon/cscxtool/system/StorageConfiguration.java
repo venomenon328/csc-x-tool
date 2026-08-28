@@ -10,11 +10,18 @@ import org.springframework.context.annotation.DependsOn;
 import org.springframework.context.annotation.Primary;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.env.Environment;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 
 @Configuration(proxyBeanMethods = false)
 class StorageConfiguration {
 
     private static final String DOCUMENTED_STORAGE_ROOT_ENVIRONMENT_VARIABLE = "CSC_X_TOOL_STORAGE_ROOT";
+
+    @Bean
+    @ConditionalOnMissingBean(DesktopLaunchCoordinator.class)
+    DesktopLaunchCoordinator desktopLaunchCoordinator() {
+        return DesktopLaunchCoordinator.disabled();
+    }
 
     @Bean
     ApplicationStorage applicationStorage(StorageProperties properties, Environment environment) {

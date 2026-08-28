@@ -1,4 +1,5 @@
 import { readApiError, type ApiError } from '../../api/error'
+import { apiFetch } from '../../api/request'
 import type { PlayableSong } from '../songs/PlayableSong'
 
 export type ContestEntry = PlayableSong & {
@@ -39,7 +40,7 @@ export class EntryApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, init)
+  const response = await apiFetch(path, init)
   if (!response.ok) throw new EntryApiError(await readApiError(response))
   if (response.status === 204) return undefined as T
   return response.json() as Promise<T>

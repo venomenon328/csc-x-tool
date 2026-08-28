@@ -52,6 +52,7 @@ pnpm-debug.log*
 # Packaged application output
 launcher/build/
 launcher/dist/
+launcher/packaging/output/
 *.msi
 *.exe
 *.zip

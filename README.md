@@ -14,7 +14,7 @@ Das Tool begleitet den praktischen Ablauf einer Mottoshow:
 
 ## Projektstatus
 
-P1 aus [Issue #5](https://github.com/venomenon328/csc-x-tool/issues/5) ist umgesetzt: Die Anwendung speichert zwölf Mottoshows lokal in SQLite, migriert ihr Schema mit Liquibase und zeigt die persistente Übersicht. Kandidaten, Teilnehmer, Beiträge, Ranking und Ergebnisse folgen bewusst erst in den vorgesehenen Entwicklungspaketen.
+Die Entwicklungsinhalte bis 0.1.0 sind umgesetzt: Die Anwendung verwaltet die zwölf Mottoshows, Kandidaten, Beiträge, Top 15, Teilnehmer, Ergebnisse sowie Sicherungen lokal in SQLite. Der Windows-Releasepfad erzeugt ein App-Image und einen per-user MSI; die manuelle Windows-/Vivaldi-Abnahme bleibt vor einer Freigabe verpflichtend.
 
 ## Sicherungen und Exporte
 
@@ -100,6 +100,17 @@ Der Root-Build führt bereits die Backendtests sowie im Frontend `npm ci`, Tests
 ```
 
 Weitere Details stehen unter [Resource-safe local development](scripts/README-resource-safety.md). Agenten beachten zusätzlich die verbindlichen Regeln aus `AGENTS.md`.
+
+## Windows-Release-Paketierung
+
+Version 0.1.0 wird mit JDK 21 samt `jpackage` und WiX `3.14.1.20250415` erzeugt. Die kanonischen Einstiegspunkte erzeugen App-Image, per-user MSI und Prüfsumme und prüfen danach den paketierten Ablauf:
+
+```powershell
+.\launcher\packaging\build-release.ps1 -Clean
+.\launcher\packaging\smoke-release.ps1
+```
+
+Details zu Artefakten, WiX und dem automatisierten Installer-Smoke stehen unter [launcher/packaging](launcher/packaging/README.md). Der manuelle Vivaldi-Release-Smoke wird davon nicht simuliert und bleibt bis zu seiner realen Durchführung in der [Release-Checkliste](docs/release-checklist-0.1.0.md) offen.
 
 ## Entwicklungsbetrieb
 

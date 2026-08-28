@@ -1,4 +1,5 @@
 import { readApiError, type ApiError } from '../../api/error'
+import { apiFetch } from '../../api/request'
 
 export type Country = {
   code: string
@@ -30,7 +31,7 @@ export class ParticipantApiError extends Error {
 }
 
 export async function fetchCountries(): Promise<Country[]> {
-  const response = await fetch('/api/countries')
+  const response = await apiFetch('/api/countries')
   if (!response.ok) throw new ParticipantApiError(await readApiError(response))
   return response.json() as Promise<Country[]>
 }
@@ -40,7 +41,7 @@ export async function fetchParticipants(options: { q?: string, includeInactive?:
   if (options.q?.trim()) search.set('q', options.q.trim())
   if (options.includeInactive) search.set('includeInactive', 'true')
   const suffix = search.size === 0 ? '' : `?${search.toString()}`
-  const response = await fetch(`/api/participants${suffix}`)
+  const response = await apiFetch(`/api/participants${suffix}`)
   if (!response.ok) throw new ParticipantApiError(await readApiError(response))
   return response.json() as Promise<Participant[]>
 }
@@ -54,12 +55,12 @@ export async function updateParticipant(participantId: number, input: Participan
 }
 
 export async function deleteParticipant(participantId: number): Promise<void> {
-  const response = await fetch(`/api/participants/${participantId}`, { method: 'DELETE' })
+  const response = await apiFetch(`/api/participants/${participantId}`, { method: 'DELETE' })
   if (!response.ok) throw new ParticipantApiError(await readApiError(response))
 }
 
 async function writeParticipant(path: string, method: 'POST' | 'PATCH', input: ParticipantInput): Promise<Participant> {
-  const response = await fetch(path, {
+  const response = await apiFetch(path, {
     method,
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),

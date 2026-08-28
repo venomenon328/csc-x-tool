@@ -1,4 +1,5 @@
 import { readApiError, type ApiError } from '../../api/error'
+import { apiFetch } from '../../api/request'
 
 export type BackupReason = 'STARTUP' | 'PRE_MIGRATION' | 'MANUAL' | 'PRE_RESTORE'
 export type BackupSummary = { id: string, createdAt: string, applicationVersion: string, schemaVersion: number, reason: BackupReason, sizeBytes: number }
@@ -18,7 +19,7 @@ export class DataApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, init)
+  const response = await apiFetch(path, init)
   if (!response.ok) throw new DataApiError(await readApiError(response))
   return response.json() as Promise<T>
 }
