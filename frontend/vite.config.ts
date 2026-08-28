@@ -18,10 +18,12 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: './src/test/setup.ts',
     globals: true,
-    // Keep local/Codex test runs deliberately serial. The jsdom suites can otherwise
-    // spawn enough Node workers to starve the desktop of memory on Windows.
+    // Local/Codex runs are deliberately serial. A single fork is kept for compatibility,
+    // while npm scripts additionally cap both the runner and its worker processes.
+    pool: 'forks',
     maxWorkers: 1,
     fileParallelism: false,
+    maxConcurrency: 1,
     // The application shell deliberately imports all working areas; allow Windows/CI enough time
     // for the first jsdom interaction without weakening any assertion or retry logic.
     testTimeout: 10_000,
