@@ -181,7 +181,7 @@ describe('CandidatePage', () => {
     const rejectedHeading = await screen.findByRole('heading', { name: 'Verworfen Song', level: 3 })
     expect(rejectedHeading).toBeVisible()
     expect(screen.getByRole('button', { name: 'Verworfen verschieben' })).toBeEnabled()
-    const rejectedCard = rejectedHeading.closest('.MuiCard-root')
+    const rejectedCard = rejectedHeading.closest('.MuiCard-root') as HTMLElement | null
     expect(rejectedCard).not.toBeNull()
     expect(within(rejectedCard!).queryByText('Verworfen', { selector: '.MuiChip-label' })).not.toBeInTheDocument()
   })
