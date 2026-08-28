@@ -3,6 +3,7 @@ package de.venomenon.cscxtool.participant;
 import de.venomenon.cscxtool.shared.ApiBadRequestException;
 import java.io.InputStream;
 import java.text.Collator;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -17,12 +18,16 @@ import tools.jackson.databind.ObjectMapper;
 public class CountryCatalog {
 
     private static final String CATALOG_RESOURCE = "countries/countries-de.json";
+    // X* is the ISO 3166-1 user-assigned range. Scotland is a real CSC country but has no own alpha-2 code.
+    private static final Country CSC_SCOTLAND = new Country("XS", "Schottland");
 
     private final List<Country> countries;
     private final Map<String, Country> countriesByCode;
 
     public CountryCatalog(ObjectMapper objectMapper) {
-        List<Country> loadedCountries = load(objectMapper);
+        List<Country> loadedCountries = new ArrayList<>(load(objectMapper));
+        loadedCountries.replaceAll(CountryCatalog::withCscDisplayName);
+        loadedCountries.add(CSC_SCOTLAND);
         Collator germanCollator = Collator.getInstance(Locale.GERMAN);
         List<Country> sortedCountries = loadedCountries.stream()
                 .sorted(Comparator.comparing(Country::name, germanCollator))
@@ -55,6 +60,17 @@ public class CountryCatalog {
             );
         }
         return country;
+    }
+
+    private static Country withCscDisplayName(Country country) {
+        if (country == null) {
+            return null;
+        }
+        return switch (country.code()) {
+            case "CG" -> new Country(country.code(), "Kongo");
+            case "CV" -> new Country(country.code(), "Kap Verde");
+            default -> country;
+        };
     }
 
     private static String normalize(String countryCode) {

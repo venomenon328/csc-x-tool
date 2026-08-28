@@ -82,11 +82,19 @@ export function BallotPanel({
           </Stack>
         </DragDropContext>}
 
+      {ballot.currentSnapshot !== null && ballot.renderedText === null && (
+        <Alert severity="info">
+          Die Top-15-Ausgabe wird verfügbar, sobald allen 15 Snapshot-Beiträgen Teilnehmer und damit Länder zugeordnet sind.
+        </Alert>
+      )}
+
       {ballot.currentSnapshot !== null && ballot.renderedText !== null && (
         <Paper component="section" elevation={0} sx={{ border: 1, borderColor: 'success.main', p: 2.5 }}>
           <Stack spacing={1.5}>
             <Typography component="h2" variant="h6">Abgeschlossene Top 15 · Snapshot {ballot.currentSnapshot.snapshotNumber}</Typography>
-            <Typography color="text.secondary" variant="body2">Diese Vorschau, die Zwischenablage und die Textdatei nutzen unverändert denselben gespeicherten Snapshot.</Typography>
+            <Typography color="text.secondary" variant="body2">
+              Rang, Interpret und Titel stammen aus dem gespeicherten Snapshot; das Land wird aus der nach Abschluss vorgenommenen Teilnehmerzuordnung ergänzt. Vorschau, Zwischenablage und Textdatei verwenden dieselbe Ausgabe.
+            </Typography>
             <TextField aria-label="Top-15-Textvorschau" fullWidth multiline minRows={15} slotProps={{ htmlInput: { readOnly: true } }} value={ballot.renderedText} />
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
               <Button onClick={() => void copySnapshot()}>Top 15 kopieren</Button>

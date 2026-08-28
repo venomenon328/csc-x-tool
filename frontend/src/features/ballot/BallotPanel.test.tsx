@@ -38,8 +38,30 @@ describe('BallotPanel', () => {
     expect(screen.getByRole('button', { name: 'Abstimmung abschließen' })).toBeEnabled()
   })
 
-  it('renders the immutable snapshot and exposes the matching text-file endpoint', () => {
-    const snapshotText = '1. Snapshot Artist - Snapshot Title\n2. …'
+  it('waits for participant countries before exposing the CSC export', () => {
+    render(
+      <BallotPanel
+        ballot={{
+          ballotClosedAt: '2026-08-27T12:00:00Z',
+          currentSnapshot: { id: 1, snapshotNumber: 1, createdAt: '2026-08-27T12:00:00Z', current: true, items: [] },
+          snapshots: [{ id: 1, snapshotNumber: 1, createdAt: '2026-08-27T12:00:00Z', current: true, items: [] }],
+          renderedText: null,
+        }}
+        entries={entries}
+        onClose={vi.fn()}
+        onDrop={vi.fn()}
+        onReopen={vi.fn()}
+        reordering={false}
+        showId={1}
+      />,
+    )
+
+    expect(screen.getByText(/sobald allen 15 Snapshot-Beiträgen Teilnehmer und damit Länder zugeordnet sind/)).toBeVisible()
+    expect(screen.queryByRole('link', { name: 'Textdatei herunterladen' })).not.toBeInTheDocument()
+  })
+
+  it('renders the completed CSC output and exposes the matching text-file endpoint', () => {
+    const snapshotText = 'Platz #1 - Deutschland: Snapshot Artist - Snapshot Title\nPlatz #2 - Schottland: … - …'
     render(
       <BallotPanel
         ballot={{

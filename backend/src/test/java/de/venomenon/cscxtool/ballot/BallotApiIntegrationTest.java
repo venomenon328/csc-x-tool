@@ -83,7 +83,7 @@ class BallotApiIntegrationTest {
         put("/api/shows/3/ballot/reorder", reorderJson(entries.subList(0, 15), List.of(entries.get(15))));
         HttpResponse<String> closed = post("/api/shows/3/ballot/close", null);
         assertThat(closed.statusCode()).isEqualTo(200);
-        assertThat(closed.body()).contains("\"snapshotNumber\":1", "\"renderedText\":\"1. Artist 1 - Song 1\\n2. Artist 2 - Song 2");
+        assertThat(closed.body()).contains("\"snapshotNumber\":1", "\"renderedText\":null");
         assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM ballot_snapshot_item WHERE ballot_snapshot_id = 1", Integer.class)).isEqualTo(15);
 
         HttpResponse<String> changedText = patch("/api/shows/3/entries/" + entries.getFirst(), entryJson("Korrigiert", "Neuer Titel", true));
@@ -112,13 +112,26 @@ class BallotApiIntegrationTest {
         put("/api/shows/3/ballot/reorder", reorderJson(entries.subList(1, 16), List.of()));
         HttpResponse<String> closedAgain = post("/api/shows/3/ballot/close", null);
         assertThat(closedAgain.statusCode()).isEqualTo(200);
-        assertThat(closedAgain.body()).contains("\"snapshotNumber\":2", "\"snapshotNumber\":1", "\"current\":true", "\"current\":false");
+        assertThat(closedAgain.body()).contains("\"snapshotNumber\":2", "\"snapshotNumber\":1", "\"current\":true", "\"current\":false", "\"renderedText\":null");
         assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM ballot_snapshot WHERE motto_show_id = 3 AND is_current = 1", Integer.class)).isEqualTo(1);
+
+        HttpResponse<String> incompleteExport = get("/api/shows/3/ballot/export");
+        assertThat(incompleteExport.statusCode()).isEqualTo(409);
+        assertThat(incompleteExport.body()).contains("BALLOT_EXPORT_REQUIRES_PARTICIPANT_ASSIGNMENTS");
+
+        assignParticipants(entries.subList(1, 16));
+        HttpResponse<String> completedBallot = get("/api/shows/3/ballot");
+        assertThat(completedBallot.body()).contains(
+                "\"renderedText\":\"Platz #1 - Schottland: Artist 2 - Song 2\\nPlatz #2 - Kap Verde: Artist 3 - Song 3\\nPlatz #3 - Kongo: Artist 4 - Song 4"
+        );
 
         HttpResponse<String> export = get("/api/shows/3/ballot/export");
         assertThat(export.statusCode()).isEqualTo(200);
         assertThat(export.headers().firstValue("content-type").orElse("")).startsWith("text/plain;charset=UTF-8");
-        assertThat(export.body()).startsWith("1. Artist 2 - Song 2\n2. Artist 3 - Song 3").doesNotContain("Punkte");
+        assertThat(export.body())
+                .startsWith("Platz #1 - Schottland: Artist 2 - Song 2\nPlatz #2 - Kap Verde: Artist 3 - Song 3\nPlatz #3 - Kongo: Artist 4 - Song 4")
+                .contains("Platz #15 - Deutschland: Artist 16 - Song 16")
+                .doesNotContain("Punkte");
     }
 
     @Test
@@ -130,6 +143,23 @@ class BallotApiIntegrationTest {
                 BallotPoints.pointsForRank(10), BallotPoints.pointsForRank(11), BallotPoints.pointsForRank(12),
                 BallotPoints.pointsForRank(13), BallotPoints.pointsForRank(14), BallotPoints.pointsForRank(15)
         )).containsExactly(25, 20, 16, 13, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1);
+    }
+
+    private void assignParticipants(List<Long> entryIds) {
+        List<String> countryCodes = List.of("XS", "CV", "CG", "DE", "DE", "DE", "DE", "DE", "DE", "DE", "DE", "DE", "DE", "DE", "DE");
+        for (int index = 0; index < entryIds.size(); index++) {
+            long entryId = entryIds.get(index);
+            long participantId = 1_000_000L + entryId;
+            jdbcTemplate.update("""
+                    INSERT INTO participant (id, display_name, country_code, active, created_at, updated_at)
+                    VALUES (?, ?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                    """, participantId, "Participant " + (index + 1), countryCodes.get(index));
+            assertThat(jdbcTemplate.update(
+                    "UPDATE contest_entry SET participant_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                    participantId,
+                    entryId
+            )).isEqualTo(1);
+        }
     }
 
     private List<Long> createEntries(long showId, int count) throws Exception {
@@ -208,7 +238,7 @@ class BallotApiIntegrationTest {
         try {
             return Files.createTempDirectory("csc-x-tool-ballot-api-");
         } catch (Exception exception) {
-            throw new IllegalStateException("Tempor\u00e4res SQLite-Testverzeichnis konnte nicht angelegt werden.", exception);
+            throw new IllegalStateException("Temporäres SQLite-Testverzeichnis konnte nicht angelegt werden.", exception);
         }
     }
 }

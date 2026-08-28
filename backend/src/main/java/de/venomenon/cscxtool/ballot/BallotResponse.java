@@ -20,7 +20,7 @@ record BallotResponse(
                 ballotClosedAt,
                 currentSnapshot == null ? null : BallotSnapshotResponse.from(currentSnapshot),
                 snapshots.stream().map(BallotSnapshotResponse::from).toList(),
-                currentSnapshot == null ? null : renderer.render(currentSnapshot)
+                currentSnapshot == null ? null : renderer.renderIfComplete(currentSnapshot)
         );
     }
 }

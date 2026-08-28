@@ -42,8 +42,14 @@ class ParticipantApiIntegrationTest {
         HttpResponse<String> countries = get("/api/countries");
 
         assertThat(countries.statusCode()).isEqualTo(200);
-        assertThat(countries.body()).contains("\"code\":\"DE\",\"name\":\"Deutschland\"", "\"code\":\"AT\",\"name\":\"Österreich\"");
-        assertThat(occurrences(countries.body(), "\"code\":" )).isEqualTo(249);
+        assertThat(countries.body()).contains(
+                "\"code\":\"DE\",\"name\":\"Deutschland\"",
+                "\"code\":\"AT\",\"name\":\"Österreich\"",
+                "\"code\":\"XS\",\"name\":\"Schottland\"",
+                "\"code\":\"CG\",\"name\":\"Kongo\"",
+                "\"code\":\"CV\",\"name\":\"Kap Verde\""
+        );
+        assertThat(occurrences(countries.body(), "\"code\":" )).isEqualTo(250);
         assertThat(countries.body().indexOf("\"name\":\"Afghanistan\""))
                 .isLessThan(countries.body().indexOf("\"name\":\"Deutschland\""));
         assertThat(get("/api/participants").body()).isEqualTo("[]");
