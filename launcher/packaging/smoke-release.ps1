@@ -2,17 +2,21 @@
 param(
     [string]$AppImagePath,
     [string]$MsiPath,
+    [string]$Version,
     [string]$WixBin,
     [switch]$SkipInstaller
 )
 
 $ErrorActionPreference = 'Stop'
 $config = Import-PowerShellDataFile (Join-Path $PSScriptRoot 'release.psd1')
+$repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
+. (Join-Path $PSScriptRoot 'release-version.ps1')
+$releaseVersion = Resolve-ReleaseVersion $Version $repositoryRoot
 if ([string]::IsNullOrWhiteSpace($AppImagePath)) {
     $AppImagePath = Join-Path $PSScriptRoot "output\app-image\$($config.ApplicationName)"
 }
 if ([string]::IsNullOrWhiteSpace($MsiPath)) {
-    $MsiPath = Join-Path $PSScriptRoot "output\installer\CSC-X-Tool-$($config.ApplicationVersion).msi"
+    $MsiPath = Join-Path $PSScriptRoot "output\installer\CSC-X-Tool-$releaseVersion.msi"
 }
 $appImage = (Resolve-Path $AppImagePath).Path
 $launcher = Join-Path $appImage "$($config.ApplicationName).exe"
@@ -55,7 +59,7 @@ function Start-PackagedApp {
 }
 
 function Wait-ForPackagedHealth {
-    param([string]$StorageRoot, [System.Diagnostics.Process]$Process)
+    param([string]$StorageRoot, [System.Diagnostics.Process]$Process, [string]$ExpectedVersion)
     $instance = Join-Path $StorageRoot 'runtime\instance.json'
     $deadline = (Get-Date).AddSeconds(45)
     do {
@@ -65,6 +69,9 @@ function Wait-ForPackagedHealth {
         if (Test-Path $instance) {
             $runtime = Get-Content -LiteralPath $instance -Raw | ConvertFrom-Json
             if ($runtime.port -lt 1 -or $runtime.port -gt 65535) { throw 'instance.json enthält keinen gültigen Port.' }
+            if ($runtime.applicationVersion -ne $ExpectedVersion) {
+                throw "instance.json enthält die Version '$($runtime.applicationVersion)' statt '$ExpectedVersion'."
+            }
             $base = "http://127.0.0.1:$($runtime.port)"
             try {
                 $health = Invoke-WebRequest -Uri "$base/api/system/health" -UseBasicParsing
@@ -177,10 +184,79 @@ function Find-ExistingCscInstallation {
     return $null
 }
 
+function Get-ZipEntryText {
+    param([System.IO.Compression.ZipArchive]$Archive, [string]$EntryName)
+    $entry = $Archive.GetEntry($EntryName)
+    if ($null -eq $entry) { throw "Das JAR enthält '$EntryName' nicht." }
+    $reader = New-Object System.IO.StreamReader($entry.Open())
+    try {
+        return $reader.ReadToEnd()
+    } finally {
+        $reader.Dispose()
+    }
+}
+
+function Assert-MsiProductVersion {
+    param([string]$Path, [string]$ExpectedVersion)
+    $installer = New-Object -ComObject WindowsInstaller.Installer
+    $database = $installer.OpenDatabase($Path, 0)
+    $view = $database.OpenView('SELECT `Value` FROM `Property` WHERE `Property` = ''ProductVersion''')
+    try {
+        $view.Execute()
+        $record = $view.Fetch()
+        if ($null -eq $record -or $record.StringData(1) -ne $ExpectedVersion) {
+            $actual = if ($null -eq $record) { '<nicht gesetzt>' } else { $record.StringData(1) }
+            throw "Das MSI meldet ProductVersion '$actual' statt '$ExpectedVersion'."
+        }
+    } finally {
+        $view.Close()
+    }
+}
+
+function Assert-ReleaseArtifacts {
+    param([string]$AppImage, [string]$InstallerPath, [string]$ExpectedVersion, [bool]$CheckInstaller)
+    $jar = Join-Path $AppImage "app\csc-x-tool-backend-$ExpectedVersion.jar"
+    if (-not (Test-Path $jar -PathType Leaf)) {
+        throw "Das App-Image enthält nicht das erwartete Backend-JAR: $jar"
+    }
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $archive = [System.IO.Compression.ZipFile]::OpenRead($jar)
+    try {
+        $escapedVersion = [regex]::Escape($ExpectedVersion)
+        $buildInfo = Get-ZipEntryText $archive 'META-INF/build-info.properties'
+        if ($buildInfo -notmatch "(?m)^build\.version=$escapedVersion\r?$") {
+            throw "Die Build-Metadaten des Backend-JAR enthalten nicht die Version '$ExpectedVersion'."
+        }
+        $manifest = Get-ZipEntryText $archive 'META-INF/MANIFEST.MF'
+        if ($manifest -notmatch "(?m)^Implementation-Version:\s*$escapedVersion\r?$") {
+            throw "Das Backend-JAR enthält nicht die Manifest-Version '$ExpectedVersion'."
+        }
+    } finally {
+        $archive.Dispose()
+    }
+
+    if (-not $CheckInstaller) { return }
+    $expectedMsiName = "CSC-X-Tool-$ExpectedVersion.msi"
+    if ((Split-Path $InstallerPath -Leaf) -ne $expectedMsiName) {
+        throw "Der MSI-Dateiname muss '$expectedMsiName' sein."
+    }
+    $checksumPath = "$InstallerPath.sha256"
+    if (-not (Test-Path $checksumPath -PathType Leaf)) {
+        throw "Die SHA-256-Prüfsumme fehlt: $checksumPath"
+    }
+    $actualChecksum = (Get-FileHash -LiteralPath $InstallerPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    $expectedChecksum = "$actualChecksum *$expectedMsiName"
+    if ((Get-Content -LiteralPath $checksumPath -Raw).Trim() -ne $expectedChecksum) {
+        throw 'Die MSI-Prüfsumme stimmt nicht mit dem erzeugten Artefakt überein.'
+    }
+    Assert-MsiProductVersion $InstallerPath $ExpectedVersion
+}
+
 try {
+    Assert-ReleaseArtifacts $appImage $MsiPath $releaseVersion (-not $SkipInstaller)
     $appStorage = Join-Path $testRoot 'app-image-storage'
     $first = Start-PackagedApp $launcher $appStorage
-    $running = Wait-ForPackagedHealth $appStorage $first
+    $running = Wait-ForPackagedHealth $appStorage $first $releaseVersion
     Assert-SecondLaunchReusesInstance $launcher $appStorage $running.RuntimePath
     $csrf = New-CsrfSession $running.Base
 
@@ -200,7 +276,7 @@ try {
     }
 
     $restarted = Start-PackagedApp $launcher $appStorage
-    $afterRestart = Wait-ForPackagedHealth $appStorage $restarted
+    $afterRestart = Wait-ForPackagedHealth $appStorage $restarted $releaseVersion
     $preserved = Invoke-WebRequest -Uri "$($afterRestart.Base)/api/shows/1/candidates" -UseBasicParsing
     if ($preserved.Content -notmatch 'Packaging Smoke') { throw 'Die Daten haben den gepackten Neustart nicht überlebt.' }
     Stop-PackagedApp $afterRestart.Base (New-CsrfSession $afterRestart.Base) $restarted $afterRestart.RuntimePath
@@ -213,13 +289,14 @@ try {
         Invoke-Msi "/i `"$((Resolve-Path $MsiPath).Path)`" /qn /norestart"
         $installedLauncher = Find-InstalledLauncher
         $installed = Start-PackagedApp $installedLauncher $installerStorage
-        $installedRunning = Wait-ForPackagedHealth $installerStorage $installed
+        $installedRunning = Wait-ForPackagedHealth $installerStorage $installed $releaseVersion
         Stop-PackagedApp $installedRunning.Base (New-CsrfSession $installedRunning.Base) $installed $installedRunning.RuntimePath
 
         $upgradeDestination = Join-Path $testRoot 'upgrade'
         New-Item -ItemType Directory -Force -Path $upgradeDestination | Out-Null
-        & jpackage '--type' 'msi' '--dest' $upgradeDestination '--name' $config.ApplicationName '--app-version' '0.1.1' '--app-image' $appImage '--win-per-user-install' '--win-menu' '--win-menu-group' 'CSC-X-Tool' '--win-upgrade-uuid' $config.UpgradeUuid
-        if ($LASTEXITCODE -ne 0) { throw 'Der synthetische 0.1.1-Upgrade-Installer konnte nicht erzeugt werden.' }
+        $upgradeVersion = Get-SyntheticUpgradeVersion $releaseVersion
+        & jpackage '--type' 'msi' '--dest' $upgradeDestination '--name' $config.ApplicationName '--app-version' $upgradeVersion '--app-image' $appImage '--win-per-user-install' '--win-menu' '--win-menu-group' 'CSC-X-Tool' '--win-upgrade-uuid' $config.UpgradeUuid
+        if ($LASTEXITCODE -ne 0) { throw "Der synthetische $upgradeVersion-Upgrade-Installer konnte nicht erzeugt werden." }
         $upgradeMsi = (Get-ChildItem $upgradeDestination -Filter '*.msi' -File | Select-Object -First 1).FullName
         Invoke-Msi "/i `"$upgradeMsi`" /qn /norestart"
         if (-not (Test-Path (Find-InstalledLauncher) -PathType Leaf)) { throw 'Der Upgradepfad hat den Launcher nicht erhalten.' }

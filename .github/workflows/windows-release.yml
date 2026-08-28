@@ -1,21 +1,43 @@
-name: Windows release package
+name: Verify and Package Windows Release
 
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: Release version in X.Y.Z format
+        required: true
+        type: string
   push:
     tags:
-      - 'v0.1.0'
+      - 'v*'
 
 permissions:
   contents: read
 
 jobs:
   package:
-    name: Verify and package Windows release
+    name: Verify and Package Windows Release
     runs-on: windows-latest
     steps:
       - name: Check out repository
         uses: actions/checkout@v7.0.1
+      - name: Resolve and validate release version
+        id: release_version
+        shell: pwsh
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
+        run: |
+          if ($env:GITHUB_EVENT_NAME -eq 'workflow_dispatch') {
+            $version = $env:REQUESTED_VERSION
+          } elseif ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REF_NAME.StartsWith('v')) {
+            $version = $env:GITHUB_REF_NAME.Substring(1)
+          } else {
+            throw 'Ein Windows-Release muss manuell mit einer Version oder über ein vX.Y.Z-Tag ausgelöst werden.'
+          }
+          if ($version -notmatch '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$') {
+            throw "Die Releaseversion '$version' muss dem Format X.Y.Z entsprechen."
+          }
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
       - name: Set up Java 21
         uses: actions/setup-java@v6.0.0
         with:
@@ -36,19 +58,19 @@ jobs:
         shell: pwsh
         run: '"C:\Program Files (x86)\WiX Toolset v3.14\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append'
       - name: Verify once
-        run: .\scripts\mvn-safe.cmd clean verify
+        run: .\scripts\mvn-safe.cmd clean verify -Drevision=${{ steps.release_version.outputs.version }}
       - name: Build App-Image and MSI
         shell: pwsh
-        run: .\launcher\packaging\build-release.ps1 -SkipBuild -Clean
+        run: .\launcher\packaging\build-release.ps1 -Version ${{ steps.release_version.outputs.version }} -SkipBuild -Clean
       - name: Smoke packaged application and installer behavior
         shell: pwsh
-        run: .\launcher\packaging\smoke-release.ps1
+        run: .\launcher\packaging\smoke-release.ps1 -Version ${{ steps.release_version.outputs.version }}
       - name: Upload MSI, checksum and diagnostic App-Image
         uses: actions/upload-artifact@v6.0.0
         with:
-          name: CSC-X-Tool-0.1.0-windows
+          name: CSC-X-Tool-${{ steps.release_version.outputs.version }}-windows
           path: |
-            launcher/packaging/output/installer/CSC-X-Tool-0.1.0.msi
-            launcher/packaging/output/installer/CSC-X-Tool-0.1.0.msi.sha256
+            launcher/packaging/output/installer/CSC-X-Tool-${{ steps.release_version.outputs.version }}.msi
+            launcher/packaging/output/installer/CSC-X-Tool-${{ steps.release_version.outputs.version }}.msi.sha256
             launcher/packaging/output/app-image
           if-no-files-found: error
