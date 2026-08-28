@@ -89,12 +89,7 @@ export function ShowOverview() {
 
   return (
     <Stack spacing={3}>
-      <Box>
-        <Typography component="h1" variant="h4">Übersicht</Typography>
-        <Typography color="text.secondary" sx={{ mt: 1 }}>
-          Die zwölf Mottoshows werden lokal gespeichert. Die fachlichen Arbeitsbereiche wachsen mit den nächsten Paketen.
-        </Typography>
-      </Box>
+      <Typography component="h1" variant="h4">Übersicht</Typography>
 
       {loadError !== null && (
         <Stack spacing={1}>
