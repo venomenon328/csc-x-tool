@@ -640,10 +640,9 @@ function ManualCandidateList({ candidates, dragEnabled, reordering, selectedCand
                               <Box sx={{ flex: 1, minWidth: 0 }}>
                                 <Typography component="h3" sx={{ fontWeight: 650, overflowWrap: 'anywhere' }} variant="subtitle1">{candidate.title}</Typography>
                                 <Typography color="text.secondary" sx={{ overflowWrap: 'anywhere' }} variant="body2">{candidate.artist}</Typography>
-                                {(active || candidate.status === 'VERWORFEN') && (
+                                {active && (
                                   <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap', mt: 0.5 }} useFlexGap>
-                                    {active && <Chip color="secondary" icon={<PlayIcon aria-hidden="true" />} label="Wird angehört" size="small" />}
-                                    {candidate.status === 'VERWORFEN' && <Chip icon={<RejectedIcon aria-hidden="true" />} label="Verworfen" size="small" />}
+                                    <Chip color="secondary" icon={<PlayIcon aria-hidden="true" />} label="Wird angehört" size="small" />
                                   </Stack>
                                 )}
                                 {candidate.comment !== null && candidate.comment.trim() !== '' && (
