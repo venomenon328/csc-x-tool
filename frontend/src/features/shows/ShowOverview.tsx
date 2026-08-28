@@ -13,8 +13,6 @@ import {
   DialogContent,
   DialogTitle,
   IconButton,
-  Menu,
-  MenuItem,
   Skeleton,
   Stack,
   TextField,
@@ -26,8 +24,8 @@ import {
   CandidateIcon,
   CheckIcon,
   ClockIcon,
+  EditIcon,
   EntriesIcon,
-  MoreIcon,
   PlayIcon,
   RankIcon,
   ResultIcon,
@@ -149,28 +147,17 @@ export function ShowOverview() {
 }
 
 function ShowCard({ show, onRename }: { show: MottoShow, onRename: () => void }) {
-  const [actionMenuAnchor, setActionMenuAnchor] = useState<HTMLElement | null>(null)
   const candidateCount = show.candidateCount ?? 0
   const contestEntryCount = show.contestEntryCount ?? 0
   const listenedEntryCount = show.listenedEntryCount ?? 0
   const rankedEntryCount = show.rankedEntryCount ?? 0
   const ballotClosed = show.ballotClosedAt !== null && show.ballotClosedAt !== undefined
   const resultsClosed = show.resultsClosedAt !== null && show.resultsClosedAt !== undefined
-  const actionMenuOpen = actionMenuAnchor !== null
   const resultStatus = !ballotClosed
     ? 'Wartet auf Top 15'
     : resultsClosed
     ? 'Abgeschlossen'
     : `In Arbeit · ${show.knownActiveResultCount ?? 0} / ${show.activeParticipantCount ?? 0} erfasst`
-
-  function closeActionMenu() {
-    setActionMenuAnchor(null)
-  }
-
-  function startRename() {
-    closeActionMenu()
-    onRename()
-  }
 
   return (
     <Card component="section" elevation={0} sx={{ border: 1, borderColor: 'divider', display: 'flex', flexDirection: 'column' }}>
@@ -180,7 +167,19 @@ function ShowCard({ show, onRename }: { show: MottoShow, onRename: () => void })
             <Typography color="secondary" variant="overline">Show {show.showNumber}</Typography>
             <Chip label={formatCount(candidateCount, 'Kandidat', 'Kandidaten')} size="small" />
           </Stack>
-          <Typography component="h2" sx={{ overflowWrap: 'anywhere' }} variant="h6">{show.name}</Typography>
+          <Stack direction="row" spacing={0.5} sx={{ alignItems: 'flex-start', mt: 0.25 }}>
+            <Typography component="h2" sx={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }} variant="h6">{show.name}</Typography>
+            <Tooltip title="Name bearbeiten">
+              <IconButton
+                aria-label={`Name von Show ${show.showNumber} bearbeiten`}
+                onClick={onRename}
+                size="small"
+                sx={{ flexShrink: 0, mt: -0.25 }}
+              >
+                <EditIcon aria-hidden="true" fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </Stack>
         </Box>
 
         <SubmissionBlock selectedCandidate={show.selectedCandidate} />
@@ -190,7 +189,7 @@ function ShowCard({ show, onRename }: { show: MottoShow, onRename: () => void })
           <Box sx={{ display: 'grid', gap: 0.75, gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', mt: 0.5 }}>
             <ProgressMetric count={contestEntryCount} kind="entries" label="Beiträge" total={contestEntryCount} />
             <ProgressMetric count={listenedEntryCount} kind="listened" label="Gehört" total={contestEntryCount} />
-            <ProgressMetric count={rankedEntryCount} kind="ranked" label="Eingeordnet" total={contestEntryCount} />
+            <ProgressMetric count={rankedEntryCount} kind="ranked" label="Gerankt" total={contestEntryCount} />
           </Box>
         </Box>
 
@@ -222,29 +221,61 @@ function ShowCard({ show, onRename }: { show: MottoShow, onRename: () => void })
           {show.finalPlace !== null && <Typography color="text.secondary" sx={{ mt: ballotClosed ? 1.5 : 1 }} variant="body2">Endplatzierung: {show.finalPlace}. Platz{show.finalPlaceTied ? ' (geteilt)' : ''}</Typography>}
         </Box>
       </CardContent>
-      <CardActions sx={{ borderTop: 1, borderColor: 'divider', display: 'grid', gap: 1, gridTemplateColumns: 'minmax(0, 1fr) auto', p: 2 }}>
-        <Box aria-label={`Arbeitsbereiche für Show ${show.showNumber}`} component="nav" sx={{ display: 'grid', gap: 0.5, gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
-          <Button component={RouterLink} size="small" startIcon={<CandidateIcon aria-hidden="true" fontSize="small" />} sx={{ minWidth: 0, whiteSpace: 'normal' }} to={`/shows/${show.id}/candidates`} variant="outlined">Kandidaten</Button>
-          <Button component={RouterLink} size="small" startIcon={<PlayIcon aria-hidden="true" fontSize="small" />} sx={{ minWidth: 0, whiteSpace: 'normal' }} to={`/shows/${show.id}/voting`} variant="outlined">Abstimmung</Button>
-          <Button component={RouterLink} size="small" startIcon={<ResultIcon aria-hidden="true" fontSize="small" />} sx={{ minWidth: 0, whiteSpace: 'normal' }} to={`/shows/${show.id}/result`} variant="outlined">Ergebnis</Button>
-        </Box>
-        <Tooltip title="Weitere Aktionen">
-          <IconButton
-            aria-controls={actionMenuOpen ? `show-${show.id}-actions` : undefined}
-            aria-expanded={actionMenuOpen ? 'true' : undefined}
-            aria-haspopup="menu"
-            aria-label={`Weitere Aktionen für Show ${show.showNumber}`}
-            onClick={(event) => setActionMenuAnchor(event.currentTarget)}
+      <CardActions sx={{ borderTop: 1, borderColor: 'divider', p: 1.5 }}>
+        <Box
+          aria-label={`Arbeitsbereiche für Show ${show.showNumber}`}
+          component="nav"
+          sx={{ display: 'grid', gap: 0.5, gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', width: '100%' }}
+        >
+          <Button
+            component={RouterLink}
+            size="small"
+            startIcon={<CandidateIcon aria-hidden="true" fontSize="small" />}
+            sx={showNavigationButtonSx}
+            to={`/shows/${show.id}/candidates`}
+            variant="outlined"
           >
-            <MoreIcon aria-hidden="true" />
-          </IconButton>
-        </Tooltip>
-        <Menu anchorEl={actionMenuAnchor} id={`show-${show.id}-actions`} onClose={closeActionMenu} open={actionMenuOpen}>
-          <MenuItem onClick={startRename}>Name bearbeiten</MenuItem>
-        </Menu>
+            Kandidaten
+          </Button>
+          <Button
+            component={RouterLink}
+            size="small"
+            startIcon={<PlayIcon aria-hidden="true" fontSize="small" />}
+            sx={showNavigationButtonSx}
+            to={`/shows/${show.id}/voting`}
+            variant="outlined"
+          >
+            Abstimmung
+          </Button>
+          <Button
+            component={RouterLink}
+            size="small"
+            startIcon={<ResultIcon aria-hidden="true" fontSize="small" />}
+            sx={showNavigationButtonSx}
+            to={`/shows/${show.id}/result`}
+            variant="outlined"
+          >
+            Ergebnis
+          </Button>
+        </Box>
       </CardActions>
     </Card>
   )
+}
+
+const showNavigationButtonSx = {
+  fontSize: '0.68rem',
+  minWidth: 0,
+  px: 0.5,
+  py: 0.5,
+  whiteSpace: 'nowrap',
+  '& .MuiButton-startIcon': {
+    marginLeft: 0,
+    marginRight: 0.35,
+  },
+  '& .MuiSvgIcon-root': {
+    fontSize: '0.95rem',
+  },
 }
 
 function SubmissionBlock({ selectedCandidate }: { selectedCandidate: MottoShow['selectedCandidate'] }) {
@@ -274,20 +305,24 @@ function ProgressMetric({ count, kind, label, total }: { count: number, kind: Pr
   const accessibleLabel = kind === 'entries'
     ? formatCount(count, 'Beitrag', 'Beiträge')
     : total === 0
-    ? `0 Beiträge ${kind === 'listened' ? 'gehört' : 'eingeordnet'}`
-    : `${count} von ${total} Beiträgen ${kind === 'listened' ? 'gehört' : 'eingeordnet'}`
+    ? `0 Beiträge ${kind === 'listened' ? 'gehört' : 'gerankt'}`
+    : `${count} von ${total} Beiträgen ${kind === 'listened' ? 'gehört' : 'gerankt'}`
 
   return (
     <Box
       aria-label={accessibleLabel}
       role="group"
-      sx={{ backgroundColor: 'action.hover', borderRadius: 1, minWidth: 0, p: 1 }}
+      sx={{ backgroundColor: 'action.hover', borderRadius: 1, minWidth: 0, p: 0.75 }}
     >
-      <Stack aria-hidden="true" direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
-        <Icon color="secondary" fontSize="small" sx={{ flexShrink: 0 }} />
+      <Stack aria-hidden="true" direction="row" spacing={0.5} sx={{ alignItems: 'center', minWidth: 0 }}>
+        <Icon color="secondary" sx={{ flexShrink: 0, fontSize: '1rem' }} />
         <Box sx={{ minWidth: 0 }}>
-          <Typography sx={{ fontVariantNumeric: 'tabular-nums', lineHeight: 1.1 }} variant="h6">{visibleValue}</Typography>
-          <Typography color="text.secondary" sx={{ display: 'block', lineHeight: 1.2, mt: 0.25, overflowWrap: 'anywhere' }} variant="caption">{label}</Typography>
+          <Typography sx={{ fontSize: '0.9rem', fontVariantNumeric: 'tabular-nums', fontWeight: 700, lineHeight: 1.1, whiteSpace: 'nowrap' }}>
+            {visibleValue}
+          </Typography>
+          <Typography color="text.secondary" sx={{ display: 'block', fontSize: '0.66rem', lineHeight: 1.2, mt: 0.25, whiteSpace: 'nowrap' }} variant="caption">
+            {label}
+          </Typography>
         </Box>
       </Stack>
     </Box>
