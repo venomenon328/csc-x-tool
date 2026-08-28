@@ -28,7 +28,7 @@ export function ClipboardImportArea({ onPasteData, disabled = false }: {
       onPaste={(event) => void handlePaste(event)}
       role="button"
       tabIndex={disabled ? -1 : 0}
-      sx={{ border: 1, borderColor: 'primary.main', cursor: disabled ? 'default' : 'paste', outlineOffset: 3, p: 3 }}
+      sx={{ border: 1, borderColor: 'secondary.main', cursor: disabled ? 'default' : 'paste', outlineOffset: 3, p: 3 }}
     >
       <Typography component="h2" variant="h6">CSC-Beitragsblock importieren</Typography>
       <Typography color="text.secondary" sx={{ mt: 1 }}>
