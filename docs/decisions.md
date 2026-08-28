@@ -289,6 +289,10 @@ Restore-Dateien gelangen nur als Uploadbytes oder per serverseitig aufgelöster 
 
 Ein fairer zentraler Read/Write-Lock um jede normale JDBC-Verbindung und den finalen Restore-Switch verhindert parallelen Repositoryzugriff. Unter dem exklusiven Lock entsteht unmittelbar vor dem Umschalten ein geprüftes `PRE_RESTORE`-Backup. Die Stagingdatei wird anschließend per Online-Restore eingespielt und die Live-Datenbank erneut geprüft. Bei einem Fehler nach dem Umschalten wird diese Sicherheitskopie automatisch zurückgespielt; technische I/O-, SQLite- und Liquibase-Ursachen bleiben technische Fehler und werden nicht als fachliche Inkompatibilität etikettiert.
 
+Erg\u00e4nzend ist der JSON-Vollauszug ein einziger SQLite-Lesesnapshot: Alle Tabellen werden in derselben Read-Transaktion gelesen, so dass ein paralleler WAL-Schreibvorgang keine gemischten St\u00e4nde erzeugt und der exklusive Restore-Switch bis zum Exportende wartet. Ein JSON-v1-Import pr\u00fcft vor dem Staging neben Format und Version auch den UTC-Exportzeitpunkt, genau zw\u00f6lf Mottoshows, alle Referenzen, Abschluss-/Snapshot-Invarianten sowie Codes des lokalen L\u00e4nderkatalogs.
+
+Die Entscheidung f\u00fcr PRE_MIGRATION basiert auf einer vor DataSource-Erzeugung ermittelten vorhandenen Liquibase-Schemahistorie, nicht auf der blo\u00dfen Existenz einer SQLite-Datei. Schlagen nach einem Live-Restore sowohl die Wiederherstellung als auch die gepr\u00fcfte R\u00fccksicherung fehl, liefert die API den eigenen technischen Zustand `RESTORE_RECOVERY_FAILED`; sie behauptet in diesem Fall keinen erhaltenen oder bekannten Datenstand.
+
 ## Bewusst vertagte Entscheidungen
 
 ### O-001 – Vollständiger Import-Testblock

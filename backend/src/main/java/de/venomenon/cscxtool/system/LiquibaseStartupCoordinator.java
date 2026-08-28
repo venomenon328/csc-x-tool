@@ -57,7 +57,7 @@ public class LiquibaseStartupCoordinator {
     @PostConstruct
     public void migrateAndBackUp() {
         try {
-            if (startupState.existedBeforeDataSourceCreation() && migrationProbe.hasPendingChanges(dataSource, changeLog)) {
+            if (startupState.containsExistingSchema() && migrationProbe.hasPendingChanges(dataSource, changeLog)) {
                 backups.create(BackupReason.PRE_MIGRATION);
             }
             migrationProbe.migrate(dataSource, changeLog);

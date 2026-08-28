@@ -57,11 +57,14 @@ public class CsvExportService {
     public byte[] results() {
         return csv(List.of("Show", "Teilnehmer", "Abstimmungsstatus", "Punkte", "Berechnete Gesamtpunkte", "Offizielle Gesamtpunkte", "Endplatzierung", "Platzierung geteilt"),
                 jdbc.query("""
-                        SELECT motto_show.show_number,motto_show.name,participant.display_name,received_score.status,received_score.points,
+                        SELECT motto_show.show_number,motto_show.name,participant.display_name,
+                          COALESCE(received_score.status, 'UNBEKANNT'),received_score.points,
                           COALESCE((SELECT SUM(points) FROM received_score scores WHERE scores.motto_show_id=motto_show.id AND scores.status='ABGESTIMMT'),0),
                           motto_show.official_total_points,motto_show.final_place,motto_show.final_place_tied
-                        FROM received_score JOIN motto_show ON motto_show.id=received_score.motto_show_id
-                        JOIN participant ON participant.id=received_score.participant_id
+                        FROM motto_show CROSS JOIN participant
+                        LEFT JOIN received_score ON received_score.motto_show_id=motto_show.id
+                          AND received_score.participant_id=participant.id
+                        WHERE participant.active=1 OR received_score.id IS NOT NULL
                         ORDER BY motto_show.show_number,participant.display_name COLLATE NOCASE,participant.id
                         """, (r,n) -> List.of(show(r.getInt(1),r.getString(2)),r.getString(3),r.getString(4),nullableNumber(r,5),
                         Integer.toString(r.getInt(6)),nullableNumber(r,7),nullableNumber(r,8),yesNo(r.getBoolean(9)))));

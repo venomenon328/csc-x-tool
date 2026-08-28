@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
@@ -16,6 +17,8 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class RestoreService {
+
+    private static final Duration PREVIEW_TTL = Duration.ofMinutes(30);
 
     private final ApplicationStorage storage;
     private final BackupService backups;
@@ -38,6 +41,7 @@ public class RestoreService {
     }
 
     public RestorePreview previewKnownBackup(String id) {
+        cleanupExpiredPreviews();
         Path artifact = backups.resolveKnownArtifact(id);
         BackupManifest manifest = backups.readManifest(artifact);
         Path work = newWorkDirectory();
@@ -53,6 +57,7 @@ public class RestoreService {
     }
 
     public RestorePreview previewUploadedBackup(InputStream input, String originalFilename) {
+        cleanupExpiredPreviews();
         Path work = newWorkDirectory();
         try {
             Path artifact = work.resolve("uploaded.cscbackup");
@@ -69,6 +74,7 @@ public class RestoreService {
     }
 
     public RestorePreview previewUploadedJson(InputStream input, String originalFilename) {
+        cleanupExpiredPreviews();
         Path work = newWorkDirectory();
         try {
             Path exportFile = work.resolve("uploaded.json");
@@ -85,6 +91,7 @@ public class RestoreService {
     }
 
     public RestoreResult restore(String token) {
+        cleanupExpiredPreviews();
         PreparedRestore restore = prepared.remove(token);
         if (restore == null) {
             throw new BackupFileException("RESTORE_PREVIEW_EXPIRED", "Die Wiederherstellungsvorschau ist nicht mehr verf\u00fcgbar. Bitte pr\u00fcfen Sie die Datei erneut.");
@@ -113,7 +120,7 @@ public class RestoreService {
                     BackupService.deleteRecursively(recovery);
                 }
             } catch (Exception recoveryFailure) {
-                restoreFailure.addSuppressed(recoveryFailure);
+                throw new RestoreRecoveryFailedException(restoreFailure, recoveryFailure);
             }
             throw new BackupStorageException("Die Wiederherstellung ist technisch fehlgeschlagen; der vorherige Stand wurde zur\u00fcckgespielt.", restoreFailure);
         }
@@ -121,7 +128,7 @@ public class RestoreService {
 
     private RestorePreview retain(PreparedRestore restore) {
         String token = UUID.randomUUID().toString();
-        prepared.put(token, restore);
+        prepared.put(token, restore.withPreparedAt(Instant.now()));
         return new RestorePreview(token, restore.sourceType(), restore.sourceName(), restore.createdAt(),
                 restore.applicationVersion(), restore.schemaVersion(), true, counts(restore.stageDatabase()));
     }
@@ -129,11 +136,13 @@ public class RestoreService {
     private void migrateAndVerify(Path stage) {
         try {
             SchemaSupport.migrate(stage);
+        } catch (Exception exception) {
+            throw new BackupStorageException("Die Staging-Sicherung konnte technisch nicht auf die aktuelle Datenbankschemaversion migriert werden.", exception);
+        }
+        try {
             SchemaSupport.verify(stage, SchemaSupport.CURRENT_SCHEMA_VERSION);
         } catch (BackupFileException exception) {
-            throw exception;
-        } catch (Exception exception) {
-            throw new BackupFileException("BACKUP_INVALID", "Die Sicherung kann nicht auf die aktuelle Datenbankschemaversion vorbereitet werden.", exception);
+            throw new BackupStorageException("Die migrierte Staging-Sicherung besteht die SQLite-Prüfung nicht.", exception);
         }
     }
 
@@ -166,6 +175,18 @@ public class RestoreService {
         }
     }
 
+    private void cleanupExpiredPreviews() {
+        Instant cutoff = Instant.now().minus(PREVIEW_TTL);
+        prepared.entrySet().removeIf(entry -> {
+            PreparedRestore preview = entry.getValue();
+            if (preview.preparedAt() != null && preview.preparedAt().isBefore(cutoff)) {
+                BackupService.deleteRecursively(preview.workDirectory());
+                return true;
+            }
+            return false;
+        });
+    }
+
     private static void copyLimited(InputStream input, Path target) {
         long size = 0;
         byte[] buffer = new byte[8192];
@@ -189,5 +210,15 @@ public class RestoreService {
     }
 
     private record PreparedRestore(Path workDirectory, Path stageDatabase, String sourceType, String sourceName,
-                                   String createdAt, String applicationVersion, int schemaVersion) { }
+                                   String createdAt, String applicationVersion, int schemaVersion, Instant preparedAt) {
+        PreparedRestore(Path workDirectory, Path stageDatabase, String sourceType, String sourceName,
+                        String createdAt, String applicationVersion, int schemaVersion) {
+            this(workDirectory, stageDatabase, sourceType, sourceName, createdAt, applicationVersion, schemaVersion, null);
+        }
+
+        PreparedRestore withPreparedAt(Instant value) {
+            return new PreparedRestore(workDirectory, stageDatabase, sourceType, sourceName, createdAt,
+                    applicationVersion, schemaVersion, value);
+        }
+    }
 }
