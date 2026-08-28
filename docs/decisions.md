@@ -279,6 +279,20 @@ Der Abschluss setzt `motto_show.ballot_closed_at` und erzeugt eine unveränderli
 
 Bis zur realen Vorlage aus #15 ist der Renderer bewusst neutral und verbindlich: exakt 15 Zeilen `1. Interpret - Titel` bis `15. Interpret - Titel`, ohne Überschrift oder Punktwerte. Vorschau, Clipboard und UTF-8-Textdatei verwenden denselben serverseitigen Renderer und ausschließlich den aktuellen Snapshot. Der P5-Vivaldi-Smoke mit ungefähr 30 Beiträgen ist noch nicht durchgeführt; die manuelle Abnahme bleibt ausdrücklich offen, solange er nicht in Vivaldi dokumentiert ist.
 
+### A-018 – P7-Backupcontainer, Staging-Restore und zentraler Datenlock
+
+P7 verwendet für jede laufende SQLite-Datenbank ausschließlich die Xerial-Erweiterungen `BACKUP TO` und `RESTORE FROM`, die auf der SQLite Online Backup API basieren. Die geöffnete Hauptdatei und ihre WAL-Nebenfiles werden niemals kopiert. Ein erfolgreiches Backup ist ein atomar veröffentlichtes `.cscbackup`-ZIP mit `manifest.json` und `database.sqlite`; das Manifest v1 enthält UTC-Zeitpunkt, Build-Version, Schema-Generation, Anlass und SHA-256 des Snapshots. Vor Veröffentlichung und vor Restore prüfen SHA-256, `PRAGMA quick_check` und `PRAGMA foreign_key_check` die Datei.
+
+`STARTUP` und `PRE_MIGRATION` liegen gemeinsam in `backups/automatic` und werden erst nach erfolgreicher neuer Sicherung auf die jüngsten 30 Artefakte gekürzt. `MANUAL` und `PRE_RESTORE` liegen in `backups/manual` und werden nie automatisch gelöscht. Ein Start erzeugt nach erfolgreicher Migration zwingend ein `STARTUP`-Backup; bei tatsächlich ausstehenden Changesets einer vorhandenen Datenbank entsteht zuvor ein `PRE_MIGRATION`-Backup. Schlagen diese Pflichtsicherungen fehl, gilt der Start nicht als erfolgreich.
+
+Restore-Dateien gelangen nur als Uploadbytes oder per serverseitig aufgelöster Backup-ID in das Backend. Native Backups werden entpackt, geprüft und bei Bedarf in einer temporären echten SQLite-Stagingdatei vorwärts migriert. JSON-v1 wird ausschließlich als expliziter vollständiger Fachvertrag in eine frisch migrierte Stagingdatei eingespielt; Liquibase- und Laufzeitdaten, Pfade, Logs und der Länderkatalog sind nicht Bestandteil. Erst eine erfolgreiche Vorschau darf separat bestätigt werden.
+
+Ein fairer zentraler Read/Write-Lock um jede normale JDBC-Verbindung und den finalen Restore-Switch verhindert parallelen Repositoryzugriff. Unter dem exklusiven Lock entsteht unmittelbar vor dem Umschalten ein geprüftes `PRE_RESTORE`-Backup. Die Stagingdatei wird anschließend per Online-Restore eingespielt und die Live-Datenbank erneut geprüft. Bei einem Fehler nach dem Umschalten wird diese Sicherheitskopie automatisch zurückgespielt; technische I/O-, SQLite- und Liquibase-Ursachen bleiben technische Fehler und werden nicht als fachliche Inkompatibilität etikettiert.
+
+Erg\u00e4nzend ist der JSON-Vollauszug ein einziger SQLite-Lesesnapshot: Alle Tabellen werden in derselben Read-Transaktion gelesen, so dass ein paralleler WAL-Schreibvorgang keine gemischten St\u00e4nde erzeugt und der exklusive Restore-Switch bis zum Exportende wartet. Ein JSON-v1-Import pr\u00fcft vor dem Staging neben Format und Version auch den UTC-Exportzeitpunkt, genau zw\u00f6lf Mottoshows, alle Referenzen, Abschluss-/Snapshot-Invarianten sowie Codes des lokalen L\u00e4nderkatalogs.
+
+Die Entscheidung f\u00fcr PRE_MIGRATION basiert auf einer vor DataSource-Erzeugung ermittelten vorhandenen Liquibase-Schemahistorie, nicht auf der blo\u00dfen Existenz einer SQLite-Datei. Schlagen nach einem Live-Restore sowohl die Wiederherstellung als auch die gepr\u00fcfte R\u00fccksicherung fehl, liefert die API den eigenen technischen Zustand `RESTORE_RECOVERY_FAILED`; sie behauptet in diesem Fall keinen erhaltenen oder bekannten Datenstand.
+
 ## Bewusst vertagte Entscheidungen
 
 ### O-001 – Vollständiger Import-Testblock
