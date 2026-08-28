@@ -5,6 +5,7 @@ record BallotSnapshotItem(
         Long contestEntryId,
         String artist,
         String title,
-        String youtubeUrl
+        String youtubeUrl,
+        String participantCountryCode
 ) {
 }

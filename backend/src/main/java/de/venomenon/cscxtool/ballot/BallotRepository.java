@@ -191,10 +191,13 @@ class BallotRepository {
 
     private List<BallotSnapshotItem> findSnapshotItems(long snapshotId) {
         return jdbcTemplate.query("""
-                SELECT rank, contest_entry_id, artist_snapshot, title_snapshot, youtube_url_snapshot
-                FROM ballot_snapshot_item
-                WHERE ballot_snapshot_id = ?
-                ORDER BY rank
+                SELECT item.rank, item.contest_entry_id, item.artist_snapshot, item.title_snapshot,
+                       item.youtube_url_snapshot, participant.country_code AS participant_country_code
+                FROM ballot_snapshot_item item
+                LEFT JOIN contest_entry entry ON entry.id = item.contest_entry_id
+                LEFT JOIN participant ON participant.id = entry.participant_id
+                WHERE item.ballot_snapshot_id = ?
+                ORDER BY item.rank
                 """, SNAPSHOT_ITEM_ROW_MAPPER, snapshotId);
     }
 
@@ -215,7 +218,8 @@ class BallotRepository {
                 resultSet.wasNull() ? null : entryId,
                 resultSet.getString("artist_snapshot"),
                 resultSet.getString("title_snapshot"),
-                resultSet.getString("youtube_url_snapshot")
+                resultSet.getString("youtube_url_snapshot"),
+                resultSet.getString("participant_country_code")
         );
     }
 

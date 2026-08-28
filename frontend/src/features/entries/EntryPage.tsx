@@ -240,6 +240,7 @@ export function EntryPage() {
     try {
       const updated = await updateParticipantAssignment(showId, entry.id, participant?.id ?? null)
       setEntries((current) => current?.map((item) => item.id === updated.id ? updated : item) ?? null)
+      setBallot(await fetchBallot(showId))
       void reloadShows()
     } catch (caught) {
       setError(asEntryApiError(caught, `/api/shows/${showId}/entries/${entry.id}/participant`))
