@@ -63,6 +63,8 @@ export function CandidatePage() {
   const confirmedCandidates = useRef<Candidate[]>([])
   const [error, setError] = useState<CandidateApiError | null>(null)
   const [quickInput, setQuickInput] = useState<CandidateInput>(emptyInput)
+  const [quickEntryOpen, setQuickEntryOpen] = useState(false)
+  const quickEntryInitializedForShow = useRef<number | null>(null)
   const [savingQuickInput, setSavingQuickInput] = useState(false)
   const [editing, setEditing] = useState<Candidate | null>(null)
   const [activeCandidate, setActiveCandidate] = useState<Candidate | null>(null)
@@ -83,8 +85,8 @@ export function CandidatePage() {
     () => candidates === null ? [] : visibleCandidates(candidates, search, statusFilter, showRejected, sortMode),
     [candidates, search, showRejected, sortMode, statusFilter],
   )
-  const hasHiddenRejectedCandidates = !showRejected && candidates?.some((candidate) => candidate.status === 'VERWORFEN') === true
-  const dragEnabled = sortMode === 'MANUAL' && search.trim() === '' && statusFilter === 'ALL' && !hasHiddenRejectedCandidates && !reordering
+  const hiddenRejectedCount = !showRejected ? candidates?.filter((candidate) => candidate.status === 'VERWORFEN').length ?? 0 : 0
+  const dragEnabled = sortMode === 'MANUAL' && search.trim() === '' && statusFilter === 'ALL' && !reordering
 
   const load = useCallback(async () => {
     if (showId === null) return
@@ -92,6 +94,10 @@ export function CandidatePage() {
     try {
       const [loadedShows, loadedCandidates] = await Promise.all([fetchShows(), fetchCandidates(showId)])
       setShows(loadedShows)
+      if (quickEntryInitializedForShow.current !== showId) {
+        quickEntryInitializedForShow.current = showId
+        setQuickEntryOpen(loadedCandidates.length === 0)
+      }
       confirmedCandidates.current = loadedCandidates
       setCandidates(loadedCandidates)
     } catch (caught) {
@@ -179,6 +185,7 @@ export function CandidatePage() {
       await persistDroppedCandidateOrder({
         result,
         confirmedCandidates: confirmedCandidates.current,
+        visibleCandidates: displayedCandidates,
         save: (candidateIds) => reorderCandidates(showId, candidateIds),
         onOptimisticChange: setCandidates,
         onConfirmedChange: (nextCandidates) => {
@@ -280,6 +287,8 @@ export function CandidatePage() {
         onChange={setQuickInput}
         onSave={() => void saveQuickInput()}
         saving={savingQuickInput}
+        open={quickEntryOpen}
+        onToggle={() => setQuickEntryOpen((current) => !current)}
       />
       <Stack direction={{ md: 'row', xs: 'column' }} spacing={3} sx={{ alignItems: 'flex-start' }}>
         <Box sx={{ flex: 1, minWidth: 0 }}>
@@ -296,8 +305,13 @@ export function CandidatePage() {
           />
           {!dragEnabled && candidates !== null && (
             <Alert severity="info" sx={{ mt: 2 }}>
-              Drag-and-drop ist nur bei manueller Reihenfolge ohne Suche, Statusfilter oder ausgeblendete verworfene Kandidaten aktiv.
+              Drag-and-drop ist nur bei manueller Reihenfolge ohne Suche oder Statusfilter aktiv.
             </Alert>
+          )}
+          {dragEnabled && hiddenRejectedCount > 0 && (
+            <Typography color="text.secondary" sx={{ mt: 2 }} variant="body2">
+              {hiddenRejectedCount} verworfene{hiddenRejectedCount === 1 ? 'r Kandidat bleibt' : ' Kandidaten bleiben'} ausgeblendet und wird bei der Reihenfolge vollständig berücksichtigt.
+            </Typography>
           )}
           {candidates === null && error === null && <CandidateLoading />}
           {candidates !== null && displayedCandidates.length === 0 && (
@@ -318,6 +332,7 @@ export function CandidatePage() {
                 else void setSubmission(candidate, false)
               }}
               reordering={reordering}
+              activeCandidateId={activeCandidate?.id ?? null}
               selectedCandidateId={show?.selectedCandidate?.id ?? null}
             />
           )}
@@ -367,24 +382,34 @@ function SubmissionHeader({ selectedCandidate, onClear, onCopy }: {
   )
 }
 
-function QuickEntry({ input, onChange, onSave, saving }: {
+function QuickEntry({ input, onChange, onSave, saving, open, onToggle }: {
   input: CandidateInput
   onChange: (input: CandidateInput) => void
   onSave: () => void
   saving: boolean
+  open: boolean
+  onToggle: () => void
 }) {
   return (
-    <Paper component="section" elevation={0} sx={{ border: 1, borderColor: 'divider', p: 2.5 }}>
-      <Typography component="h2" variant="h6">Kandidaten schnell erfassen</Typography>
-      <Stack spacing={2} sx={{ mt: 2 }}>
-        <Stack direction={{ md: 'row', xs: 'column' }} spacing={2}>
-          <TextField fullWidth label="Interpret" onChange={(event) => onChange({ ...input, artist: event.target.value })} required value={input.artist} />
-          <TextField fullWidth label="Titel" onChange={(event) => onChange({ ...input, title: event.target.value })} required value={input.title} />
-          <TextField fullWidth label="YouTube-Link" onChange={(event) => onChange({ ...input, youtubeUrl: event.target.value })} required value={input.youtubeUrl} />
-        </Stack>
-        <TextField fullWidth label="Kommentar (optional)" multiline minRows={2} onChange={(event) => onChange({ ...input, comment: event.target.value })} value={input.comment ?? ''} />
-        <Box><Button disabled={saving} onClick={onSave} variant="contained">{saving ? 'Wird angelegt …' : 'Kandidat anlegen'}</Button></Box>
+    <Paper component="section" elevation={0} sx={{ border: 1, borderColor: 'divider', p: { xs: 1.5, md: 2 } }}>
+      <Stack alignItems="center" direction="row" justifyContent="space-between" spacing={2}>
+        <Box>
+          <Typography component="h2" variant="h6">Kandidaten schnell erfassen</Typography>
+          {!open && <Typography color="text.secondary" variant="body2">Interpret, Titel und YouTube-Link direkt hinzufügen.</Typography>}
+        </Box>
+        <Button aria-expanded={open} onClick={onToggle} variant={open ? 'text' : 'contained'}>
+          {open ? 'Erfassung einklappen' : 'Kandidat hinzufügen'}
+        </Button>
       </Stack>
+      {open && <Stack spacing={1.5} sx={{ mt: 2 }}>
+        <Stack direction={{ md: 'row', xs: 'column' }} spacing={1.5}>
+          <TextField fullWidth label="Interpret" onChange={(event) => onChange({ ...input, artist: event.target.value })} required size="small" value={input.artist} />
+          <TextField fullWidth label="Titel" onChange={(event) => onChange({ ...input, title: event.target.value })} required size="small" value={input.title} />
+          <TextField fullWidth label="YouTube-Link" onChange={(event) => onChange({ ...input, youtubeUrl: event.target.value })} required size="small" value={input.youtubeUrl} />
+        </Stack>
+        <TextField fullWidth label="Kommentar (optional)" multiline minRows={2} onChange={(event) => onChange({ ...input, comment: event.target.value })} size="small" value={input.comment ?? ''} />
+        <Box><Button disabled={saving} onClick={onSave} variant="contained">{saving ? 'Wird angelegt …' : 'Kandidat anlegen'}</Button></Box>
+      </Stack>}
     </Paper>
   )
 }
@@ -400,8 +425,9 @@ function CandidateControls({ search, statusFilter, showRejected, sortMode, onSea
   onSortMode: (value: SortMode) => void
 }) {
   return (
-    <Stack direction={{ md: 'row', xs: 'column' }} spacing={1.5} sx={{ mt: 2 }}>
-      <TextField label="Interpret oder Titel suchen" onChange={(event) => onSearch(event.target.value)} size="small" value={search} />
+    <Paper component="section" elevation={0} sx={{ border: 1, borderColor: 'divider', mt: 1.5, p: 1.25 }}>
+      <Stack aria-label="Kandidaten filtern und sortieren" direction={{ md: 'row', xs: 'column' }} role="toolbar" spacing={1.25}>
+      <TextField label="Interpret oder Titel suchen" onChange={(event) => onSearch(event.target.value)} size="small" sx={{ flex: 1, minWidth: { md: 220 } }} value={search} />
       <TextField label="Status" onChange={(event) => onStatusFilter(event.target.value as StatusFilter)} select size="small" value={statusFilter}>
         <MenuItem value="ALL">Alle Status</MenuItem>
         {statuses.map((status) => <MenuItem key={status.value} value={status.value}>{status.label}</MenuItem>)}
@@ -413,16 +439,18 @@ function CandidateControls({ search, statusFilter, showRejected, sortMode, onSea
         <MenuItem value="STATUS">Status</MenuItem>
         <MenuItem value="CREATED">Erfassungszeitpunkt</MenuItem>
       </TextField>
-      <FormControlLabel control={<Checkbox checked={showRejected} onChange={(event) => onShowRejected(event.target.checked)} />} label="Verworfene anzeigen" />
-    </Stack>
+      <FormControlLabel control={<Checkbox checked={showRejected} onChange={(event) => onShowRejected(event.target.checked)} />} label="Verworfene anzeigen" sx={{ ml: { md: 0 } }} />
+      </Stack>
+    </Paper>
   )
 }
 
-function ManualCandidateList({ candidates, dragEnabled, reordering, selectedCandidateId, onDrop, onChangeStatus, onPlay, onEdit, onCopy, onDelete, onSelectSubmission }: {
+function ManualCandidateList({ candidates, dragEnabled, reordering, selectedCandidateId, activeCandidateId, onDrop, onChangeStatus, onPlay, onEdit, onCopy, onDelete, onSelectSubmission }: {
   candidates: Candidate[]
   dragEnabled: boolean
   reordering: boolean
   selectedCandidateId: number | null
+  activeCandidateId: number | null
   onDrop: (result: DropResult) => void
   onChangeStatus: (candidate: Candidate, status: CandidateStatus) => void
   onPlay: (candidate: Candidate) => void
@@ -439,10 +467,10 @@ function ManualCandidateList({ candidates, dragEnabled, reordering, selectedCand
             {...provided.droppableProps}
             aria-label="Manuelle Kandidatenreihenfolge"
             ref={provided.innerRef}
-            sx={{ maxHeight: '65vh', mt: 2, overflowY: 'auto', pr: 1 }}
+            sx={{ mt: 1.5 }}
           >
-            {snapshot.isDraggingOver && <Alert severity="info" sx={{ mb: 1 }}>Hier wird der Kandidat eingefügt.</Alert>}
-            <Stack spacing={1}>
+            {snapshot.isDraggingOver && <Alert aria-live="polite" severity="info" sx={{ mb: 1, pointerEvents: 'none' }}>Loslassen, um den Kandidaten an dieser Position einzufügen.</Alert>}
+            <Stack spacing={0.75}>
               {candidates.map((candidate, index) => (
                 <Draggable draggableId={String(candidate.id)} index={index} isDragDisabled={!dragEnabled} key={candidate.id}>
                   {(dragProvided, dragSnapshot) => (
@@ -452,25 +480,28 @@ function ManualCandidateList({ candidates, dragEnabled, reordering, selectedCand
                       ref={dragProvided.innerRef}
                       sx={{
                         border: 1,
-                        borderColor: candidate.id === selectedCandidateId ? 'success.main' : 'divider',
-                        opacity: candidate.status === 'VERWORFEN' ? 0.66 : 1,
+                        borderColor: candidate.id === selectedCandidateId ? 'success.main' : dragSnapshot.isDragging ? 'secondary.main' : 'divider',
+                        bgcolor: candidate.id === activeCandidateId ? 'action.selected' : 'background.paper',
+                        opacity: candidate.status === 'VERWORFEN' ? 0.72 : 1,
                         outline: dragSnapshot.isDragging ? '2px solid' : 'none',
                         outlineColor: 'secondary.main',
+                        transition: 'border-color 120ms ease, background-color 120ms ease, box-shadow 120ms ease',
                       }}
                     >
-                      <CardContent sx={{ pb: 1 }}>
+                      <CardContent sx={{ pb: 0.75, pt: 1.25, px: { xs: 1.25, md: 1.5 } }}>
                         <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-start' }}>
                           <Button
                             {...dragProvided.dragHandleProps}
                             aria-label={`${candidate.artist} verschieben`}
                             disabled={!dragEnabled}
                             size="small"
-                            sx={{ minWidth: 34, mt: 0.25 }}
+                            sx={{ cursor: dragSnapshot.isDragging ? 'grabbing' : 'grab', fontSize: 20, minWidth: 40, mt: 0.25, px: 0.5 }}
                           >⋮⋮</Button>
                           <Box sx={{ flex: 1, minWidth: 0 }}>
                             <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }} useFlexGap>
-                              <Typography component="h3" variant="h6">{candidate.artist} – {candidate.title}</Typography>
+                              <Typography component="h3" variant="subtitle1">{candidate.artist} – {candidate.title}</Typography>
                               {candidate.id === selectedCandidateId && <Chip color="success" label="Einreichung" size="small" />}
+                              {candidate.id === activeCandidateId && <Chip color="secondary" label="Wird angehört" size="small" />}
                               {candidate.status === 'VERWORFEN' && <Chip label="Verworfen" size="small" />}
                             </Stack>
                             {candidate.comment !== null && <Typography color="text.secondary" sx={{ mt: 0.5 }} variant="body2">{candidate.comment}</Typography>}
@@ -485,7 +516,7 @@ function ManualCandidateList({ candidates, dragEnabled, reordering, selectedCand
                           </Select>
                         </Stack>
                       </CardContent>
-                      <CardActions sx={{ pl: 7, pt: 0 }}>
+                      <CardActions sx={{ justifyContent: 'space-between', pl: 6.25, pr: 1.25, pt: 0, pb: 0.75 }}>
                         <Button onClick={() => onPlay(candidate)} size="small">Anhören</Button>
                         <Button onClick={() => onEdit(candidate)} size="small">Bearbeiten</Button>
                         <Button onClick={() => onCopy(candidate)} size="small">In andere Show kopieren</Button>

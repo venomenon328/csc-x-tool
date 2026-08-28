@@ -42,6 +42,7 @@ describe('CandidatePage', () => {
     render(<App />)
 
     await screen.findByRole('heading', { name: 'Show Eins' })
+    expect(screen.getByRole('button', { name: 'Erfassung einklappen' })).toHaveAttribute('aria-expanded', 'true')
     const quickEntry = screen.getByRole('heading', { name: 'Kandidaten schnell erfassen' }).closest('section')
     if (quickEntry === null) throw new Error('Quick entry section missing')
     const [artist, title, youtubeUrl] = within(quickEntry).getAllByRole('textbox')
@@ -58,6 +59,31 @@ describe('CandidatePage', () => {
     expect(fetchMock).toHaveBeenCalledWith('/api/shows/1/candidates', expect.objectContaining({
       method: 'POST', body: JSON.stringify({ artist: 'Neu', title: 'Song', youtubeUrl: 'https://youtu.be/dQw4w9WgXcQ', comment: '' }),
     }))
+  })
+
+  it('starts quick entry collapsed for existing candidates and keeps a draft when toggled', async () => {
+    const user = userEvent.setup()
+    fetchMock.mockImplementation(async (input) => {
+      const path = String(input)
+      if (path === '/api/shows') return jsonResponse([{ id: 1, showNumber: 1, name: 'Show Eins', candidateCount: 1, selectedCandidate: null }])
+      if (path === '/api/shows/1/candidates') return jsonResponse([candidate])
+      throw new Error(`Unexpected request ${path}`)
+    })
+    render(<App />)
+
+    await screen.findByRole('heading', { name: 'Original – Titel', level: 3 })
+    const addButton = screen.getByRole('button', { name: 'Kandidat hinzufügen' })
+    expect(addButton).toHaveAttribute('aria-expanded', 'false')
+    await user.click(addButton)
+    await waitFor(() => expect(addButton).toHaveAttribute('aria-expanded', 'true'))
+    const quickEntry = screen.getByRole('heading', { name: 'Kandidaten schnell erfassen' }).closest('section')
+    if (quickEntry === null) throw new Error('Quick entry section missing')
+    const [artist] = await within(quickEntry).findAllByRole('textbox')
+    await user.type(artist, 'Entwurf')
+    await user.click(screen.getByRole('button', { name: 'Erfassung einklappen' }))
+    await user.click(screen.getByRole('button', { name: 'Kandidat hinzufügen' }))
+    const [reopenedArtist] = await within(quickEntry).findAllByRole('textbox')
+    expect(reopenedArtist).toHaveValue('Entwurf')
   })
 
   it('offers multi-show copying and conscious submission replacement and clearing', async () => {
@@ -137,6 +163,7 @@ describe('CandidatePage', () => {
     await screen.findByRole('heading', { name: 'Original – Titel', level: 3 })
     expect(screen.getByLabelText('Verworfene anzeigen')).not.toBeChecked()
     expect(screen.queryByText('Verworfen – Titel')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Original verschieben' })).toBeEnabled()
 
     await user.click(screen.getByLabelText('Verworfene anzeigen'))
     expect(await screen.findByText('Verworfen – Titel')).toBeVisible()
