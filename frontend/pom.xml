@@ -7,7 +7,7 @@
   <parent>
     <groupId>de.venomenon</groupId>
     <artifactId>csc-x-tool</artifactId>
-    <version>0.1.0</version>
+    <version>${revision}</version>
   </parent>
 
   <artifactId>csc-x-tool-frontend</artifactId>

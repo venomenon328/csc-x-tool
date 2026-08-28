@@ -8,7 +8,7 @@ Diese Checkliste trennt automatisiert nachgewiesene Punkte von der verpflichtend
 - [x] App-Image und MSI nach der Korrektur erzeugen (App-Image mit `-Clean`, MSI mit temporärem WiX-3.14.1-bin-Verzeichnis).
 - [x] Paketierten Smoke nach der Korrektur ausführen: `.\launcher\packaging\smoke-release.ps1`
 - [x] Nachweis: Start ohne externes Java/Node, Loopback-Bindung, Runtime-Datei, Zweitstart, Schreib-/Lesezyklus, Backup/Restore, CSRF-Shutdown und Neustart.
-- [x] Nachweis: frische per-user Installation, synthetisches 0.1.1-Upgrade und Deinstallation bei erhaltenem externem Storage.
+- [x] Nachweis: frische per-user Installation, synthetisches Upgrade auf die jeweils nächste Patch-Version und Deinstallation bei erhaltenem externem Storage.
 - [x] MSI `CSC-X-Tool-0.1.0.msi` und SHA-256-Prüfsumme nach der Korrektur erzeugt.
 - [x] Regression: Der Windows-Standard-URL-Handler erhält ausschließlich die konstruierte Loopback-URL; ein endgültiger Startfehler bietet diese URL sichtbar an. Der Test startet keinen echten Browser.
 

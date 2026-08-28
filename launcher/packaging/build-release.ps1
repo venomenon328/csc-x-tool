@@ -4,18 +4,21 @@ param(
     [string]$Target = 'all',
     [switch]$SkipBuild,
     [switch]$Clean,
+    [string]$Version,
     [string]$OutputDirectory,
     [string]$WixBin
 )
 
 $ErrorActionPreference = 'Stop'
 $config = Import-PowerShellDataFile (Join-Path $PSScriptRoot 'release.psd1')
+$repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
+. (Join-Path $PSScriptRoot 'release-version.ps1')
+$releaseVersion = Resolve-ReleaseVersion $Version $repositoryRoot
 if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
     $OutputDirectory = Join-Path $PSScriptRoot 'output'
 }
-$repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $icon = Join-Path $repositoryRoot 'launcher\assets\csc-x-tool.ico'
-$jar = Join-Path $repositoryRoot "backend\target\csc-x-tool-backend-$($config.ApplicationVersion).jar"
+$jar = Join-Path $repositoryRoot "backend\target\csc-x-tool-backend-$releaseVersion.jar"
 
 function Invoke-ReleaseTool {
     param([string]$FilePath, [string[]]$Arguments)
@@ -57,7 +60,7 @@ if (-not $jpackageVersion.StartsWith('21.')) {
 }
 
 if (-not $SkipBuild) {
-    Invoke-ReleaseTool (Join-Path $repositoryRoot 'scripts\mvn-safe.cmd') @('-pl', 'backend', '-am', 'package', '-DskipTests')
+    Invoke-ReleaseTool (Join-Path $repositoryRoot 'scripts\mvn-safe.cmd') @('-pl', 'backend', '-am', 'package', '-DskipTests', "-Drevision=$releaseVersion")
 }
 if (-not (Test-Path $jar -PathType Leaf)) {
     throw "Das produktive Boot-JAR fehlt: $jar. Führen Sie den Build ohne -SkipBuild aus."
@@ -87,7 +90,7 @@ if ($Target -in @('app-image', 'all')) {
         '--type', 'app-image',
         '--dest', $appImageDestination,
         '--name', $config.ApplicationName,
-        '--app-version', $config.ApplicationVersion,
+        '--app-version', $releaseVersion,
         '--input', $jpackageInput,
         '--main-jar', (Split-Path $jar -Leaf),
         '--icon', $icon,
@@ -106,7 +109,7 @@ if ($Target -in @('msi', 'all')) {
         '--type', 'msi',
         '--dest', $installerDestination,
         '--name', $config.ApplicationName,
-        '--app-version', $config.ApplicationVersion,
+        '--app-version', $releaseVersion,
         '--app-image', $appImage,
         '--win-per-user-install',
         '--win-menu',
@@ -117,7 +120,7 @@ if ($Target -in @('msi', 'all')) {
     if (-not $generatedMsi) {
         throw 'jpackage hat kein MSI-Artefakt erzeugt.'
     }
-    $releaseMsi = Join-Path $installerDestination "CSC-X-Tool-$($config.ApplicationVersion).msi"
+    $releaseMsi = Join-Path $installerDestination "CSC-X-Tool-$releaseVersion.msi"
     if ($generatedMsi.FullName -ne $releaseMsi) {
         Move-Item -LiteralPath $generatedMsi.FullName -Destination $releaseMsi -Force
     }

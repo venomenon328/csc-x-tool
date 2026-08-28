@@ -103,11 +103,16 @@ Weitere Details stehen unter [Resource-safe local development](scripts/README-re
 
 ## Windows-Release-Paketierung
 
-Version 0.1.0 wird mit JDK 21 samt `jpackage` und WiX `3.14.1.20250415` erzeugt. Die kanonischen Einstiegspunkte erzeugen App-Image, per-user MSI und Prüfsumme und prüfen danach den paketierten Ablauf:
+Windows-Releases werden mit JDK 21 samt `jpackage` und WiX `3.14.1.20250415` erzeugt. Die kanonischen Einstiegspunkte erzeugen App-Image, per-user MSI und Prüfsumme und prüfen danach den paketierten Ablauf. Die Maven-Property `revision` ist die Standardquelle; für einen abweichenden Release wird dieselbe validierte `X.Y.Z`-Version beiden Schritten übergeben:
 
 ```powershell
 .\launcher\packaging\build-release.ps1 -Clean
 .\launcher\packaging\smoke-release.ps1
+```
+
+```powershell
+.\launcher\packaging\build-release.ps1 -Clean -Version 0.1.2
+.\launcher\packaging\smoke-release.ps1 -Version 0.1.2
 ```
 
 Details zu Artefakten, WiX und dem automatisierten Installer-Smoke stehen unter [launcher/packaging](launcher/packaging/README.md). Der manuelle Vivaldi-Release-Smoke wird davon nicht simuliert und bleibt bis zu seiner realen Durchführung in der [Release-Checkliste](docs/release-checklist-0.1.0.md) offen.

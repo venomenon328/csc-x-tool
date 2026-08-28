@@ -35,6 +35,9 @@ class DesktopLifecycle {
 
     private static String packageBuildVersion() {
         String version = DesktopLifecycle.class.getPackage().getImplementationVersion();
-        return version == null || version.isBlank() ? "0.1.0" : version;
+        if (version == null || version.isBlank()) {
+            throw new IllegalStateException("Die Build-Metadaten für den Desktop-Launcher sind nicht verfügbar.");
+        }
+        return version;
     }
 }
