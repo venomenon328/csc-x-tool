@@ -58,7 +58,7 @@ jobs:
         shell: pwsh
         run: '"C:\Program Files (x86)\WiX Toolset v3.14\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append'
       - name: Verify once
-        run: .\scripts\mvn-safe.cmd clean verify -Drevision=${{ steps.release_version.outputs.version }}
+        run: .\scripts\mvn-safe.cmd clean verify "-Drevision=${{ steps.release_version.outputs.version }}"
       - name: Build App-Image and MSI
         shell: pwsh
         run: .\launcher\packaging\build-release.ps1 -Version ${{ steps.release_version.outputs.version }} -SkipBuild -Clean
