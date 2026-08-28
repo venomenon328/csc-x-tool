@@ -6,7 +6,8 @@ Keeping the Windows workstation responsive is a hard requirement for all local a
 
 - Never run memory-intensive build or test commands in parallel.
 - In particular, do not overlap Maven, `npm ci`, frontend tests, frontend builds, linting, or typechecking with each other.
-- On Windows, run Maven through `./scripts/mvn-safe.ps1` and standalone npm commands through `./scripts/npm-safe.ps1`. These wrappers lower process priority, restrict the process tree to at most two logical CPUs, and apply the repository memory limits.
+- On Windows, run Maven through `./scripts/mvn-safe.cmd` and standalone npm commands through `./scripts/npm-safe.cmd`. These launchers invoke the repository PowerShell guards with a process-local execution-policy bypass, lower process priority, restrict the process tree to at most two logical CPUs, and apply the repository memory limits.
+- Do not call the underlying `.ps1` files directly unless needed for debugging the wrappers themselves.
 - Do not bypass the repository npm scripts with direct `npx`, direct Vitest/Vite/TypeScript/ESLint binaries, custom `NODE_OPTIONS`, or higher worker counts.
 - Do not start watch mode, a Vite dev server, or other long-running development processes unless the current task explicitly requires them. Terminate such processes as soon as the check is complete.
 - During implementation, prefer the narrowest relevant backend or frontend tests. Run the full root verification only once after the implementation is otherwise complete.
@@ -21,7 +22,7 @@ The frontend resource contract is intentionally conservative: Node lifecycle pro
 
 Unless the task explicitly specifies a different verification contract, the single authoritative full verification is:
 
-- Windows local/Codex: `./scripts/mvn-safe.ps1 clean verify`
+- Windows local/Codex: `./scripts/mvn-safe.cmd clean verify`
 - CI or non-Windows: `./mvnw clean verify`
 
 The root Maven build already executes frontend install, tests, build, lint and typecheck. Do not redundantly run the complete frontend verification sequence immediately before or after the root build unless a concrete failure requires isolation.
