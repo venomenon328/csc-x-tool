@@ -21,7 +21,7 @@ try {
 }
 
 $allowedProcessors = [Math]::Min(2, [Environment]::ProcessorCount)
-[long] $affinityMask = (1L -shl $allowedProcessors) - 1L
+[long] $affinityMask = [Math]::Pow(2, $allowedProcessors) - 1
 try {
     $currentProcess.ProcessorAffinity = [IntPtr] $affinityMask
 } catch {
