@@ -1,5 +1,6 @@
-import { Alert, Box, Button, Link, Stack, Typography } from '@mui/material'
+import { Alert, Box, Button, Stack, Typography } from '@mui/material'
 import { useEffect, useRef, useState } from 'react'
+import { ExternalLinkIcon, PlayIcon } from '../../components/AppIcons'
 import type { PlayableSong } from './PlayableSong'
 
 function videoIdFromYoutubeUrl(youtubeUrl: string): string | null {
@@ -47,14 +48,22 @@ export function YoutubePlayerPanel({ song, emptyMessage, contextLabel }: {
   }, [song, embedFailed, embedUrl])
 
   if (song === null) {
-    return <Alert severity="info">{emptyMessage}</Alert>
+    return (
+      <Stack aria-label="Kein Song ausgewählt" role="status" spacing={1} sx={{ alignItems: 'center', color: 'text.secondary', py: 3, textAlign: 'center' }}>
+        <Box sx={{ alignItems: 'center', borderRadius: '50%', color: 'secondary.main', display: 'inline-flex', justifyContent: 'center', p: 1.25 }}>
+          <PlayIcon aria-hidden="true" />
+        </Box>
+        <Typography color="inherit" variant="body2">{emptyMessage}</Typography>
+      </Stack>
+    )
   }
 
   return (
     <Stack component="section" spacing={1.5} aria-label="YouTube-Player" sx={{ minWidth: 0 }}>
       <Box>
-        <Typography component="h2" variant="h6">{song.artist} – {song.title}</Typography>
-        <Typography color="text.secondary" variant="body2">{contextLabel}</Typography>
+        <Typography component="h2" sx={{ overflowWrap: 'anywhere' }} variant="h6">{song.title}</Typography>
+        <Typography color="text.secondary" sx={{ overflowWrap: 'anywhere' }} variant="body2">{song.artist}</Typography>
+        <Typography color="text.secondary" variant="caption">{contextLabel}</Typography>
       </Box>
       {embedUrl !== null && !embedFailed && (
         <Box sx={{ aspectRatio: '16 / 9', maxWidth: 760, width: '100%' }}>
@@ -75,9 +84,16 @@ export function YoutubePlayerPanel({ song, emptyMessage, contextLabel }: {
           Der eingebettete Player konnte lokal nicht geladen werden. Der externe Link bleibt verfügbar.
         </Alert>
       )}
-      <Link href={song.youtubeUrl} rel="noreferrer" target="_blank">
-        <Button component="span" variant="outlined">Auf YouTube öffnen</Button>
-      </Link>
+      <Button
+        component="a"
+        href={song.youtubeUrl}
+        rel="noreferrer"
+        startIcon={<ExternalLinkIcon aria-hidden="true" fontSize="small" />}
+        target="_blank"
+        variant="outlined"
+      >
+        Auf YouTube öffnen
+      </Button>
     </Stack>
   )
 }
