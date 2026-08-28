@@ -60,7 +60,7 @@ describe('EntryPage', () => {
     expect(getData).toHaveBeenCalledWith('text/html')
     expect(getData).toHaveBeenCalledWith('text/plain')
     expect(screen.getByText(/HTML_LINK: Imminence - Paralyzed/)).toBeVisible()
-    expect(screen.queryByRole('img')).not.toBeInTheDocument()
+    expect(within(screen.getByRole('region', { name: 'Importvorschau' })).queryByRole('img')).not.toBeInTheDocument()
     expect(fetchMock).toHaveBeenCalledWith('/api/shows/1/entries/import-preview', expect.objectContaining({
       method: 'POST',
       body: JSON.stringify({ html: '<img src=x onerror=alert(1)><a href="https://www.youtube.com/watch?v=2Dqu1Gh45qU">Imminence - Paralyzed</a>', text: 'Imminence - Paralyzed -> https://www.youtube.com/watch?v=2Dqu1Gh45qU' }),

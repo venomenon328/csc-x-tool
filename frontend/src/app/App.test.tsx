@@ -50,6 +50,21 @@ describe('App', () => {
     expect(await screen.findByText('Noch keine Mottoshows verfügbar.')).toBeVisible()
   })
 
+  it('uses the accessible logo as the drawer home link without a visible text wordmark', async () => {
+    const user = userEvent.setup()
+    window.history.pushState({}, '', '/participants')
+    fetchMock.mockResolvedValue(jsonResponse([]))
+    render(<App />)
+
+    expect(screen.getByRole('img', { name: 'CSC X Tool' })).toBeVisible()
+    const homeLink = screen.getByRole('link', { name: 'CSC X Tool' })
+    expect(homeLink).toHaveAttribute('href', '/')
+    expect(screen.queryByText('CSC X Tool')).not.toBeInTheDocument()
+
+    await user.click(homeLink)
+    expect(window.location.pathname).toBe('/')
+  })
+
   it('shows ranked-entry progress and an already closed top fifteen on the overview', async () => {
     fetchMock.mockResolvedValue(jsonResponse([{
       ...shows[0], contestEntryCount: 18, listenedEntryCount: 16, rankedEntryCount: 16,
