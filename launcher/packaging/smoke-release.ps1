@@ -160,6 +160,23 @@ function Find-InstalledLauncher {
     throw 'Die per-user MSI-Installation hat keinen erwarteten Launcher abgelegt.'
 }
 
+function Find-ExistingCscInstallation {
+    $uninstallRoots = @(
+        'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall',
+        'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall',
+        'HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall'
+    )
+    foreach ($root in $uninstallRoots) {
+        if (-not (Test-Path -LiteralPath $root)) { continue }
+        $existing = Get-ChildItem -LiteralPath $root -ErrorAction SilentlyContinue |
+            Get-ItemProperty -ErrorAction SilentlyContinue |
+            Where-Object { $_.DisplayName -eq $config.ApplicationName } |
+            Select-Object -First 1
+        if ($existing) { return $existing }
+    }
+    return $null
+}
+
 try {
     $appStorage = Join-Path $testRoot 'app-image-storage'
     $first = Start-PackagedApp $launcher $appStorage
@@ -189,8 +206,7 @@ try {
     Stop-PackagedApp $afterRestart.Base (New-CsrfSession $afterRestart.Base) $restarted $afterRestart.RuntimePath
 
     if (-not $SkipInstaller) {
-        $existingInstall = Get-ChildItem 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall' -ErrorAction SilentlyContinue |
-            Get-ItemProperty -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -eq $config.ApplicationName }
+        $existingInstall = Find-ExistingCscInstallation
         if ($existingInstall) { throw 'Ein bestehendes CSC X Tool ist bereits installiert; der Installer-Smoke ändert diese Installation bewusst nicht.' }
 
         $installerStorage = Join-Path $testRoot 'installer-storage'

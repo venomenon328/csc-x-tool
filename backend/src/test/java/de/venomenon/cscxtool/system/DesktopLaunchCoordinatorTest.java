@@ -3,10 +3,13 @@ package de.venomenon.cscxtool.system;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.sun.net.httpserver.HttpServer;
+import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -62,6 +65,47 @@ class DesktopLaunchCoordinatorTest {
         } finally {
             coordinator.close();
         }
+    }
+
+    @Test
+    void opensTheLoopbackUrlThroughTheWindowsDefaultUrlHandlerWithoutStartingABrowserInTheTest() {
+        URI expected = URI.create("http://127.0.0.1:18452/");
+        AtomicReference<URI> opened = new AtomicReference<>();
+        DesktopLaunchCoordinator coordinator = DesktopLaunchCoordinator.forBrowserLaunchTest(opened::set, (message, exception) -> {
+            throw new AssertionError("Browseröffnung darf nicht fehlschlagen", exception);
+        });
+
+        coordinator.openPublishedInstance(18452);
+
+        assertThat(opened).hasValue(expected);
+        assertThat(DesktopLaunchCoordinator.windowsUrlHandlerCommand(expected, "C:\\Windows\\"))
+                .containsExactly(
+                        "C:\\Windows\\System32\\rundll32.exe",
+                        "url.dll,FileProtocolHandler",
+                        "http://127.0.0.1:18452/"
+                );
+    }
+
+    @Test
+    void offersTheLoopbackUrlWhenTheWindowsUrlHandlerCannotBeStarted() {
+        AtomicReference<String> shownMessage = new AtomicReference<>();
+        AtomicReference<Exception> shownException = new AtomicReference<>();
+        IOException failure = new IOException("rundll32.exe konnte nicht gestartet werden");
+        DesktopLaunchCoordinator coordinator = DesktopLaunchCoordinator.forBrowserLaunchTest(
+                uri -> {
+                    throw failure;
+                },
+                (message, exception) -> {
+                    shownMessage.set(message);
+                    shownException.set(exception);
+                }
+        );
+
+        coordinator.openPublishedInstance(18453);
+
+        assertThat(shownMessage.get())
+                .contains("Windows-Standardbrowser", "http://127.0.0.1:18453/");
+        assertThat(shownException).hasValue(failure);
     }
 
     private static String[] desktopArguments(Path storageRoot) {
