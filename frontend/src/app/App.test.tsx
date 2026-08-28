@@ -64,15 +64,17 @@ describe('App', () => {
     expect(within(listenedMetric).getByText('16 / 18')).toBeVisible()
     expect(within(listenedMetric).getByText('Gehört')).toBeVisible()
 
-    const rankedMetric = card.getByRole('group', { name: '15 von 18 Beiträgen eingeordnet' })
+    const rankedMetric = card.getByRole('group', { name: '15 von 18 Beiträgen gerankt' })
     expect(within(rankedMetric).getByText('15 / 18')).toBeVisible()
-    expect(within(rankedMetric).getByText('Eingeordnet')).toBeVisible()
+    expect(within(rankedMetric).getByText('Gerankt')).toBeVisible()
 
     expect(card.getByLabelText('Top 15: Offen')).toBeVisible()
     expect(card.getByLabelText('Ergebnis: Wartet auf Top 15')).toBeVisible()
     expect(card.getByRole('link', { name: 'Kandidaten' })).toHaveAttribute('href', '/shows/1/candidates')
     expect(card.getByRole('link', { name: 'Abstimmung' })).toHaveAttribute('href', '/shows/1/voting')
     expect(card.getByRole('link', { name: 'Ergebnis' })).toHaveAttribute('href', '/shows/1/result')
+    expect(card.getByRole('button', { name: 'Name von Show 1 bearbeiten' })).toBeVisible()
+    expect(card.queryByRole('button', { name: /Weitere Aktionen/ })).not.toBeInTheDocument()
 
     const tbaCard = screen.getByRole('heading', { name: 'TBA' }).closest('section')
     expect(tbaCard).not.toBeNull()
@@ -81,7 +83,7 @@ describe('App', () => {
     expect(emptyCard.getByText('0 Kandidaten')).toBeVisible()
     expect(emptyCard.getByRole('group', { name: '0 Beiträge' })).toBeVisible()
     expect(emptyCard.getByRole('group', { name: '0 Beiträge gehört' })).toBeVisible()
-    expect(emptyCard.getByRole('group', { name: '0 Beiträge eingeordnet' })).toBeVisible()
+    expect(emptyCard.getByRole('group', { name: '0 Beiträge gerankt' })).toBeVisible()
     expect(emptyCard.queryByText('0 / 0')).not.toBeInTheDocument()
   })
 
@@ -138,7 +140,7 @@ describe('App', () => {
     expect(screen.getByLabelText('Ergebnis: Abgeschlossen')).toBeVisible()
   })
 
-  it('persists a renamed show and updates the overview', async () => {
+  it('persists a renamed show and updates the overview from the direct edit action', async () => {
     const user = userEvent.setup()
     fetchMock
       .mockResolvedValueOnce(jsonResponse(shows))
@@ -146,11 +148,10 @@ describe('App', () => {
     render(<App />)
 
     await screen.findByRole('heading', { name: 'TBA' })
-    const actions = screen.getByRole('button', { name: 'Weitere Aktionen für Show 9' })
-    actions.focus()
+    const editButton = screen.getByRole('button', { name: 'Name von Show 9 bearbeiten' })
+    editButton.focus()
     await user.keyboard('{Enter}')
-    expect(screen.getByRole('menuitem', { name: 'Name bearbeiten' })).toBeVisible()
-    await user.keyboard('{Enter}')
+    expect(screen.getByRole('dialog', { name: 'Mottoshow umbenennen' })).toBeVisible()
     await user.clear(screen.getByLabelText('Name der Mottoshow'))
     await user.type(screen.getByLabelText('Name der Mottoshow'), 'Neues Motto')
     await user.click(screen.getByRole('button', { name: 'Speichern' }))
@@ -177,8 +178,7 @@ describe('App', () => {
     render(<App />)
 
     await screen.findByRole('heading', { name: 'TBA' })
-    await user.click(screen.getByRole('button', { name: 'Weitere Aktionen für Show 9' }))
-    await user.click(screen.getByRole('menuitem', { name: 'Name bearbeiten' }))
+    await user.click(screen.getByRole('button', { name: 'Name von Show 9 bearbeiten' }))
     await user.clear(screen.getByLabelText('Name der Mottoshow'))
     await user.click(screen.getByRole('button', { name: 'Speichern' }))
 

@@ -523,6 +523,7 @@ function CandidateControls({ search, statusFilter, showRejected, sortMode, onSea
           select
           size="small"
           slotProps={{ input: { startAdornment: <InputAdornment position="start"><FilterIcon aria-hidden="true" color="secondary" fontSize="small" /></InputAdornment> } }}
+          sx={{ flexShrink: 0, width: { md: 168, xs: '100%' } }}
           value={statusFilter}
         >
           <MenuItem value="ALL">Alle Status</MenuItem>
@@ -534,6 +535,7 @@ function CandidateControls({ search, statusFilter, showRejected, sortMode, onSea
           select
           size="small"
           slotProps={{ input: { startAdornment: <InputAdornment position="start"><SortIcon aria-hidden="true" color="secondary" fontSize="small" /></InputAdornment> } }}
+          sx={{ flexShrink: 0, width: { md: 220, xs: '100%' } }}
           value={sortMode}
         >
           <MenuItem value="MANUAL">Manuelle Reihenfolge</MenuItem>
@@ -547,6 +549,7 @@ function CandidateControls({ search, statusFilter, showRejected, sortMode, onSea
           aria-pressed={showRejected}
           onClick={() => onShowRejected(!showRejected)}
           startIcon={<RejectedIcon aria-hidden="true" fontSize="small" />}
+          sx={{ flexShrink: 0, minWidth: { md: 132 } }}
           variant={showRejected ? 'contained' : 'outlined'}
         >
           Verworfene
@@ -612,7 +615,7 @@ function ManualCandidateList({ candidates, dragEnabled, reordering, selectedCand
                         }}
                       >
                         <CardContent sx={{ p: { xs: 1, md: 1.25 }, '&:last-child': { pb: { xs: 1, md: 1.25 } } }}>
-                          <Stack direction={{ sm: 'row', xs: 'column' }} spacing={1} sx={{ alignItems: { sm: 'center', xs: 'stretch' } }}>
+                          <Stack direction={{ md: 'row', xs: 'column' }} spacing={1} sx={{ alignItems: { md: 'center', xs: 'stretch' } }}>
                             <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flex: 1, minWidth: 0 }}>
                               <Tooltip title={dragEnabled ? 'Ziehen, um die Reihenfolge zu ändern' : 'Drag-and-drop ist in dieser Ansicht nicht verfügbar'}>
                                 <Box
@@ -637,9 +640,8 @@ function ManualCandidateList({ candidates, dragEnabled, reordering, selectedCand
                               <Box sx={{ flex: 1, minWidth: 0 }}>
                                 <Typography component="h3" sx={{ fontWeight: 650, overflowWrap: 'anywhere' }} variant="subtitle1">{candidate.title}</Typography>
                                 <Typography color="text.secondary" sx={{ overflowWrap: 'anywhere' }} variant="body2">{candidate.artist}</Typography>
-                                {(selected || active || candidate.status === 'VERWORFEN') && (
+                                {(active || candidate.status === 'VERWORFEN') && (
                                   <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap', mt: 0.5 }} useFlexGap>
-                                    {selected && <Chip icon={<SubmissionIcon aria-hidden="true" />} label="Einreichung" size="small" />}
                                     {active && <Chip color="secondary" icon={<PlayIcon aria-hidden="true" />} label="Wird angehört" size="small" />}
                                     {candidate.status === 'VERWORFEN' && <Chip icon={<RejectedIcon aria-hidden="true" />} label="Verworfen" size="small" />}
                                   </Stack>
@@ -649,12 +651,30 @@ function ManualCandidateList({ candidates, dragEnabled, reordering, selectedCand
                                 )}
                               </Box>
                             </Stack>
-                            <Stack direction="row" spacing={0.25} sx={{ alignItems: 'center', flexShrink: 0, justifyContent: { xs: 'flex-end' } }}>
+                            <Stack
+                              direction="row"
+                              spacing={0.25}
+                              sx={{
+                                alignItems: 'center',
+                                flexShrink: 0,
+                                flexWrap: { md: 'nowrap', xs: 'wrap' },
+                                justifyContent: 'flex-end',
+                                minHeight: 40,
+                                width: { md: 396, xs: '100%' },
+                              }}
+                            >
+                              <Box sx={{ alignItems: 'center', display: 'flex', flexShrink: 0, justifyContent: 'flex-end', minHeight: 32, width: { md: 88, xs: 'auto' } }}>
+                                {selected && (
+                                  <Typography color="success.main" sx={{ fontWeight: 700, whiteSpace: 'nowrap' }} variant="caption">
+                                    Einreichung
+                                  </Typography>
+                                )}
+                              </Box>
                               <Select
                                 aria-label={`Status von ${candidate.artist}`}
                                 onChange={(event) => onChangeStatus(candidate, event.target.value as CandidateStatus)}
                                 size="small"
-                                sx={{ minWidth: 132 }}
+                                sx={{ flexShrink: 0, width: 164, '& .MuiSelect-select': { whiteSpace: 'nowrap' } }}
                                 value={candidate.status}
                               >
                                 {statuses.map((status) => <MenuItem key={status.value} value={status.value}>{status.label}</MenuItem>)}
@@ -669,13 +689,19 @@ function ManualCandidateList({ candidates, dragEnabled, reordering, selectedCand
                                   <PlayIcon aria-hidden="true" fontSize="small" />
                                 </IconButton>
                               </Tooltip>
-                              {!selected && (
-                                <Tooltip title="Als Einreichung wählen">
-                                  <IconButton aria-label="Als Einreichung wählen" color="primary" onClick={() => onSelectSubmission(candidate)} size="small">
+                              <Tooltip title={selected ? 'Bereits als Einreichung gewählt' : 'Als Einreichung wählen'}>
+                                <Box component="span" sx={{ display: 'inline-flex' }}>
+                                  <IconButton
+                                    aria-label={selected ? 'Bereits als Einreichung gewählt' : 'Als Einreichung wählen'}
+                                    color="primary"
+                                    disabled={selected}
+                                    onClick={() => onSelectSubmission(candidate)}
+                                    size="small"
+                                  >
                                     <SubmissionIcon aria-hidden="true" fontSize="small" />
                                   </IconButton>
-                                </Tooltip>
-                              )}
+                                </Box>
+                              </Tooltip>
                               <CandidateOverflowMenu
                                 candidate={candidate}
                                 onCopy={() => onCopy(candidate)}
