@@ -9,12 +9,12 @@
     "npm": "12.0.2"
   },
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
-    "lint": "eslint .",
-    "typecheck": "tsc -b --pretty false",
-    "test": "vitest run --pool=forks --maxWorkers=1",
-    "test:watch": "vitest"
+    "dev": "node scripts/run-limited.mjs vite",
+    "build": "node scripts/run-limited.mjs tsc -b && node scripts/run-limited.mjs vite build",
+    "lint": "node scripts/run-limited.mjs eslint .",
+    "typecheck": "node scripts/run-limited.mjs tsc -b --pretty false",
+    "test": "node scripts/run-limited.mjs vitest run --pool=forks --maxWorkers=1 --no-file-parallelism --maxConcurrency=1",
+    "test:watch": "node scripts/run-limited.mjs vitest --pool=forks --maxWorkers=1 --no-file-parallelism --maxConcurrency=1"
   },
   "dependencies": {
     "@emotion/react": "11.14.0",
