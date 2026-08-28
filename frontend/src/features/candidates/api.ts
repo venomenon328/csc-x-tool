@@ -1,4 +1,5 @@
 import { readApiError, type ApiError } from '../../api/error'
+import { apiFetch } from '../../api/request'
 
 export type CandidateStatus = 'OFFEN' | 'IM_RENNEN' | 'ENGERE_AUSWAHL' | 'FINALIST' | 'VERWORFEN'
 
@@ -24,7 +25,7 @@ export class CandidateApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, init)
+  const response = await apiFetch(path, init)
   if (!response.ok) {
     throw new CandidateApiError(await readApiError(response))
   }

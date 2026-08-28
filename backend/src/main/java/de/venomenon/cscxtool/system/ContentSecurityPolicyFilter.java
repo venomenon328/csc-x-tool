@@ -13,7 +13,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 class ContentSecurityPolicyFilter extends OncePerRequestFilter {
 
     private static final String POLICY = "default-src 'self'; "
-            + "base-uri 'self'; form-action 'self'; "
+            + "base-uri 'none'; form-action 'self'; object-src 'none'; frame-ancestors 'none'; "
             + "frame-src https://www.youtube-nocookie.com; "
             + "img-src 'self' data:; font-src 'self' data:; style-src 'self' 'unsafe-inline'";
 
@@ -24,6 +24,9 @@ class ContentSecurityPolicyFilter extends OncePerRequestFilter {
             FilterChain filterChain
     ) throws ServletException, IOException {
         response.setHeader("Content-Security-Policy", POLICY);
+        response.setHeader("X-Content-Type-Options", "nosniff");
+        response.setHeader("Referrer-Policy", "no-referrer");
+        response.setHeader("Permissions-Policy", "clipboard-read=(self), clipboard-write=(self)");
         filterChain.doFilter(request, response);
     }
 }

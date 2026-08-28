@@ -1,0 +1,54 @@
+name: Windows release package
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v0.1.0'
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: Verify and package Windows release
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7.0.1
+      - name: Set up Java 21
+        uses: actions/setup-java@v6.0.0
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Set up Node 24.20.0 and npm 12.0.2
+        uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '24.20.0'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Pin npm
+        run: .\scripts\npm-safe.cmd install --global npm@12.0.2
+      - name: Install pinned WiX 3.x build prerequisite
+        run: choco install wixtoolset --version 3.14.1.20250415 --no-progress
+      - name: Put WiX on PATH
+        shell: pwsh
+        run: '"C:\Program Files (x86)\WiX Toolset v3.14\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append'
+      - name: Verify once
+        run: .\scripts\mvn-safe.cmd clean verify
+      - name: Build App-Image and MSI
+        shell: pwsh
+        run: .\launcher\packaging\build-release.ps1 -SkipBuild -Clean
+      - name: Smoke packaged application and installer behavior
+        shell: pwsh
+        run: .\launcher\packaging\smoke-release.ps1
+      - name: Upload MSI, checksum and diagnostic App-Image
+        uses: actions/upload-artifact@v6.0.0
+        with:
+          name: CSC-X-Tool-0.1.0-windows
+          path: |
+            launcher/packaging/output/installer/CSC-X-Tool-0.1.0.msi
+            launcher/packaging/output/installer/CSC-X-Tool-0.1.0.msi.sha256
+            launcher/packaging/output/app-image
+          if-no-files-found: error

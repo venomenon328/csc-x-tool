@@ -1,4 +1,5 @@
 import { readApiError, type ApiError } from '../../api/error'
+import { apiFetch } from '../../api/request'
 
 export type BallotSnapshotItem = {
   rank: number
@@ -35,7 +36,7 @@ export class BallotApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, init)
+  const response = await apiFetch(path, init)
   if (!response.ok) throw new BallotApiError(await readApiError(response))
   return response.json() as Promise<T>
 }

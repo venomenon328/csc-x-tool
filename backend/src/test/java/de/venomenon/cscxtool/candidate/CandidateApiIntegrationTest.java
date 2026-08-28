@@ -145,7 +145,7 @@ class CandidateApiIntegrationTest {
     void exposesConservativeCspOnTheLocalApplication() throws Exception {
         HttpResponse<String> response = get("/api/shows");
         assertThat(response.headers().firstValue("Content-Security-Policy")).hasValue(
-                "default-src 'self'; base-uri 'self'; form-action 'self'; frame-src https://www.youtube-nocookie.com; img-src 'self' data:; font-src 'self' data:; style-src 'self' 'unsafe-inline'"
+                "default-src 'self'; base-uri 'none'; form-action 'self'; object-src 'none'; frame-ancestors 'none'; frame-src https://www.youtube-nocookie.com; img-src 'self' data:; font-src 'self' data:; style-src 'self' 'unsafe-inline'"
         );
     }
 

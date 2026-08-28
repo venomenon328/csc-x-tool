@@ -7,7 +7,7 @@
   <parent>
     <groupId>de.venomenon</groupId>
     <artifactId>csc-x-tool</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
+    <version>0.1.0</version>
   </parent>
 
   <artifactId>csc-x-tool-backend</artifactId>
@@ -17,6 +17,10 @@
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-webmvc</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-security</artifactId>
     </dependency>
     <dependency>
       <groupId>org.springframework.boot</groupId>
@@ -63,6 +67,9 @@
     </profile>
     <profile>
       <id>dev</id>
+      <properties>
+        <spring-boot.run.profiles>dev</spring-boot.run.profiles>
+      </properties>
     </profile>
   </profiles>
 

@@ -1,0 +1,3 @@
+csc-x-tool:
+  security:
+    csrf-enabled: false

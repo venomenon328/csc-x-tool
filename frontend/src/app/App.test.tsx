@@ -103,4 +103,35 @@ describe('App', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Der Show-Name darf nicht leer sein.')
     expect(screen.getByRole('dialog')).toBeVisible()
   })
+
+  it('finds mixed global search results and navigates to their matching work area', async () => {
+    const user = userEvent.setup()
+    fetchMock.mockImplementation(async (input) => {
+      if (input === '/api/shows') return jsonResponse(shows)
+      if (input === '/api/search?q=Artist') return jsonResponse([{
+        type: 'ENTRY', id: 42, showId: 3, showNumber: 3, showName: 'ESC in the CSC', artist: 'Artist', title: 'Titel',
+      }])
+      return jsonResponse([])
+    })
+    render(<App />)
+
+    await screen.findByRole('heading', { name: 'Super Men' })
+    await user.type(screen.getByLabelText('Globale Suche'), 'Artist')
+    await user.click(await screen.findByRole('option', { name: /Artist – Titel.*Beitrag.*Show 3/ }))
+
+    expect(window.location.pathname).toBe('/shows/3/voting')
+  })
+
+  it('shows a static completion message after the CSRF-protected shutdown command is accepted', async () => {
+    const user = userEvent.setup()
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(shows))
+      .mockResolvedValueOnce(jsonResponse({ status: 'SHUTTING_DOWN' }, 202))
+    render(<App />)
+
+    await screen.findByRole('heading', { name: 'Super Men' })
+    await user.click(screen.getByRole('button', { name: 'Anwendung beenden' }))
+
+    expect(await screen.findByRole('heading', { name: 'Anwendung wurde beendet' })).toBeVisible()
+  })
 })
