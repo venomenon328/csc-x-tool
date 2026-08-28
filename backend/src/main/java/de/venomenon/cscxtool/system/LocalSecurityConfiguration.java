@@ -12,7 +12,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
 import org.springframework.http.MediaType;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -38,7 +37,7 @@ class LocalSecurityConfiguration {
                 .exceptionHandling(exceptions -> exceptions.accessDeniedHandler((request, response, exception) ->
                         writeApiError(objectMapper, request, response, HttpServletResponse.SC_FORBIDDEN,
                                 "CSRF_REJECTED", "Die Anfrage wurde aus Sicherheitsgründen abgewiesen.")))
-                .addFilterBefore(new LocalWriteRequestFilter(environment, objectMapper, shutdowns), CsrfFilter.class);
+                .addFilterBefore(new LocalRequestSecurityFilter(environment, objectMapper, shutdowns), CsrfFilter.class);
 
         if (properties.isCsrfEnabled()) {
             http.csrf(csrf -> csrf.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse()));
@@ -57,14 +56,14 @@ class LocalSecurityConfiguration {
         objectMapper.writeValue(response.getOutputStream(), new ApiError(Instant.now(), status, code, message, request.getRequestURI()));
     }
 
-    /** Applies origin and Host validation before CSRF to every mutating local API request. */
-    private static final class LocalWriteRequestFilter extends OncePerRequestFilter {
+    /** Applies loopback Host validation to every API request and Origin validation before CSRF to mutations. */
+    private static final class LocalRequestSecurityFilter extends OncePerRequestFilter {
 
         private final boolean developmentProfile;
         private final ObjectMapper objectMapper;
         private final ShutdownLifecycleService shutdowns;
 
-        private LocalWriteRequestFilter(Environment environment, ObjectMapper objectMapper, ShutdownLifecycleService shutdowns) {
+        private LocalRequestSecurityFilter(Environment environment, ObjectMapper objectMapper, ShutdownLifecycleService shutdowns) {
             this.developmentProfile = java.util.Arrays.asList(environment.getActiveProfiles()).contains("dev");
             this.objectMapper = objectMapper;
             this.shutdowns = shutdowns;
@@ -74,11 +73,20 @@ class LocalSecurityConfiguration {
         protected void doFilterInternal(
                 HttpServletRequest request, HttpServletResponse response, FilterChain filterChain
         ) throws ServletException, IOException {
+            if (!isApiRequest(request)) {
+                filterChain.doFilter(request, response);
+                return;
+            }
+            if (!hasExpectedHost(request)) {
+                writeApiError(objectMapper, request, response, HttpServletResponse.SC_FORBIDDEN,
+                        "LOCAL_HOST_REQUIRED", "API-Zugriffe sind nur über die lokale Anwendung erlaubt.");
+                return;
+            }
             if (!isMutatingApiRequest(request)) {
                 filterChain.doFilter(request, response);
                 return;
             }
-            if (!hasExpectedHost(request) || !hasExpectedOrigin(request)) {
+            if (!hasExpectedOrigin(request)) {
                 writeApiError(objectMapper, request, response, HttpServletResponse.SC_FORBIDDEN,
                         "LOCAL_ORIGIN_REQUIRED", "Schreibende Befehle sind nur aus der lokalen Anwendung erlaubt.");
                 return;
@@ -91,10 +99,13 @@ class LocalSecurityConfiguration {
             filterChain.doFilter(request, response);
         }
 
+        private static boolean isApiRequest(HttpServletRequest request) {
+            return request.getRequestURI().startsWith("/api/");
+        }
+
         private static boolean isMutatingApiRequest(HttpServletRequest request) {
             String method = request.getMethod().toUpperCase(Locale.ROOT);
-            return request.getRequestURI().startsWith("/api/")
-                    && ("POST".equals(method) || "PUT".equals(method) || "PATCH".equals(method) || "DELETE".equals(method));
+            return "POST".equals(method) || "PUT".equals(method) || "PATCH".equals(method) || "DELETE".equals(method);
         }
 
         private static boolean hasExpectedHost(HttpServletRequest request) {
