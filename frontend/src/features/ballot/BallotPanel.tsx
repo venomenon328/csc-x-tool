@@ -202,7 +202,7 @@ function RankingSurface({ activeEntryId, closed, entries, reordering, canClose, 
               {...provided.droppableProps}
               aria-label="Persönliche Rangliste"
               ref={provided.innerRef}
-              sx={{ maxHeight: '42vh', minHeight: 200, mt: 1.25, overflowY: 'auto', pr: 0.5 }}
+              sx={{ maxHeight: { xs: '64vh', md: 900 }, minHeight: 200, mt: 1.25, overflowY: 'auto', pr: 0.5 }}
             >
               {entries.length === 0 && !snapshot.isDraggingOver && <Alert severity="info">Ziehe Beiträge hierher.</Alert>}
               <Stack spacing={0.5}>
@@ -242,7 +242,7 @@ function RankingSurface({ activeEntryId, closed, entries, reordering, canClose, 
 
 function ReadOnlyRanking({ activeEntryId, entries, onSelect }: { activeEntryId: number | null, entries: ContestEntry[], onSelect: (entry: ContestEntry) => void }) {
   return (
-    <Stack spacing={0.5} sx={{ maxHeight: '42vh', mt: 1.25, overflowY: 'auto', pr: 0.5 }}>
+    <Stack spacing={0.5} sx={{ maxHeight: { xs: '64vh', md: 900 }, mt: 1.25, overflowY: 'auto', pr: 0.5 }}>
       {entries.length === 0 && <Alert severity="info">Keine gerankten Beiträge.</Alert>}
       {entries.map((entry, index) => (
         <Box key={entry.id}>
