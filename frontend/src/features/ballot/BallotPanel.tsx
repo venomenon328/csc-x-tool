@@ -17,7 +17,7 @@ import {
   Typography,
 } from '@mui/material'
 import { useState } from 'react'
-import { DragIcon, PlaylistRemoveIcon } from '../../components/AppIcons'
+import { CheckIcon, DragIcon, PlaylistRemoveIcon, ReplayIcon, SortIcon } from '../../components/AppIcons'
 import type { ContestEntry } from '../entries/api'
 import type { Ballot, BallotRanking } from './api'
 import { RANKING_DROPPABLE_ID, rankedEntries } from './ballotReorder'
@@ -151,13 +151,32 @@ function RankingSurface({ activeEntryId, closed, entries, reordering, canClose, 
   onSelect: (entry: ContestEntry) => void
 }) {
   const completionAction = closed
-    ? <Button color="warning" onClick={onReopen} size="small" variant="outlined">Abstimmung wieder öffnen</Button>
-    : <Button disabled={!canClose || reordering} onClick={onClose} size="small" variant="contained">Abstimmung abschließen</Button>
+    ? <Tooltip title="Abstimmung wieder öffnen">
+      <IconButton aria-label="Abstimmung wieder öffnen" color="warning" onClick={onReopen} size="small" sx={{ border: 1, borderColor: 'warning.main' }}>
+        <ReplayIcon aria-hidden="true" fontSize="small" />
+      </IconButton>
+    </Tooltip>
+    : <Tooltip title={canClose ? 'Abstimmung abschließen' : 'Mindestens 15 Beiträge müssen gerankt sein.'}>
+      <span><IconButton
+        aria-label="Abstimmung abschließen"
+        disabled={!canClose || reordering}
+        onClick={onClose}
+        size="small"
+        sx={{ backgroundColor: 'primary.main', color: 'primary.contrastText', '&:hover': { backgroundColor: 'primary.dark' } }}
+      ><CheckIcon aria-hidden="true" fontSize="small" /></IconButton></span>
+    </Tooltip>
   const action = closed
     ? completionAction
-    : <Stack direction={{ sm: 'row', xs: 'column' }} spacing={1}>
-      <Tooltip title={canSuggest ? 'Sortiert ausschließlich bewertete Beiträge nach Einschätzung und Sicherheit.' : 'Setze zuerst mindestens eine Einschätzung.'}>
-        <span><Button disabled={!canSuggest || reordering} onClick={onApplySuggestion} size="small" variant="outlined">Ranglistenvorschlag anwenden</Button></span>
+    : <Stack direction="row" spacing={0.5} sx={{ flexShrink: 0 }}>
+      <Tooltip title={canSuggest ? 'Ranglistenvorschlag aus Bewertung und Sicherheit anwenden' : 'Setze zuerst mindestens eine Einschätzung.'}>
+        <span><IconButton
+          aria-label="Ranglistenvorschlag anwenden"
+          color="secondary"
+          disabled={!canSuggest || reordering}
+          onClick={onApplySuggestion}
+          size="small"
+          sx={{ border: 1, borderColor: canSuggest && !reordering ? 'secondary.main' : 'divider' }}
+        ><SortIcon aria-hidden="true" fontSize="small" /></IconButton></span>
       </Tooltip>
       {completionAction}
     </Stack>
@@ -167,10 +186,10 @@ function RankingSurface({ activeEntryId, closed, entries, reordering, canClose, 
 
   return (
     <Paper component="section" elevation={0} sx={{ border: 1, borderColor: closed ? 'divider' : 'secondary.main', p: 1.5 }}>
-      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ alignItems: { sm: 'center' }, justifyContent: 'space-between' }}>
-        <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-          <Typography component="h2" variant="h6">{closed ? 'Rangliste (gesperrt)' : 'Persönliche Rangliste'}</Typography>
-          <Chip aria-label={`${entries.length} gerankte Beiträge`} label={entries.length} size="small" />
+      <Stack direction="row" spacing={1} sx={{ alignItems: 'center', justifyContent: 'space-between', minWidth: 0 }}>
+        <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flex: 1, minWidth: 0 }}>
+          <Typography component="h2" noWrap sx={{ minWidth: 0 }} variant="h6">{closed ? 'Rangliste (gesperrt)' : 'Persönliche Rangliste'}</Typography>
+          <Chip aria-label={`${entries.length} gerankte Beiträge`} label={entries.length} size="small" sx={{ flexShrink: 0 }} />
         </Stack>
         {action}
       </Stack>
