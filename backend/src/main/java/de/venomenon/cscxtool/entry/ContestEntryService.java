@@ -38,6 +38,23 @@ class ContestEntryService {
     }
 
     @Transactional
+    List<ContestEntry> reorder(long showId, ReorderContestEntriesRequest request) {
+        requireShow(showId);
+        if (request == null || request.entryIds() == null) {
+            throw poolReorderConflict();
+        }
+        List<Long> submittedIds = request.entryIds();
+        Set<Long> currentIds = repository.findAllByShowId(showId).stream().map(ContestEntry::id).collect(java.util.stream.Collectors.toSet());
+        Set<Long> uniqueSubmittedIds = new HashSet<>(submittedIds);
+        if (currentIds.size() != submittedIds.size() || uniqueSubmittedIds.size() != submittedIds.size()
+                || !currentIds.equals(uniqueSubmittedIds)) {
+            throw poolReorderConflict();
+        }
+        repository.replacePool(showId, submittedIds);
+        return repository.findAllByShowId(showId);
+    }
+
+    @Transactional
     ContestEntry create(long showId, CreateContestEntryRequest request) {
         requireShow(showId);
         return repository.create(
@@ -123,6 +140,7 @@ class ContestEntryService {
         if (!repository.delete(entryId, showId)) {
             throw new ContestEntryNotFoundException(entryId, showId);
         }
+        repository.replacePool(showId, repository.findPoolEntryIds(showId));
         if (entry.rankingPosition() != null) {
             repository.replaceRanking(showId, repository.findRankedEntryIds(showId));
         }
@@ -215,6 +233,13 @@ class ContestEntryService {
         return new ApiConflictException(
                 "PARTICIPANT_ALREADY_ASSIGNED_IN_SHOW",
                 "Ein Teilnehmer kann innerhalb derselben Mottoshow nur einem Wettbewerbsbeitrag zugeordnet werden."
+        );
+    }
+
+    private static ApiConflictException poolReorderConflict() {
+        return new ApiConflictException(
+                "POOL_REORDER_CONFLICT",
+                "Die manuelle Reihenfolge muss jeden aktuellen Beitrag dieser Mottoshow genau einmal enthalten."
         );
     }
 

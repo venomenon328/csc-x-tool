@@ -2,87 +2,114 @@ import type { DropResult } from '@hello-pangea/dnd'
 import type { ContestEntry } from '../entries/api'
 import type { BallotRanking } from './api'
 
-export type BallotLists = { ranked: ContestEntry[], unranked: ContestEntry[] }
+export const ENTRY_POOL_DROPPABLE_ID = 'entry-pool'
+export const RANKING_DROPPABLE_ID = 'ranking-entries'
 
-export function splitBallotEntries(entries: ContestEntry[]): BallotLists {
+export function rankedEntries(entries: ContestEntry[]): ContestEntry[] {
+  return entries.filter((entry) => entry.rankingPosition !== null)
+    .sort((left, right) => left.rankingPosition! - right.rankingPosition!)
+}
+
+export function applyRankingDrop(entries: ContestEntry[], result: DropResult): ContestEntry[] {
+  if (result.destination === null) return entries
+  const source = result.source.droppableId
+  const destination = result.destination.droppableId
+  if (!isVotingDroppable(source) || !isVotingDroppable(destination)) return entries
+
+  const entryId = draggableEntryId(result.draggableId)
+  if (entryId === null) return entries
+  const moved = entries.find((entry) => entry.id === entryId)
+  if (moved === undefined) return entries
+
+  const ranked = rankedEntries(entries)
+  if (source === RANKING_DROPPABLE_ID && destination === ENTRY_POOL_DROPPABLE_ID) {
+    return withRanking(entries, ranked.filter((entry) => entry.id !== entryId))
+  }
+  if (destination !== RANKING_DROPPABLE_ID) return entries
+
+  const existingRankIndex = ranked.findIndex((entry) => entry.id === entryId)
+  const withoutMoved = ranked.filter((entry) => entry.id !== entryId)
+  let destinationIndex = result.destination.index
+  // A ranked entry dragged from its pool representation still exists in the destination list
+  // while @hello-pangea/dnd calculates the cross-list destination index. Remove that logical
+  // duplicate from the index as well when moving downward, otherwise the entry lands one rank too low.
+  if (source === ENTRY_POOL_DROPPABLE_ID && existingRankIndex >= 0 && destinationIndex > existingRankIndex) {
+    destinationIndex -= 1
+  }
+  destinationIndex = Math.max(0, Math.min(destinationIndex, withoutMoved.length))
+  withoutMoved.splice(destinationIndex, 0, moved)
+  return withRanking(entries, withoutMoved)
+}
+
+export function removeFromRanking(entries: ContestEntry[], entryId: number): ContestEntry[] {
+  return withRanking(entries, rankedEntries(entries).filter((entry) => entry.id !== entryId))
+}
+
+export function ballotRankingPayload(entries: ContestEntry[]): BallotRanking {
+  const rankedIds = rankedEntries(entries).map((entry) => entry.id)
+  const rankedSet = new Set(rankedIds)
   return {
-    ranked: entries.filter((entry) => entry.rankingPosition !== null).sort((left, right) => left.rankingPosition! - right.rankingPosition!),
-    unranked: entries.filter((entry) => entry.rankingPosition === null),
+    rankedEntryIds: rankedIds,
+    unrankedEntryIds: [...entries].sort((left, right) => left.poolPosition - right.poolPosition)
+      .filter((entry) => !rankedSet.has(entry.id)).map((entry) => entry.id),
   }
 }
 
-export function applyBallotDrop(lists: BallotLists, result: DropResult): BallotLists {
-  if (result.destination === null) return lists
-  const sourceName = listName(result.source.droppableId)
-  const destinationName = listName(result.destination.droppableId)
-  if (sourceName === null || destinationName === null) return lists
-
-  const source = [...lists[sourceName]]
-  const [moved] = source.splice(result.source.index, 1)
-  if (moved === undefined) return lists
-
-  if (sourceName === destinationName) {
-    source.splice(result.destination.index, 0, moved)
-    return normalizeBallotLists({ ...lists, [sourceName]: source })
+export function applyConfirmedRanking(entries: ContestEntry[], ranking: BallotRanking): ContestEntry[] {
+  const rankById = new Map(ranking.rankedEntryIds.map((id, index) => [id, index + 1]))
+  const submittedIds = new Set([...ranking.rankedEntryIds, ...ranking.unrankedEntryIds])
+  if (submittedIds.size !== entries.length || entries.some((entry) => !submittedIds.has(entry.id))) {
+    throw new Error('Der serverbestätigte Rang enthält keinen vollständigen Beitragsbestand.')
   }
-
-  const destination = [...lists[destinationName]]
-  destination.splice(result.destination.index, 0, moved)
-  return normalizeBallotLists({ ...lists, [sourceName]: source, [destinationName]: destination })
-}
-
-export function confirmedBallotLists(entries: ContestEntry[], ranking: BallotRanking): BallotLists {
-  const byId = new Map(entries.map((entry) => [entry.id, entry]))
-  const fromIds = (ids: number[], ranked: boolean) => ids.map((id, index) => {
-    const entry = byId.get(id)
-    if (entry === undefined) throw new Error('Der serverbestätigte Rang enthält einen unbekannten Beitrag.')
-    return { ...entry, rankingPosition: ranked ? index + 1 : null }
-  })
-  return { ranked: fromIds(ranking.rankedEntryIds, true), unranked: fromIds(ranking.unrankedEntryIds, false) }
-}
-
-export function combineBallotLists(lists: BallotLists): ContestEntry[] {
-  return [...lists.ranked, ...lists.unranked]
+  return entries.map((entry) => ({ ...entry, rankingPosition: rankById.get(entry.id) ?? null }))
 }
 
 type PersistDroppedBallotOptions = {
   result: DropResult
-  confirmed: BallotLists
+  confirmedEntries: ContestEntry[]
   save: (ranking: BallotRanking) => Promise<BallotRanking>
-  onOptimisticChange: (lists: BallotLists) => void
-  onConfirmedChange: (lists: BallotLists) => void
+  onOptimisticChange: (entries: ContestEntry[]) => void
+  onConfirmedChange: (entries: ContestEntry[]) => void
 }
 
-/** Sends one complete replacement state for a completed drop and restores the confirmed state on failure. */
-export async function persistDroppedBallot({ result, confirmed, save, onOptimisticChange, onConfirmedChange }: PersistDroppedBallotOptions): Promise<BallotLists> {
-  if (result.destination === null || (result.source.droppableId === result.destination.droppableId && result.source.index === result.destination.index)) {
-    return confirmed
-  }
-  const optimistic = applyBallotDrop(confirmed, result)
+/** Persists only a ranking change. The pool's ordering is never rebuilt or reordered here. */
+export async function persistDroppedBallot({
+  result,
+  confirmedEntries,
+  save,
+  onOptimisticChange,
+  onConfirmedChange,
+}: PersistDroppedBallotOptions): Promise<ContestEntry[]> {
+  if (result.destination === null) return confirmedEntries
+  const optimistic = applyRankingDrop(confirmedEntries, result)
+  if (sameRanking(optimistic, confirmedEntries)) return confirmedEntries
   onOptimisticChange(optimistic)
   try {
-    const ranking = await save({
-      rankedEntryIds: optimistic.ranked.map((entry) => entry.id),
-      unrankedEntryIds: optimistic.unranked.map((entry) => entry.id),
-    })
-    const serverConfirmed = confirmedBallotLists(combineBallotLists(confirmed), ranking)
+    const serverConfirmed = applyConfirmedRanking(confirmedEntries, await save(ballotRankingPayload(optimistic)))
     onConfirmedChange(serverConfirmed)
     return serverConfirmed
   } catch (error) {
-    onConfirmedChange(confirmed)
+    onConfirmedChange(confirmedEntries)
     throw error
   }
 }
 
-function normalizeBallotLists(lists: BallotLists): BallotLists {
-  return {
-    ranked: lists.ranked.map((entry, index) => ({ ...entry, rankingPosition: index + 1 })),
-    unranked: lists.unranked.map((entry) => ({ ...entry, rankingPosition: null })),
-  }
+function withRanking(entries: ContestEntry[], ranked: ContestEntry[]): ContestEntry[] {
+  const positions = new Map(ranked.map((entry, index) => [entry.id, index + 1]))
+  return entries.map((entry) => ({ ...entry, rankingPosition: positions.get(entry.id) ?? null }))
 }
 
-function listName(droppableId: string): keyof BallotLists | null {
-  if (droppableId === 'ranked-entries') return 'ranked'
-  if (droppableId === 'unranked-entries') return 'unranked'
-  return null
+function draggableEntryId(draggableId: string): number | null {
+  const match = /^(?:pool|ranking)-entry-(\d+)$/.exec(draggableId)
+  if (match === null) return null
+  const id = Number(match[1])
+  return Number.isSafeInteger(id) && id > 0 ? id : null
+}
+
+function isVotingDroppable(id: string): boolean {
+  return id === ENTRY_POOL_DROPPABLE_ID || id === RANKING_DROPPABLE_ID
+}
+
+function sameRanking(left: ContestEntry[], right: ContestEntry[]): boolean {
+  return left.every((entry) => entry.rankingPosition === right.find((other) => other.id === entry.id)?.rankingPosition)
 }

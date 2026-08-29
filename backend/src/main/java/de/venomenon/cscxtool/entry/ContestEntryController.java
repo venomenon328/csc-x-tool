@@ -29,6 +29,14 @@ class ContestEntryController {
         return service.findAll(showId).stream().map(ContestEntryResponse::from).toList();
     }
 
+    @PutMapping("/reorder")
+    List<ContestEntryResponse> reorder(
+            @PathVariable long showId,
+            @Valid @RequestBody ReorderContestEntriesRequest request
+    ) {
+        return service.reorder(showId, request).stream().map(ContestEntryResponse::from).toList();
+    }
+
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     ContestEntryResponse create(@PathVariable long showId, @Valid @RequestBody CreateContestEntryRequest request) {

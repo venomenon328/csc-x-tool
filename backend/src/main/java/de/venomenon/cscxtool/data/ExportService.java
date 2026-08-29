@@ -14,6 +14,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -102,11 +103,21 @@ public class ExportService {
 
     public ExportFormat.FullExport readAndValidate(Path input) {
         try {
-            ExportFormat.FullExport export = objectMapper.rebuild()
+            ObjectMapper strictMapper = objectMapper.rebuild()
                     .enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
                     .enable(DeserializationFeature.FAIL_ON_MISSING_CREATOR_PROPERTIES)
                     .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
-                    .build().readValue(input, ExportFormat.FullExport.class);
+                    .build();
+            Map<?, ?> header = strictMapper.readValue(input, Map.class);
+            Object versionValue = header.get("formatVersion");
+            if (!(versionValue instanceof Number versionNumber)) {
+                throw invalid("Der JSON-Export enth\u00e4lt keine unterst\u00fctzte Formatversion.");
+            }
+            ExportFormat.FullExport export = switch (versionNumber.intValue()) {
+                case ExportFormat.LEGACY_VERSION -> upgradeV1(strictMapper.readValue(input, ExportFormat.FullExportV1.class));
+                case ExportFormat.VERSION -> strictMapper.readValue(input, ExportFormat.FullExport.class);
+                default -> throw invalid("Das JSON-Format wird von dieser Anwendung nicht unterst\u00fctzt.");
+            };
             validateExport(export);
             return export;
         } catch (BackupFileException exception) {
@@ -164,10 +175,10 @@ public class ExportService {
             for (ExportFormat.ContestEntry row : data.contestEntries()) {
                 stage.update("""
                         INSERT INTO contest_entry (id, motto_show_id,artist,title,youtube_url,comment,listened,relisten,
-                          ranking_position,participant_id,created_at,updated_at)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                          pool_position,ranking_position,participant_id,created_at,updated_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """, row.id(), row.mottoShowId(), row.artist(), row.title(), row.youtubeUrl(), row.comment(), row.listened(),
-                        row.relisten(), row.rankingPosition(), row.participantId(), row.createdAt(), row.updatedAt());
+                        row.relisten(), row.poolPosition(), row.rankingPosition(), row.participantId(), row.createdAt(), row.updatedAt());
             }
             for (ExportFormat.BallotSnapshot row : data.ballotSnapshots()) {
                 stage.update("INSERT INTO ballot_snapshot (id, motto_show_id, snapshot_number, created_at, is_current) VALUES (?, ?, ?, ?, ?)",
@@ -273,6 +284,8 @@ public class ExportService {
 
         Set<Long> entryIds = uniquePositive(data.contestEntries(), ExportFormat.ContestEntry::id, "Wettbewerbsbeitrag");
         Set<String> entryPositions = new HashSet<>();
+        Set<String> poolPositions = new HashSet<>();
+        Map<Long, List<Integer>> poolPositionsByShow = new HashMap<>();
         for (ExportFormat.ContestEntry entry : data.contestEntries()) {
             requireReference(showIds, entry.mottoShowId(), "Ein Wettbewerbsbeitrag verweist auf eine unbekannte Mottoshow.");
             if (entry.participantId() != null) requireReference(participantIds, entry.participantId(), "Ein Wettbewerbsbeitrag verweist auf einen unbekannten Teilnehmer.");
@@ -281,9 +294,21 @@ public class ExportService {
             requireText(entry.youtubeUrl(), "Ein Wettbewerbsbeitrag ohne YouTube-URL ist nicht g\u00fcltig.");
             requireText(entry.createdAt(), "Ein Wettbewerbsbeitrag ohne Erstellungszeitpunkt ist nicht g\u00fcltig.");
             requireText(entry.updatedAt(), "Ein Wettbewerbsbeitrag ohne Aktualisierungszeitpunkt ist nicht g\u00fcltig.");
+            if (entry.poolPosition() < 1 || !poolPositions.add(entry.mottoShowId() + ":" + entry.poolPosition())) {
+                throw invalid("Die manuelle Position eines Wettbewerbsbeitrags ist nicht g\u00fcltig.");
+            }
+            poolPositionsByShow.computeIfAbsent(entry.mottoShowId(), ignored -> new ArrayList<>()).add(entry.poolPosition());
             if (entry.rankingPosition() != null && (entry.rankingPosition() < 1
                     || !entryPositions.add(entry.mottoShowId() + ":" + entry.rankingPosition()))) {
                 throw invalid("Die Rangposition eines Wettbewerbsbeitrags ist nicht g\u00fcltig.");
+            }
+        }
+        for (List<Integer> positions : poolPositionsByShow.values()) {
+            positions.sort(Comparator.naturalOrder());
+            for (int index = 0; index < positions.size(); index++) {
+                if (positions.get(index) != index + 1) {
+                    throw invalid("Die manuelle Reihenfolge der Wettbewerbsbeitr\u00e4ge muss l\u00fcckenlos sein.");
+                }
             }
         }
 
@@ -437,8 +462,48 @@ public class ExportService {
     }
 
     private static List<ExportFormat.ContestEntry> contestEntries(Connection connection) throws SQLException {
-        return query(connection, "SELECT id,motto_show_id,artist,title,youtube_url,comment,listened,relisten,ranking_position,participant_id,created_at,updated_at FROM contest_entry ORDER BY id",
-                r -> new ExportFormat.ContestEntry(r.getLong(1), r.getLong(2), r.getString(3), r.getString(4), r.getString(5), r.getString(6), r.getBoolean(7), r.getBoolean(8), nullableInt(r, 9), nullableLong(r, 10), r.getString(11), r.getString(12)));
+        return query(connection, "SELECT id,motto_show_id,artist,title,youtube_url,comment,listened,relisten,pool_position,ranking_position,participant_id,created_at,updated_at FROM contest_entry ORDER BY id",
+                r -> new ExportFormat.ContestEntry(r.getLong(1), r.getLong(2), r.getString(3), r.getString(4), r.getString(5), r.getString(6), r.getBoolean(7), r.getBoolean(8), r.getInt(9), nullableInt(r, 10), nullableLong(r, 11), r.getString(12), r.getString(13)));
+    }
+
+    private static ExportFormat.FullExport upgradeV1(ExportFormat.FullExportV1 legacy) {
+        if (legacy == null || legacy.data() == null) {
+            return new ExportFormat.FullExport(
+                    legacy == null ? null : legacy.format(), ExportFormat.VERSION,
+                    legacy == null ? null : legacy.exportedAt(), legacy == null ? null : legacy.applicationVersion(),
+                    legacy == null ? 0 : legacy.schemaVersion(), null
+            );
+        }
+        ExportFormat.DataV1 data = legacy.data();
+        return new ExportFormat.FullExport(
+                legacy.format(), ExportFormat.VERSION, legacy.exportedAt(), legacy.applicationVersion(), legacy.schemaVersion(),
+                new ExportFormat.Data(
+                        data.mottoShows(), data.candidates(), data.participants(), data.participantAliases(),
+                        upgradeV1ContestEntries(data.contestEntries()), data.ballotSnapshots(), data.ballotSnapshotItems(), data.receivedScores()
+                )
+        );
+    }
+
+    private static List<ExportFormat.ContestEntry> upgradeV1ContestEntries(List<ExportFormat.ContestEntryV1> entries) {
+        if (entries == null) return null;
+        Map<Long, List<ExportFormat.ContestEntryV1>> byShow = new HashMap<>();
+        for (ExportFormat.ContestEntryV1 entry : entries) {
+            if (entry == null) return null;
+            byShow.computeIfAbsent(entry.mottoShowId(), ignored -> new ArrayList<>()).add(entry);
+        }
+        Map<Long, Integer> positionsByEntryId = new HashMap<>();
+        for (List<ExportFormat.ContestEntryV1> showEntries : byShow.values()) {
+            showEntries.sort(Comparator.comparing(ExportFormat.ContestEntryV1::createdAt, Comparator.nullsLast(Comparator.naturalOrder()))
+                    .thenComparingLong(ExportFormat.ContestEntryV1::id));
+            for (int index = 0; index < showEntries.size(); index++) {
+                positionsByEntryId.put(showEntries.get(index).id(), index + 1);
+            }
+        }
+        return entries.stream().map(entry -> new ExportFormat.ContestEntry(
+                entry.id(), entry.mottoShowId(), entry.artist(), entry.title(), entry.youtubeUrl(), entry.comment(),
+                entry.listened(), entry.relisten(), positionsByEntryId.get(entry.id()), entry.rankingPosition(),
+                entry.participantId(), entry.createdAt(), entry.updatedAt()
+        )).toList();
     }
 
     private static List<ExportFormat.BallotSnapshot> ballotSnapshots(Connection connection) throws SQLException {

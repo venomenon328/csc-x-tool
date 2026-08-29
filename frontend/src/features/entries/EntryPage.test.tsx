@@ -7,10 +7,10 @@ import type { ContestEntry, ImportPreviewLine } from './api'
 const show = { id: 1, showNumber: 1, name: 'Show Eins', candidateCount: 0, contestEntryCount: 2, listenedEntryCount: 0, selectedCandidate: null }
 const first: ContestEntry = {
   id: 11, mottoShowId: 1, artist: 'Imminence', title: 'Paralyzed', youtubeUrl: 'https://www.youtube.com/watch?v=2Dqu1Gh45qU',
-  comment: null, listened: false, relisten: false, rankingPosition: null, participantId: null,
+  comment: null, listened: false, relisten: false, poolPosition: 1, rankingPosition: null, participantId: null,
   createdAt: '2026-08-27T00:00:00Z', updatedAt: '2026-08-27T00:00:00Z',
 }
-const second: ContestEntry = { ...first, id: 12, artist: 'Alice In Chains', title: 'Would?', youtubeUrl: 'https://www.youtube.com/watch?v=mOJEcEkR1a8', relisten: true }
+const second: ContestEntry = { ...first, id: 12, artist: 'Alice In Chains', title: 'Would?', youtubeUrl: 'https://www.youtube.com/watch?v=mOJEcEkR1a8', poolPosition: 2, relisten: true }
 const openBallot = { ballotClosedAt: null, currentSnapshot: null, snapshots: [], renderedText: null }
 
 function jsonResponse(body: unknown, status = 200) {
@@ -132,7 +132,7 @@ describe('EntryPage', () => {
     render(<App />)
 
     await screen.findAllByRole('heading', { name: 'Paralyzed' })
-    expect(screen.getAllByText('Imminence')).toHaveLength(2)
+    expect(screen.getByText('Imminence')).toBeVisible()
     expect(screen.queryByText('Ungelesen')).not.toBeInTheDocument()
     expect(screen.queryByText('keine Wiedervorlage')).not.toBeInTheDocument()
     expect(screen.getByLabelText('Paralyzed: Noch nicht gerankt')).toBeVisible()

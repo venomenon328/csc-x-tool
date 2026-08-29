@@ -99,6 +99,36 @@ class ContestEntryApiIntegrationTest {
     }
 
     @Test
+    void keepsPoolAndRankingOrdersIndependentAcrossReorderAndDelete() throws Exception {
+        long first = create(7, "First", "A", "https://youtu.be/dQw4w9WgXcQ", null);
+        long second = create(7, "Second", "B", "https://youtu.be/9bZkp7q19f0", null);
+        long third = create(7, "Third", "C", "https://youtu.be/2Dqu1Gh45qU", null);
+        jdbcTemplate.update("UPDATE contest_entry SET ranking_position = 1 WHERE id = ?", first);
+        jdbcTemplate.update("UPDATE contest_entry SET ranking_position = 2 WHERE id = ?", second);
+
+        HttpResponse<String> reordered = put("/api/shows/7/entries/reorder", "{\"entryIds\":[" + third + "," + first + "," + second + "]}");
+
+        assertThat(reordered.statusCode()).isEqualTo(200);
+        assertThat(reordered.body()).contains("\"poolPosition\":1", "\"poolPosition\":2", "\"poolPosition\":3");
+        assertThat(jdbcTemplate.queryForList("SELECT id FROM contest_entry WHERE motto_show_id = 7 ORDER BY pool_position", Long.class))
+                .containsExactly(third, first, second);
+        assertThat(jdbcTemplate.queryForList("SELECT ranking_position FROM contest_entry WHERE id IN (?, ?) ORDER BY ranking_position", Integer.class, first, second))
+                .containsExactly(1, 2);
+
+        HttpResponse<String> invalid = put("/api/shows/7/entries/reorder", "{\"entryIds\":[" + first + "," + first + "," + second + "]}");
+        assertThat(invalid.statusCode()).isEqualTo(409);
+        assertThat(invalid.body()).contains("POOL_REORDER_CONFLICT");
+        assertThat(jdbcTemplate.queryForList("SELECT id FROM contest_entry WHERE motto_show_id = 7 ORDER BY pool_position", Long.class))
+                .containsExactly(third, first, second);
+
+        assertThat(delete("/api/shows/7/entries/" + first).statusCode()).isEqualTo(204);
+        assertThat(jdbcTemplate.queryForList("SELECT pool_position FROM contest_entry WHERE motto_show_id = 7 ORDER BY pool_position", Integer.class))
+                .containsExactly(1, 2);
+        assertThat(jdbcTemplate.queryForList("SELECT ranking_position FROM contest_entry WHERE motto_show_id = 7 AND ranking_position IS NOT NULL", Integer.class))
+                .containsExactly(1);
+    }
+
+    @Test
     void enforcesDatabaseIntegrityAndReturnsConflictForAReferencedParticipant() throws Exception {
         long entryId = create(5, "Referenz", "Beitrag", "https://youtu.be/dQw4w9WgXcQ", null);
         assertThatThrownBy(() -> jdbcTemplate.update("""
@@ -139,6 +169,10 @@ class ContestEntryApiIntegrationTest {
 
     private HttpResponse<String> patch(String path, String body) throws Exception {
         return request("PATCH", path, body);
+    }
+
+    private HttpResponse<String> put(String path, String body) throws Exception {
+        return request("PUT", path, body);
     }
 
     private HttpResponse<String> delete(String path) throws Exception {

@@ -7,6 +7,7 @@ export type ContestEntry = PlayableSong & {
   comment: string | null
   listened: boolean
   relisten: boolean
+  poolPosition: number
   rankingPosition: number | null
   participantId: number | null
   createdAt: string
@@ -52,6 +53,10 @@ function json(method: string, body: unknown): RequestInit {
 
 export function fetchEntries(showId: number): Promise<ContestEntry[]> {
   return request(`/api/shows/${showId}/entries`)
+}
+
+export function reorderEntryPool(showId: number, entryIds: number[]): Promise<ContestEntry[]> {
+  return request(`/api/shows/${showId}/entries/reorder`, json('PUT', { entryIds }))
 }
 
 export function createEntry(showId: number, entry: ContestEntryInput): Promise<ContestEntry> {
