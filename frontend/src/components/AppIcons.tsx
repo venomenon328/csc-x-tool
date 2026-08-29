@@ -1,4 +1,4 @@
-import { SvgIcon, type SvgIconProps } from '@mui/material'
+import { SvgIcon, type SvgIconProps, useTheme } from '@mui/material'
 
 export function AddIcon(props: SvgIconProps) {
   return <SvgIcon {...props}><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" /></SvgIcon>
@@ -57,7 +57,7 @@ export function PlayIcon(props: SvgIconProps) {
 }
 
 export function PlaylistRemoveIcon(props: SvgIconProps) {
-  return <SvgIcon {...props}><path d="M3 6h12v2H3V6zm0 4h12v2H3v-2zm0 4h8v2H3v-2zm14-2v-2h-2v2h-2v2h2v2h2v-2h2v-2h-2z" /></SvgIcon>
+  return <SvgIcon {...props}><path d="M3 6h12v2H3V6zm0 4h12v2H3v-2zm0 4h8v2H3v-2zm11-2h8v2h-8v-2z" /></SvgIcon>
 }
 
 export function ReplayIcon(props: SvgIconProps) {
@@ -81,11 +81,19 @@ export function SearchIcon(props: SvgIconProps) {
 }
 
 export function SpeakerCheckIcon(props: SvgIconProps) {
-  return <SvgIcon {...props}><path d="M4 9v6h4l5 4V5L8 9H4zm11.5 6.5L14 14l1.5-1.5 1.5 1.5 3-3L21.5 12.5l-4.5 4.5-1.5-1.5z" /></SvgIcon>
+  const theme = useTheme()
+  return <SvgIcon {...props}>
+    <path d="M4 9v6h4l5 4V5L8 9H4z" fill={theme.palette.text.secondary} />
+    <path d="m15.5 15.5-1.5-1.5 1.5-1.5 1.5 1.5 3-3 1.5 1.5-4.5 4.5-1.5-1.5z" fill={theme.palette.success.main} />
+  </SvgIcon>
 }
 
 export function SpeakerCrossIcon(props: SvgIconProps) {
-  return <SvgIcon {...props}><path d="M4 9v6h4l5 4V5L8 9H4zm11.5 2.09L17.09 9.5 18.5 8.09 20.09 9.68l1.59-1.59 1.41 1.41-1.59 1.59 1.59 1.59-1.41 1.41-1.59-1.59-1.59 1.59-1.41-1.41 1.59-1.59-1.59-1.59z" /></SvgIcon>
+  const theme = useTheme()
+  return <SvgIcon {...props}>
+    <path d="M4 9v6h4l5 4V5L8 9H4z" fill={theme.palette.text.secondary} />
+    <path d="m15.5 10.09 1.41-1.41 1.59 1.59 1.59-1.59 1.41 1.41-1.59 1.59 1.59 1.59-1.41 1.41-1.59-1.59-1.59 1.59-1.41-1.41 1.59-1.59-1.59-1.59z" fill={theme.palette.error.main} />
+  </SvgIcon>
 }
 
 export function SortIcon(props: SvgIconProps) {

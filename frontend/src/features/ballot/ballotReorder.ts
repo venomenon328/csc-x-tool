@@ -27,8 +27,16 @@ export function applyRankingDrop(entries: ContestEntry[], result: DropResult): C
   }
   if (destination !== RANKING_DROPPABLE_ID) return entries
 
+  const existingRankIndex = ranked.findIndex((entry) => entry.id === entryId)
   const withoutMoved = ranked.filter((entry) => entry.id !== entryId)
-  const destinationIndex = Math.max(0, Math.min(result.destination.index, withoutMoved.length))
+  let destinationIndex = result.destination.index
+  // A ranked entry dragged from its pool representation still exists in the destination list
+  // while @hello-pangea/dnd calculates the cross-list destination index. Remove that logical
+  // duplicate from the index as well when moving downward, otherwise the entry lands one rank too low.
+  if (source === ENTRY_POOL_DROPPABLE_ID && existingRankIndex >= 0 && destinationIndex > existingRankIndex) {
+    destinationIndex -= 1
+  }
+  destinationIndex = Math.max(0, Math.min(destinationIndex, withoutMoved.length))
   withoutMoved.splice(destinationIndex, 0, moved)
   return withRanking(entries, withoutMoved)
 }

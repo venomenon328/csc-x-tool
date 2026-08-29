@@ -28,6 +28,20 @@ describe('ballot ranking interactions', () => {
     expect(moved.filter((entry) => entry.id === 1)).toHaveLength(1)
   })
 
+  it('accounts for the existing destination representation when a ranked pool entry moves downward', () => {
+    const threeRanked = entries.map((entry) => entry.id === 3 ? { ...entry, rankingPosition: 3 } : entry)
+    const moved = applyRankingDrop(threeRanked, drop('pool-entry-1', ENTRY_POOL_DROPPABLE_ID, 1, RANKING_DROPPABLE_ID, 2))
+
+    expect(moved.filter((entry) => entry.rankingPosition !== null).sort((left, right) => left.rankingPosition! - right.rankingPosition!).map((entry) => entry.id)).toEqual([2, 1, 3])
+  })
+
+  it('reorders directly inside the compact ranking list', () => {
+    const threeRanked = entries.map((entry) => entry.id === 3 ? { ...entry, rankingPosition: 3 } : entry)
+    const moved = applyRankingDrop(threeRanked, drop('ranking-entry-1', RANKING_DROPPABLE_ID, 0, RANKING_DROPPABLE_ID, 2))
+
+    expect(moved.filter((entry) => entry.rankingPosition !== null).sort((left, right) => left.rankingPosition! - right.rankingPosition!).map((entry) => entry.id)).toEqual([2, 3, 1])
+  })
+
   it('removes only a ranking position when a ranking entry is dropped into the pool', () => {
     const moved = applyRankingDrop(entries, drop('ranking-entry-1', RANKING_DROPPABLE_ID, 0, ENTRY_POOL_DROPPABLE_ID, 0))
 
