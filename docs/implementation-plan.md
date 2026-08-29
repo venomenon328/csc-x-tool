@@ -378,7 +378,11 @@ Ein kleiner Paketierungsspike darf deutlich früher stattfinden. Die endgültige
 
 Paket 1 ersetzt die früheren Beitragsstatus durch das persistente Paar Einschätzung/Sicherheit. Es umfasst die Schema-8-zu-9-Migration, getrennte Metadaten- und Bewertungs-APIs, JSON-v3-Export mit kompatiblen v1/v2-Import-Upgrades, CSV-Felder sowie die kompakte, zugängliche Kartensteuerung mit Filtern und Sortierungen. Die Pool- und Ranking-DnD-Verträge bleiben dabei unverändert.
 
-Bewusst nicht Teil dieses Pakets sind Ranglistenvorschlag, dessen Anwendung oder erneute Anwendung sowie Abschlusswarnungen. Diese Folgearbeit darf die bestehende manuelle Rangfolge erst nach einer gesonderten Produktentscheidung beeinflussen.
+## Fortschreibung – Issue #61, Paket 2
+
+Paket 2 ergänzt eine zentrale, rein testbare Vorschlags- und Warnlogik ohne Datenmodell-, Schema- oder Exportänderung. Aus bewerteten Beiträgen wird ausschließlich auf bewusste Aktion ein Ranglistenvorschlag berechnet und über den bestehenden atomaren Reorder-Vertrag gespeichert; unbewertete Beiträge bleiben im Pool. Die manuelle Drag-and-drop-Rangfolge bleibt nach jeder Anwendung vollständig maßgeblich, und Bewertungsänderungen lösen nie eine automatische Sortierung aus.
+
+Der Abschlussdialog zeigt fachliche Hinweise zu Bewertungsstand, auffälligen Top-15-Positionen und einer knappen unsicheren 15/16-Grenze. Sie sind keine weiteren Validierungsregeln: Die bisherige Top-15-/Snapshot-Prüfung bleibt unverändert die einzige harte Abschlussblockade.
 
 ## 14. Freigabepunkte
 

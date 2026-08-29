@@ -563,6 +563,8 @@ Die ersten 15 Positionen werden nicht als eigener veränderlicher Datensatz gef�
 
 Der P5-Reorder-Command übermittelt stets beide vollständigen Bereiche. Das Backend vergleicht ihre Vereinigungsmenge mit allen aktuellen Beitrags-IDs der Show; fehlende, fremde oder doppelte IDs sind fachliche Konflikte und ändern in der Transaktion nichts. Zur konfliktfreien Neuvergabe leert es zunächst die optionalen Positionen und schreibt dann die gerankten Beiträge als `1..n`; diese temporäre Zwischenform ist nur innerhalb derselben SQLite-Transaktion sichtbar.
 
+Der Ranglistenvorschlag ist eine zentrale reine Frontend-Domänenfunktion. Sie berechnet aus Einschätzung und Sicherheit nur die vollständigen ID-Listen für genau diesen Reorder-Command; es gibt weder einen zweiten Ranking-Speicher noch eine neue API oder Persistenzstruktur. Die Funktion ist nur über die bewusste Aktion in der offenen Rangliste erreichbar. Die ebenfalls reine Warnableitung liest die aktuelle Rangliste für den Abschlussdialog und hat keinen Einfluss auf die serverseitige Top-15-/Snapshot-Validierung.
+
 Ein Abschluss speichert die ersten 15 Beiträge mit Rang, Interpret, Titel und YouTube-URL als Textkopien. `ballot_snapshot_item.contest_entry_id` bleibt nullable und nutzt `ON DELETE SET NULL`; dadurch überleben historische Snapshots spätere Änderungen und das erlaubte Löschen eines Originalbeitrags. Der zentrale Renderer formatiert ausschließlich einen aktuellen, gespeicherten Snapshot. Damit kann der spätere CSC-Textnachtrag den Renderer ersetzen, ohne Ranglogik oder Persistenz anzufassen.
 
 ## 13. YouTube-Integration

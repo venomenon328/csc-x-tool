@@ -244,4 +244,31 @@ describe('EntryPage', () => {
     await user.click(screen.getByLabelText('Ohne Teilnehmer'))
     expect(within(screen.getByLabelText('Beitragspool')).queryByRole('button', { name: 'Paralyzed von Imminence auswählen' })).not.toBeInTheDocument()
   })
+
+  it('applies a ranking suggestion only after its explicit action through the atomic reorder endpoint', async () => {
+    const user = userEvent.setup()
+    const suggestionEntries = [
+      { ...first, assessment: 1, assessmentConfidence: 5 },
+      { ...second, assessment: 5, assessmentConfidence: 1 },
+    ]
+    fetchMock.mockImplementation(async (input, init) => {
+      const path = String(input)
+      if (path === '/api/shows') return jsonResponse([show])
+      if (path === '/api/shows/1/ballot') return jsonResponse(openBallot)
+      if (path === '/api/shows/1/ballot/reorder' && init?.method === 'PUT') {
+        return jsonResponse({ rankedEntryIds: [12, 11], unrankedEntryIds: [] })
+      }
+      if (path === '/api/shows/1/entries') return jsonResponse(suggestionEntries)
+      throw new Error(`Unexpected request ${path}`)
+    })
+    render(<App />)
+
+    const applyButton = await screen.findByRole('button', { name: 'Ranglistenvorschlag anwenden' })
+    expect(fetchMock.mock.calls.some(([input]) => String(input) === '/api/shows/1/ballot/reorder')).toBe(false)
+    await user.click(applyButton)
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/shows/1/ballot/reorder', expect.objectContaining({
+      method: 'PUT', body: JSON.stringify({ rankedEntryIds: [12, 11], unrankedEntryIds: [] }),
+    })))
+  })
 })
