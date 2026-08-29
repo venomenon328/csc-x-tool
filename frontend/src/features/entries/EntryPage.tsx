@@ -526,7 +526,7 @@ function AssessmentControls({ entry, onSave, pending }: {
             disabled={assessment === null || pending}
             onClick={() => onSave(assessment, level)}
             size="small"
-            sx={{ color: confidence !== null && level <= confidence ? 'primary.main' : 'action.disabled', p: 0.25 }}
+            sx={{ color: confidence !== null && level <= confidence ? 'secondary.main' : 'action.disabled', p: 0.25 }}
           ><Typography aria-hidden="true" component="span" sx={{ fontSize: '0.85rem', fontWeight: 700, lineHeight: 1 }}>●</Typography></IconButton></span>
         </Tooltip>
       })}
