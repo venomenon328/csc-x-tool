@@ -36,7 +36,7 @@ class ContestEntryApiIntegrationTest {
     }
 
     @Test
-    void supportsScopedManualCrudNormalizationAndPersistentListeningFlags() throws Exception {
+    void supportsScopedManualCrudNormalizationAndSeparateAssessments() throws Exception {
         long entryId = create(1, "  Interpret  ", "  Titel  ", "https://youtu.be/dQw4w9WgXcQ?t=42", " Notiz ");
 
         HttpResponse<String> list = get("/api/shows/1/entries");
@@ -44,19 +44,58 @@ class ContestEntryApiIntegrationTest {
         assertThat(list.body()).contains(
                 "\"artist\":\"Interpret\"", "\"title\":\"Titel\"",
                 "\"youtubeUrl\":\"https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=42\"",
-                "\"listened\":false", "\"relisten\":false"
+                "\"assessment\":null", "\"assessmentConfidence\":null"
         );
         assertThat(get("/api/shows/6/entries").body()).isEqualTo("[]");
 
-        HttpResponse<String> foreignUpdate = patch("/api/shows/6/entries/" + entryId, entryJson("Other", "Song", "https://youtu.be/dQw4w9WgXcQ", null, true, false));
+        HttpResponse<String> foreignUpdate = patch("/api/shows/6/entries/" + entryId, entryJson("Other", "Song", "https://youtu.be/dQw4w9WgXcQ", null));
         assertThat(foreignUpdate.statusCode()).isEqualTo(404);
         assertThat(foreignUpdate.body()).contains("CONTEST_ENTRY_NOT_FOUND");
 
         HttpResponse<String> updated = patch("/api/shows/1/entries/" + entryId,
-                entryJson("Geändert", "Titel", "https://youtube.com/embed/dQw4w9WgXcQ", "Hörnotiz", true, true));
+                entryJson("Geändert", "Titel", "https://youtube.com/embed/dQw4w9WgXcQ", "Hörnotiz"));
         assertThat(updated.statusCode()).isEqualTo(200);
-        assertThat(updated.body()).contains("\"listened\":true", "\"relisten\":true", "\"comment\":\"Hörnotiz\"");
+        assertThat(updated.body()).contains("\"assessment\":null", "\"assessmentConfidence\":null", "\"comment\":\"Hörnotiz\"");
         assertThat(delete("/api/shows/1/entries/" + entryId).statusCode()).isEqualTo(204);
+    }
+
+    @Test
+    void setsChangesAndResetsAssessmentWithoutChangingMetadataOrOrders() throws Exception {
+        long entryId = create(1, "Interpret", "Titel", "https://youtu.be/dQw4w9WgXcQ", "Notiz");
+        jdbcTemplate.update("UPDATE contest_entry SET ranking_position = 1 WHERE id = ?", entryId);
+
+        HttpResponse<String> initial = patch("/api/shows/1/entries/" + entryId + "/assessment", "{\"assessment\":4,\"assessmentConfidence\":1}");
+        assertThat(initial.statusCode()).isEqualTo(200);
+        assertThat(initial.body()).contains("\"assessment\":4", "\"assessmentConfidence\":1", "\"rankingPosition\":1", "\"comment\":\"Notiz\"");
+        assertThat(get("/api/shows").body()).contains("\"assessedEntryCount\":1");
+
+        HttpResponse<String> changed = patch("/api/shows/1/entries/" + entryId + "/assessment", "{\"assessment\":2,\"assessmentConfidence\":5}");
+        assertThat(changed.statusCode()).isEqualTo(200);
+        assertThat(changed.body()).contains("\"assessment\":2", "\"assessmentConfidence\":5");
+        assertThat(jdbcTemplate.queryForObject("SELECT pool_position FROM contest_entry WHERE id = ?", Integer.class, entryId)).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject("SELECT ranking_position FROM contest_entry WHERE id = ?", Integer.class, entryId)).isEqualTo(1);
+
+        HttpResponse<String> reset = patch("/api/shows/1/entries/" + entryId + "/assessment", "{\"assessment\":null,\"assessmentConfidence\":null}");
+        assertThat(reset.statusCode()).isEqualTo(200);
+        assertThat(reset.body()).contains("\"assessment\":null", "\"assessmentConfidence\":null");
+        assertThat(get("/api/shows").body()).contains("\"assessedEntryCount\":0");
+    }
+
+    @Test
+    void rejectsIncompleteAndOutOfRangeAssessmentPairs() throws Exception {
+        long entryId = create(1, "Interpret", "Titel", "https://youtu.be/dQw4w9WgXcQ", null);
+        for (String invalid : new String[] {
+                "{\"assessment\":3,\"assessmentConfidence\":null}",
+                "{\"assessment\":null,\"assessmentConfidence\":3}",
+                "{\"assessment\":null}",
+                "{\"assessmentConfidence\":null}",
+                "{\"assessment\":0,\"assessmentConfidence\":2}",
+                "{\"assessment\":5,\"assessmentConfidence\":6}"
+        }) {
+            HttpResponse<String> response = patch("/api/shows/1/entries/" + entryId + "/assessment", invalid);
+            assertThat(response.statusCode()).isEqualTo(400);
+            assertThat(response.body()).contains("INVALID_ENTRY_ASSESSMENT");
+        }
     }
 
     @Test
@@ -86,7 +125,7 @@ class ContestEntryApiIntegrationTest {
         assertThat(imported.statusCode()).isEqualTo(200);
         assertThat(imported.body().indexOf("\"artist\":\"First\""))
                 .isLessThan(imported.body().indexOf("\"artist\":\"Second\""));
-        assertThat(imported.body()).contains("\"listened\":false", "\"relisten\":false", "\"rankingPosition\":null", "\"participantId\":null");
+        assertThat(imported.body()).contains("\"assessment\":null", "\"assessmentConfidence\":null", "\"rankingPosition\":null", "\"participantId\":null");
 
         HttpResponse<String> invalidImport = post("/api/shows/4/entries/import", """
                 {"entries":[
@@ -132,12 +171,12 @@ class ContestEntryApiIntegrationTest {
     void enforcesDatabaseIntegrityAndReturnsConflictForAReferencedParticipant() throws Exception {
         long entryId = create(5, "Referenz", "Beitrag", "https://youtu.be/dQw4w9WgXcQ", null);
         assertThatThrownBy(() -> jdbcTemplate.update("""
-                INSERT INTO contest_entry (motto_show_id, artist, title, youtube_url, listened, relisten, ranking_position, created_at, updated_at)
-                VALUES (5, 'X', 'Y', 'https://www.youtube.com/watch?v=9bZkp7q19f0', 0, 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                INSERT INTO contest_entry (motto_show_id, artist, title, youtube_url, assessment, assessment_confidence, ranking_position, created_at, updated_at)
+                VALUES (5, 'X', 'Y', 'https://www.youtube.com/watch?v=9bZkp7q19f0', NULL, NULL, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                 """)).isInstanceOf(DataAccessException.class);
         assertThatThrownBy(() -> jdbcTemplate.update("""
-                INSERT INTO contest_entry (motto_show_id, artist, title, youtube_url, listened, relisten, created_at, updated_at)
-                VALUES (999, 'X', 'Y', 'https://www.youtube.com/watch?v=9bZkp7q19f0', 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                INSERT INTO contest_entry (motto_show_id, artist, title, youtube_url, assessment, assessment_confidence, created_at, updated_at)
+                VALUES (999, 'X', 'Y', 'https://www.youtube.com/watch?v=9bZkp7q19f0', NULL, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                 """)).isInstanceOf(DataAccessException.class);
 
         long participantId = firstId(post("/api/participants", "{" + "\"displayName\":\"Historisch\",\"countryCode\":\"DE\",\"active\":true}" ).body());
@@ -148,15 +187,14 @@ class ContestEntryApiIntegrationTest {
     }
 
     private long create(long showId, String artist, String title, String youtubeUrl, String comment) throws Exception {
-        HttpResponse<String> response = post("/api/shows/" + showId + "/entries", entryJson(artist, title, youtubeUrl, comment, false, false).replace(",\"listened\":false,\"relisten\":false", ""));
+        HttpResponse<String> response = post("/api/shows/" + showId + "/entries", entryJson(artist, title, youtubeUrl, comment));
         assertThat(response.statusCode()).isEqualTo(201);
         return firstId(response.body());
     }
 
-    private static String entryJson(String artist, String title, String youtubeUrl, String comment, boolean listened, boolean relisten) {
+    private static String entryJson(String artist, String title, String youtubeUrl, String comment) {
         return "{\"artist\":\"" + artist + "\",\"title\":\"" + title + "\",\"youtubeUrl\":\"" + youtubeUrl
-                + "\",\"comment\":" + (comment == null ? "null" : "\"" + comment + "\"")
-                + ",\"listened\":" + listened + ",\"relisten\":" + relisten + "}";
+                + "\",\"comment\":" + (comment == null ? "null" : "\"" + comment + "\"") + "}";
     }
 
     private HttpResponse<String> get(String path) throws Exception {

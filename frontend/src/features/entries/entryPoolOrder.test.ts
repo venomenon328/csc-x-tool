@@ -3,18 +3,25 @@ import type { ContestEntry } from './api'
 import { movePoolEntry, persistDroppedPoolOrder, visiblePoolEntries } from './entryPoolOrder'
 
 const entries: ContestEntry[] = [
-  { id: 1, mottoShowId: 1, artist: 'Ärzte', title: 'Zwei', youtubeUrl: '', comment: null, listened: true, relisten: false, poolPosition: 2, rankingPosition: 2, participantId: null, createdAt: '2026-01-02T00:00:00Z', updatedAt: '' },
-  { id: 2, mottoShowId: 1, artist: 'Björk', title: 'Eins', youtubeUrl: '', comment: null, listened: false, relisten: true, poolPosition: 1, rankingPosition: null, participantId: null, createdAt: '2026-01-01T00:00:00Z', updatedAt: '' },
-  { id: 3, mottoShowId: 1, artist: 'Ärzte', title: 'Drei', youtubeUrl: '', comment: null, listened: false, relisten: false, poolPosition: 3, rankingPosition: 1, participantId: null, createdAt: '2026-01-03T00:00:00Z', updatedAt: '' },
+  { id: 1, mottoShowId: 1, artist: 'Ärzte', title: 'Zwei', youtubeUrl: '', comment: null, assessment: 4, assessmentConfidence: 2, poolPosition: 2, rankingPosition: 2, participantId: null, createdAt: '2026-01-02T00:00:00Z', updatedAt: '' },
+  { id: 2, mottoShowId: 1, artist: 'Björk', title: 'Eins', youtubeUrl: '', comment: null, assessment: null, assessmentConfidence: null, poolPosition: 1, rankingPosition: null, participantId: null, createdAt: '2026-01-01T00:00:00Z', updatedAt: '' },
+  { id: 3, mottoShowId: 1, artist: 'Ärzte', title: 'Drei', youtubeUrl: '', comment: null, assessment: 4, assessmentConfidence: 4, poolPosition: 3, rankingPosition: 1, participantId: null, createdAt: '2026-01-03T00:00:00Z', updatedAt: '' },
 ]
 
-const noFilters = { search: '', onlyUnlistened: false, onlyRelisten: false, onlyUnranked: false, onlyWithoutParticipant: false }
+const noFilters = { search: '', onlyUnassessed: false, onlyUncertain: false, onlyUnranked: false, onlyWithoutParticipant: false }
 
 describe('entry pool ordering', () => {
   it('uses pool positions for manual order and as the stable tie-breaker for other sorts', () => {
     expect(visiblePoolEntries(entries, noFilters, 'MANUAL').map((entry) => entry.id)).toEqual([2, 1, 3])
     expect(visiblePoolEntries(entries, noFilters, 'ARTIST').map((entry) => entry.id)).toEqual([1, 3, 2])
+    expect(visiblePoolEntries(entries, noFilters, 'ASSESSMENT').map((entry) => entry.id)).toEqual([3, 1, 2])
+    expect(visiblePoolEntries(entries, noFilters, 'CONFIDENCE').map((entry) => entry.id)).toEqual([2, 1, 3])
     expect(visiblePoolEntries(entries, noFilters, 'RANK').map((entry) => entry.id)).toEqual([3, 1, 2])
+  })
+
+  it('filters unassessed entries and low-confidence assessments without changing pool order', () => {
+    expect(visiblePoolEntries(entries, { ...noFilters, onlyUnassessed: true }, 'MANUAL').map((entry) => entry.id)).toEqual([2])
+    expect(visiblePoolEntries(entries, { ...noFilters, onlyUncertain: true }, 'MANUAL').map((entry) => entry.id)).toEqual([1])
   })
 
   it('keeps pool reorder independent from ranking positions', () => {

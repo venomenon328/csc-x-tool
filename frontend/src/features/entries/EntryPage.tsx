@@ -3,12 +3,11 @@ import {
   Alert, Box, Button, Card, CardContent, Chip, Dialog, DialogActions, DialogContent, DialogTitle,
   IconButton, InputAdornment, Menu, MenuItem, Paper, Select, Skeleton, Stack, TextField, Tooltip, Typography,
 } from '@mui/material'
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link as RouterLink, useParams } from 'react-router-dom'
 import { ApiErrorNotice } from '../../components/ApiErrorNotice'
 import {
-  DeleteIcon, DragIcon, EditIcon, FilterIcon, MoreIcon, PlayIcon, RankIcon, ReplayIcon, SearchIcon,
-  SortIcon, SpeakerCheckIcon, SpeakerCrossIcon,
+  DeleteIcon, DragIcon, EditIcon, FilterIcon, MoreIcon, PlayIcon, RankIcon, SearchIcon, SortIcon, SubmissionIcon,
 } from '../../components/AppIcons'
 import { BallotPanel } from '../ballot/BallotPanel'
 import { BallotApiError, closeBallot, fetchBallot, reopenBallot, reorderBallot, type Ballot } from '../ballot/api'
@@ -24,7 +23,7 @@ import { ClipboardImportArea } from './ClipboardImportArea'
 import { ImportPreview, type EditableImportLine } from './ImportPreview'
 import {
   createEntry, deleteEntry, EntryApiError, fetchEntries, importEntries, previewImport, reorderEntryPool,
-  updateParticipantAssignment, updateEntry, type ContestEntry, type ContestEntryInput,
+  updateEntryAssessment, updateParticipantAssignment, updateEntry, type ContestEntry, type ContestEntryInput,
 } from './api'
 import {
   persistDroppedPoolOrder, visiblePoolEntries, type EntryPoolFilters, type EntryPoolSortMode,
@@ -42,8 +41,8 @@ export function EntryPage() {
   const [error, setError] = useState<EntryApiError | null>(null)
   const [activeEntryId, setActiveEntryId] = useState<number | null>(null)
   const [search, setSearch] = useState('')
-  const [onlyUnlistened, setOnlyUnlistened] = useState(false)
-  const [onlyRelisten, setOnlyRelisten] = useState(false)
+  const [onlyUnassessed, setOnlyUnassessed] = useState(false)
+  const [onlyUncertain, setOnlyUncertain] = useState(false)
   const [onlyUnranked, setOnlyUnranked] = useState(false)
   const [onlyWithoutParticipant, setOnlyWithoutParticipant] = useState(false)
   const [sortMode, setSortMode] = useState<EntryPoolSortMode>('MANUAL')
@@ -55,12 +54,14 @@ export function EntryPage() {
   const [entryPendingDeletion, setEntryPendingDeletion] = useState<ContestEntry | null>(null)
   const [poolReordering, setPoolReordering] = useState(false)
   const [rankingReordering, setRankingReordering] = useState(false)
+  const [pendingAssessmentIds, setPendingAssessmentIds] = useState<Set<number>>(new Set())
+  const assessmentPendingIds = useRef(new Set<number>())
 
   const show = shows?.find((item) => item.id === showId) ?? null
   const participantAssignmentOpen = ballot?.ballotClosedAt !== null && ballot?.ballotClosedAt !== undefined
   const filters = useMemo<EntryPoolFilters>(
-    () => ({ search, onlyUnlistened, onlyRelisten, onlyUnranked, onlyWithoutParticipant }),
-    [onlyRelisten, onlyUnlistened, onlyUnranked, onlyWithoutParticipant, search],
+    () => ({ search, onlyUnassessed, onlyUncertain, onlyUnranked, onlyWithoutParticipant }),
+    [onlyUnassessed, onlyUncertain, onlyUnranked, onlyWithoutParticipant, search],
   )
   const visibleEntries = useMemo(
     () => visiblePoolEntries(entries ?? [], filters, sortMode),
@@ -68,7 +69,7 @@ export function EntryPage() {
   )
   const activeEntry = activeEntryId === null ? null : entries?.find((entry) => entry.id === activeEntryId) ?? null
   const activeIndex = activeEntry === null ? -1 : visibleEntries.findIndex((entry) => entry.id === activeEntry.id)
-  const poolFiltersActive = search.trim() !== '' || onlyUnlistened || onlyRelisten || onlyUnranked || onlyWithoutParticipant
+  const poolFiltersActive = search.trim() !== '' || onlyUnassessed || onlyUncertain || onlyUnranked || onlyWithoutParticipant
   const dndBusy = poolReordering || rankingReordering
   const poolReorderEnabled = sortMode === 'MANUAL' && !poolFiltersActive && !dndBusy
   const visibleCountLabel = entries === null ? null : poolFiltersActive ? `${visibleEntries.length} / ${entries.length} sichtbar` : `${entries.length} insgesamt`
@@ -105,13 +106,42 @@ export function EntryPage() {
     setError(null)
     try {
       const updated = await updateEntry(showId, entry)
-      setEntries((current) => current?.map((item) => item.id === updated.id ? updated : item) ?? null)
+      setEntries((current) => current?.map((item) => item.id === updated.id ? {
+        ...item,
+        artist: updated.artist,
+        title: updated.title,
+        youtubeUrl: updated.youtubeUrl,
+        comment: updated.comment,
+        updatedAt: updated.updatedAt,
+      } : item) ?? null)
       setEditing(null)
       void reloadShows()
       return true
     } catch (caught) {
       setError(asEntryApiError(caught, `/api/shows/${showId}/entries/${entry.id}`))
       return false
+    }
+  }
+
+  async function saveAssessment(entry: ContestEntry, assessment: number | null, assessmentConfidence: number | null) {
+    if (showId === null || assessmentPendingIds.current.has(entry.id)) return
+    assessmentPendingIds.current.add(entry.id)
+    setPendingAssessmentIds(new Set(assessmentPendingIds.current))
+    setError(null)
+    try {
+      const updated = await updateEntryAssessment(showId, entry.id, assessment, assessmentConfidence)
+      setEntries((current) => current?.map((item) => item.id === updated.id ? {
+        ...item,
+        assessment: updated.assessment,
+        assessmentConfidence: updated.assessmentConfidence,
+        updatedAt: updated.updatedAt,
+      } : item) ?? null)
+      void reloadShows()
+    } catch (caught) {
+      setError(asEntryApiError(caught, `/api/shows/${showId}/entries/${entry.id}/assessment`))
+    } finally {
+      assessmentPendingIds.current.delete(entry.id)
+      setPendingAssessmentIds(new Set(assessmentPendingIds.current))
     }
   }
 
@@ -251,7 +281,7 @@ export function EntryPage() {
     setError(null)
     try {
       const updated = await updateParticipantAssignment(showId, entry.id, participant?.id ?? null)
-      setEntries((current) => current?.map((item) => item.id === updated.id ? updated : item) ?? null)
+      setEntries((current) => current?.map((item) => item.id === updated.id ? { ...item, participantId: updated.participantId, updatedAt: updated.updatedAt } : item) ?? null)
       setBallot(await fetchBallot(showId))
       void reloadShows()
     } catch (caught) { setError(asEntryApiError(caught, `/api/shows/${showId}/entries/${entry.id}/participant`)) }
@@ -292,8 +322,8 @@ export function EntryPage() {
                 </Stack>
                 <EntryPoolControls filters={filters} onFilters={{
                   search: setSearch,
-                  unlistened: () => setOnlyUnlistened((current) => !current),
-                  relisten: () => setOnlyRelisten((current) => !current),
+                  unassessed: () => setOnlyUnassessed((current) => !current),
+                  uncertain: () => setOnlyUncertain((current) => !current),
                   unranked: () => setOnlyUnranked((current) => !current),
                   withoutParticipant: () => setOnlyWithoutParticipant((current) => !current),
                 }} onSortMode={setSortMode} participantAssignmentOpen={participantAssignmentOpen} sortMode={sortMode} />
@@ -308,8 +338,8 @@ export function EntryPage() {
                   onEdit={setEditing}
                   onPlay={(entry) => setActiveEntryId(entry.id)}
                   onSelect={(entry) => setActiveEntryId(entry.id)}
-                  onToggleListened={(entry) => void saveEntry({ ...entry, listened: !entry.listened })}
-                  onToggleRelisten={(entry) => void saveEntry({ ...entry, relisten: !entry.relisten })}
+                  onSaveAssessment={(entry, assessment, confidence) => void saveAssessment(entry, assessment, confidence)}
+                  pendingAssessmentIds={pendingAssessmentIds}
                 />}
               </Stack>
             </Box>
@@ -356,7 +386,7 @@ export function EntryPage() {
 
 function EntryPoolControls({ filters, onFilters, participantAssignmentOpen, sortMode, onSortMode }: {
   filters: EntryPoolFilters
-  onFilters: { search: (value: string) => void, unlistened: () => void, relisten: () => void, unranked: () => void, withoutParticipant: () => void }
+  onFilters: { search: (value: string) => void, unassessed: () => void, uncertain: () => void, unranked: () => void, withoutParticipant: () => void }
   participantAssignmentOpen: boolean
   sortMode: EntryPoolSortMode
   onSortMode: (value: EntryPoolSortMode) => void
@@ -366,15 +396,16 @@ function EntryPoolControls({ filters, onFilters, participantAssignmentOpen, sort
       <TextField label="Beiträge suchen" onChange={(event) => onFilters.search(event.target.value)} placeholder="Interpret oder Titel" size="small" sx={{ flex: 1, minWidth: { lg: 200 } }} value={filters.search}
         slotProps={{ input: { startAdornment: <InputAdornment position="start"><SearchIcon aria-hidden="true" color="secondary" fontSize="small" /></InputAdornment> } }} />
       <Select aria-label="Beitragspool sortieren" onChange={(event) => onSortMode(event.target.value as EntryPoolSortMode)} size="small" sx={{ minWidth: 180 }} startAdornment={<SortIcon aria-hidden="true" fontSize="small" sx={{ ml: 1, mr: 0.5 }} />} value={sortMode}>
-        <MenuItem value="MANUAL">Manuelle Reihenfolge</MenuItem><MenuItem value="ARTIST">Interpret</MenuItem><MenuItem value="TITLE">Titel</MenuItem><MenuItem value="LISTENED">Hörstatus</MenuItem><MenuItem value="RELISTEN">Wiedervorlage</MenuItem><MenuItem value="RANK">Rang</MenuItem><MenuItem value="CREATED">Erfassungszeitpunkt</MenuItem>
+        <MenuItem value="MANUAL">Manuelle Reihenfolge</MenuItem><MenuItem value="ARTIST">Interpret</MenuItem><MenuItem value="TITLE">Titel</MenuItem><MenuItem value="ASSESSMENT">Einschätzung</MenuItem><MenuItem value="CONFIDENCE">Sicherheit</MenuItem><MenuItem value="RANK">Rang</MenuItem><MenuItem value="CREATED">Erfassungszeitpunkt</MenuItem>
       </Select>
       <Stack direction="row" spacing={0.5} sx={{ flexShrink: 0, flexWrap: 'wrap' }} useFlexGap>
-        <PoolFilterButton icon={<SpeakerCrossIcon aria-hidden="true" fontSize="small" />} label="Nicht gehört" onClick={onFilters.unlistened} pressed={filters.onlyUnlistened} />
-        <PoolFilterButton icon={<ReplayIcon aria-hidden="true" fontSize="small" />} label="Erneut anhören" onClick={onFilters.relisten} pressed={filters.onlyRelisten} />
+        <PoolFilterButton icon={<SubmissionIcon aria-hidden="true" fontSize="small" />} label="Ohne Einschätzung" onClick={onFilters.unassessed} pressed={filters.onlyUnassessed} />
+        <PoolFilterButton icon={<FilterIcon aria-hidden="true" fontSize="small" />} label="Unsicher" onClick={onFilters.uncertain} pressed={filters.onlyUncertain} />
         <PoolFilterButton icon={<RankIcon aria-hidden="true" fontSize="small" />} label="Noch nicht gerankt" onClick={onFilters.unranked} pressed={filters.onlyUnranked} />
         {participantAssignmentOpen && <PoolFilterButton icon={<FilterIcon aria-hidden="true" fontSize="small" />} label="Ohne Teilnehmer" onClick={onFilters.withoutParticipant} pressed={filters.onlyWithoutParticipant} />}
       </Stack>
     </Stack>
+    <Typography color="text.secondary" sx={{ display: 'block', mt: 0.75 }} variant="caption">Sterne: Einschätzung · Punkte: Sicherheit</Typography>
   </Paper>
 }
 
@@ -386,14 +417,14 @@ function InlineHint({ children }: { children: ReactNode }) {
   return <Alert icon={<DragIcon aria-hidden="true" fontSize="small" />} severity="info" sx={{ py: 0.25 }}>{children}</Alert>
 }
 
-function PoolList({ activeEntryId, dndBusy, entries, onSelect, onPlay, onToggleListened, onToggleRelisten, onEdit, onDelete }: {
+function PoolList({ activeEntryId, dndBusy, entries, onSelect, onPlay, onSaveAssessment, pendingAssessmentIds, onEdit, onDelete }: {
   activeEntryId: number | null
   dndBusy: boolean
   entries: ContestEntry[]
   onSelect: (entry: ContestEntry) => void
   onPlay: (entry: ContestEntry) => void
-  onToggleListened: (entry: ContestEntry) => void
-  onToggleRelisten: (entry: ContestEntry) => void
+  onSaveAssessment: (entry: ContestEntry, assessment: number | null, assessmentConfidence: number | null) => void
+  pendingAssessmentIds: Set<number>
   onEdit: (entry: ContestEntry) => void
   onDelete: (entry: ContestEntry) => void
 }) {
@@ -406,7 +437,7 @@ function PoolList({ activeEntryId, dndBusy, entries, onSelect, onPlay, onToggleL
           dragging={dragSnapshot.isDragging}
           entry={entry}
           onDelete={() => onDelete(entry)} onEdit={() => onEdit(entry)} onPlay={() => onPlay(entry)} onSelect={() => onSelect(entry)}
-          onToggleListened={() => onToggleListened(entry)} onToggleRelisten={() => onToggleRelisten(entry)} provided={dragProvided}
+          onSaveAssessment={(assessment, confidence) => onSaveAssessment(entry, assessment, confidence)} pendingAssessment={pendingAssessmentIds.has(entry.id)} provided={dragProvided}
         />}
       </Draggable>)}
       {provided.placeholder}
@@ -414,7 +445,7 @@ function PoolList({ activeEntryId, dndBusy, entries, onSelect, onPlay, onToggleL
   </Droppable>
 }
 
-function EntryPoolCard({ entry, active, dragging, provided, dragHandleProps, onSelect, onPlay, onToggleListened, onToggleRelisten, onEdit, onDelete }: {
+function EntryPoolCard({ entry, active, dragging, provided, dragHandleProps, onSelect, onPlay, onSaveAssessment, pendingAssessment, onEdit, onDelete }: {
   entry: ContestEntry
   active: boolean
   dragging: boolean
@@ -422,8 +453,8 @@ function EntryPoolCard({ entry, active, dragging, provided, dragHandleProps, onS
   dragHandleProps: DraggableProvidedDragHandleProps | null | undefined
   onSelect: () => void
   onPlay: () => void
-  onToggleListened: () => void
-  onToggleRelisten: () => void
+  onSaveAssessment: (assessment: number | null, assessmentConfidence: number | null) => void
+  pendingAssessment: boolean
   onEdit: () => void
   onDelete: () => void
 }) {
@@ -442,11 +473,10 @@ function EntryPoolCard({ entry, active, dragging, provided, dragHandleProps, onS
           {entry.comment !== null && entry.comment.trim() !== '' && <Typography color="text.secondary" sx={{ mt: 0.5, overflowWrap: 'anywhere' }} variant="body2">{entry.comment}</Typography>}
         </Box>
         <Stack direction="row" spacing={0.25} sx={{ alignItems: 'center', flexShrink: 0, flexWrap: { md: 'nowrap', xs: 'wrap' }, justifyContent: 'flex-end', minHeight: 40 }}>
-          <EntryStatusToggle ariaLabel={`${entry.title}: ${entry.listened ? 'Gehört' : 'Nicht gehört'}`} color={entry.listened ? 'success' : 'error'} icon={entry.listened ? <SpeakerCheckIcon aria-hidden="true" fontSize="small" /> : <SpeakerCrossIcon aria-hidden="true" fontSize="small" />} onClick={onToggleListened} pressed={entry.listened} title={entry.listened ? 'Gehört – als nicht gehört markieren' : 'Nicht gehört – als gehört markieren'} />
-          <EntryStatusToggle ariaLabel={`${entry.title}: ${entry.relisten ? 'Erneut anhören' : 'Nicht zur Wiedervorlage markiert'}`} color={entry.relisten ? 'secondary' : 'default'} icon={<ReplayIcon aria-hidden="true" fontSize="small" />} onClick={onToggleRelisten} pressed={entry.relisten} title={entry.relisten ? 'Erneut anhören – Wiedervorlage entfernen' : 'Für erneutes Anhören vormerken'} />
+          <AssessmentControls entry={entry} onSave={onSaveAssessment} pending={pendingAssessment} />
           <Tooltip title={entry.rankingPosition === null ? 'Noch nicht gerankt' : `Rang ${entry.rankingPosition}`}><Chip aria-label={`${entry.title}: ${entry.rankingPosition === null ? 'Noch nicht gerankt' : `Rang ${entry.rankingPosition}`}`} icon={<RankIcon aria-hidden="true" fontSize="small" />} label={entry.rankingPosition === null ? 'Noch nicht gerankt' : `Rang ${entry.rankingPosition}`} size="small" sx={{ color: entry.rankingPosition === null ? 'text.secondary' : 'secondary.main', maxWidth: { xs: 'none', sm: 164 } }} /></Tooltip>
           <Tooltip title="Anhören"><IconButton aria-label={`${entry.artist} – ${entry.title} anhören`} color={active ? 'secondary' : 'primary'} onClick={onPlay} size="small"><PlayIcon aria-hidden="true" fontSize="small" /></IconButton></Tooltip>
-          <EntryOverflowMenu entry={entry} onDelete={onDelete} onEdit={onEdit} />
+          <EntryOverflowMenu entry={entry} onDelete={onDelete} onEdit={onEdit} onResetAssessment={() => onSaveAssessment(null, null)} resetDisabled={entry.assessment === null || pendingAssessment} />
         </Stack>
       </Stack>
     </CardContent>
@@ -454,17 +484,64 @@ function EntryPoolCard({ entry, active, dragging, provided, dragHandleProps, onS
   /* eslint-enable react-hooks/refs */
 }
 
-function EntryStatusToggle({ ariaLabel, color, icon, onClick, pressed, title }: { ariaLabel: string, color: 'default' | 'error' | 'success' | 'secondary', icon: ReactNode, onClick: () => void, pressed: boolean, title: string }) {
-  return <Tooltip title={title}><IconButton aria-label={ariaLabel} aria-pressed={pressed} color={color} onClick={onClick} size="small" sx={{ border: 1, borderColor: pressed ? 'secondary.main' : 'divider', color: pressed ? undefined : color === 'default' ? 'text.disabled' : undefined }}>{icon}</IconButton></Tooltip>
+const assessmentLabels = ['Raus', 'Eher raus', 'Wackelkandidat', 'Klarer Punkte-Kandidat', 'Favorit']
+const confidenceLabels = [
+  'Erster Eindruck; kann sich noch deutlich verändern',
+  'Grobe Tendenz; weitere Hördurchgänge können das Urteil noch merklich verändern',
+  'Meinung bildet sich; kleinere bis mittlere Verschiebungen bleiben möglich',
+  'Ausreichend gehört; Urteil ist weitgehend gefestigt',
+  'Sehr gut bekannt oder abschließend bewertet; darüber müssen wir nicht erneut verhandeln',
+]
+
+function AssessmentControls({ entry, onSave, pending }: {
+  entry: ContestEntry
+  onSave: (assessment: number | null, assessmentConfidence: number | null) => void
+  pending: boolean
+}) {
+  const assessment = entry.assessment
+  const confidence = entry.assessmentConfidence
+  return <Stack aria-label={`${entry.title} bewerten`} direction="row" role="group" spacing={0.5} sx={{ alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }} useFlexGap>
+    <Box aria-label={`${entry.title}: Einschätzung`} role="group" sx={{ display: 'flex' }}>
+      {assessmentLabels.map((label, index) => {
+        const level = index + 1
+        return <Tooltip key={level} title={`Einschätzung ${level}: ${label}`}>
+          <span><IconButton
+            aria-label={`${entry.title}: Einschätzung ${level} – ${label}`}
+            aria-pressed={assessment === level}
+            disabled={pending}
+            onClick={() => onSave(level, confidence ?? 1)}
+            size="small"
+            sx={{ color: assessment !== null && level <= assessment ? 'secondary.main' : 'action.disabled', p: 0.25 }}
+          ><SubmissionIcon aria-hidden="true" sx={{ fontSize: '1.1rem' }} /></IconButton></span>
+        </Tooltip>
+      })}
+    </Box>
+    <Box aria-label={`${entry.title}: Sicherheit`} role="group" sx={{ display: 'flex' }}>
+      {confidenceLabels.map((label, index) => {
+        const level = index + 1
+        return <Tooltip key={level} title={`Sicherheit ${level}: ${label}`}>
+          <span><IconButton
+            aria-label={`${entry.title}: Sicherheit ${level} – ${label}`}
+            aria-pressed={confidence === level}
+            disabled={assessment === null || pending}
+            onClick={() => onSave(assessment, level)}
+            size="small"
+            sx={{ color: confidence !== null && level <= confidence ? 'secondary.main' : 'action.disabled', p: 0.25 }}
+          ><Typography aria-hidden="true" component="span" sx={{ fontSize: '0.85rem', fontWeight: 700, lineHeight: 1 }}>●</Typography></IconButton></span>
+        </Tooltip>
+      })}
+    </Box>
+  </Stack>
 }
 
-function EntryOverflowMenu({ entry, onEdit, onDelete }: { entry: ContestEntry, onEdit: () => void, onDelete: () => void }) {
+function EntryOverflowMenu({ entry, onEdit, onDelete, onResetAssessment, resetDisabled }: { entry: ContestEntry, onEdit: () => void, onDelete: () => void, onResetAssessment: () => void, resetDisabled: boolean }) {
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null)
   const open = anchorEl !== null
   function run(action: () => void) { setAnchorEl(null); action() }
   return <><Tooltip title="Weitere Aktionen"><IconButton aria-controls={open ? `entry-${entry.id}-actions` : undefined} aria-expanded={open ? 'true' : undefined} aria-haspopup="menu" aria-label={`Weitere Aktionen für ${entry.artist} – ${entry.title}`} color="primary" onClick={(event) => setAnchorEl(event.currentTarget)} size="small"><MoreIcon aria-hidden="true" fontSize="small" /></IconButton></Tooltip>
     <Menu anchorEl={anchorEl} id={`entry-${entry.id}-actions`} onClose={() => setAnchorEl(null)} open={open}>
       <MenuItem onClick={() => run(onEdit)}><EditIcon aria-hidden="true" fontSize="small" sx={{ mr: 1 }} />Bearbeiten</MenuItem>
+      <MenuItem disabled={resetDisabled} onClick={() => run(onResetAssessment)}><SubmissionIcon aria-hidden="true" fontSize="small" sx={{ mr: 1 }} />Einschätzung zurücksetzen</MenuItem>
       <MenuItem onClick={() => run(onDelete)} sx={{ color: 'error.main' }}><DeleteIcon aria-hidden="true" fontSize="small" sx={{ mr: 1 }} />Löschen</MenuItem>
     </Menu>
   </>

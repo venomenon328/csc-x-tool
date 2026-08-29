@@ -7,7 +7,7 @@ export type MottoShow = {
   name: string
   candidateCount: number
   contestEntryCount: number
-  listenedEntryCount: number
+  assessedEntryCount: number
   rankedEntryCount: number
   assignedEntryCount: number
   activeParticipantCount: number

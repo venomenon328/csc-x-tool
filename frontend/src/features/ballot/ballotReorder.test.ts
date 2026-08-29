@@ -4,9 +4,9 @@ import type { ContestEntry } from '../entries/api'
 import { ENTRY_POOL_DROPPABLE_ID, RANKING_DROPPABLE_ID, applyRankingDrop, persistDroppedBallot } from './ballotReorder'
 
 const entries: ContestEntry[] = [
-  { id: 1, mottoShowId: 1, artist: 'One', title: 'A', youtubeUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', comment: null, listened: false, relisten: false, poolPosition: 2, rankingPosition: 1, participantId: null, createdAt: '', updatedAt: '' },
-  { id: 2, mottoShowId: 1, artist: 'Two', title: 'B', youtubeUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', comment: null, listened: false, relisten: false, poolPosition: 3, rankingPosition: 2, participantId: null, createdAt: '', updatedAt: '' },
-  { id: 3, mottoShowId: 1, artist: 'Three', title: 'C', youtubeUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', comment: null, listened: false, relisten: false, poolPosition: 1, rankingPosition: null, participantId: null, createdAt: '', updatedAt: '' },
+  { id: 1, mottoShowId: 1, artist: 'One', title: 'A', youtubeUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', comment: null, assessment: null, assessmentConfidence: null, poolPosition: 2, rankingPosition: 1, participantId: null, createdAt: '', updatedAt: '' },
+  { id: 2, mottoShowId: 1, artist: 'Two', title: 'B', youtubeUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', comment: null, assessment: null, assessmentConfidence: null, poolPosition: 3, rankingPosition: 2, participantId: null, createdAt: '', updatedAt: '' },
+  { id: 3, mottoShowId: 1, artist: 'Three', title: 'C', youtubeUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', comment: null, assessment: null, assessmentConfidence: null, poolPosition: 1, rankingPosition: null, participantId: null, createdAt: '', updatedAt: '' },
 ]
 
 function drop(draggableId: string, sourceList: string, sourceIndex: number, destinationList: string, destinationIndex: number): DropResult {

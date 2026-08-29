@@ -115,6 +115,7 @@ public class ExportService {
             }
             ExportFormat.FullExport export = switch (versionNumber.intValue()) {
                 case ExportFormat.LEGACY_VERSION -> upgradeV1(strictMapper.readValue(input, ExportFormat.FullExportV1.class));
+                case ExportFormat.VERSION_2 -> upgradeV2(strictMapper.readValue(input, ExportFormat.FullExportV2.class));
                 case ExportFormat.VERSION -> strictMapper.readValue(input, ExportFormat.FullExport.class);
                 default -> throw invalid("Das JSON-Format wird von dieser Anwendung nicht unterst\u00fctzt.");
             };
@@ -174,11 +175,11 @@ public class ExportService {
             }
             for (ExportFormat.ContestEntry row : data.contestEntries()) {
                 stage.update("""
-                        INSERT INTO contest_entry (id, motto_show_id,artist,title,youtube_url,comment,listened,relisten,
+                        INSERT INTO contest_entry (id, motto_show_id,artist,title,youtube_url,comment,assessment,assessment_confidence,
                           pool_position,ranking_position,participant_id,created_at,updated_at)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        """, row.id(), row.mottoShowId(), row.artist(), row.title(), row.youtubeUrl(), row.comment(), row.listened(),
-                        row.relisten(), row.poolPosition(), row.rankingPosition(), row.participantId(), row.createdAt(), row.updatedAt());
+                        """, row.id(), row.mottoShowId(), row.artist(), row.title(), row.youtubeUrl(), row.comment(), row.assessment(),
+                        row.assessmentConfidence(), row.poolPosition(), row.rankingPosition(), row.participantId(), row.createdAt(), row.updatedAt());
             }
             for (ExportFormat.BallotSnapshot row : data.ballotSnapshots()) {
                 stage.update("INSERT INTO ballot_snapshot (id, motto_show_id, snapshot_number, created_at, is_current) VALUES (?, ?, ?, ?, ?)",
@@ -294,6 +295,9 @@ public class ExportService {
             requireText(entry.youtubeUrl(), "Ein Wettbewerbsbeitrag ohne YouTube-URL ist nicht g\u00fcltig.");
             requireText(entry.createdAt(), "Ein Wettbewerbsbeitrag ohne Erstellungszeitpunkt ist nicht g\u00fcltig.");
             requireText(entry.updatedAt(), "Ein Wettbewerbsbeitrag ohne Aktualisierungszeitpunkt ist nicht g\u00fcltig.");
+            if (!validAssessmentPair(entry.assessment(), entry.assessmentConfidence())) {
+                throw invalid("Einsch\u00e4tzung und Sicherheit eines Wettbewerbsbeitrags m\u00fcssen gemeinsam leer sein oder jeweils zwischen 1 und 5 liegen.");
+            }
             if (entry.poolPosition() < 1 || !poolPositions.add(entry.mottoShowId() + ":" + entry.poolPosition())) {
                 throw invalid("Die manuelle Position eines Wettbewerbsbeitrags ist nicht g\u00fcltig.");
             }
@@ -462,8 +466,8 @@ public class ExportService {
     }
 
     private static List<ExportFormat.ContestEntry> contestEntries(Connection connection) throws SQLException {
-        return query(connection, "SELECT id,motto_show_id,artist,title,youtube_url,comment,listened,relisten,pool_position,ranking_position,participant_id,created_at,updated_at FROM contest_entry ORDER BY id",
-                r -> new ExportFormat.ContestEntry(r.getLong(1), r.getLong(2), r.getString(3), r.getString(4), r.getString(5), r.getString(6), r.getBoolean(7), r.getBoolean(8), r.getInt(9), nullableInt(r, 10), nullableLong(r, 11), r.getString(12), r.getString(13)));
+        return query(connection, "SELECT id,motto_show_id,artist,title,youtube_url,comment,assessment,assessment_confidence,pool_position,ranking_position,participant_id,created_at,updated_at FROM contest_entry ORDER BY id",
+                r -> new ExportFormat.ContestEntry(r.getLong(1), r.getLong(2), r.getString(3), r.getString(4), r.getString(5), r.getString(6), nullableInt(r, 7), nullableInt(r, 8), r.getInt(9), nullableInt(r, 10), nullableLong(r, 11), r.getString(12), r.getString(13)));
     }
 
     private static ExportFormat.FullExport upgradeV1(ExportFormat.FullExportV1 legacy) {
@@ -501,9 +505,53 @@ public class ExportService {
         }
         return entries.stream().map(entry -> new ExportFormat.ContestEntry(
                 entry.id(), entry.mottoShowId(), entry.artist(), entry.title(), entry.youtubeUrl(), entry.comment(),
-                entry.listened(), entry.relisten(), positionsByEntryId.get(entry.id()), entry.rankingPosition(),
+                migratedAssessment(entry.listened()), migratedConfidence(entry.listened(), entry.relisten()), positionsByEntryId.get(entry.id()), entry.rankingPosition(),
                 entry.participantId(), entry.createdAt(), entry.updatedAt()
         )).toList();
+    }
+
+    private static ExportFormat.FullExport upgradeV2(ExportFormat.FullExportV2 legacy) {
+        if (legacy == null || legacy.data() == null) {
+            return new ExportFormat.FullExport(
+                    legacy == null ? null : legacy.format(), ExportFormat.VERSION,
+                    legacy == null ? null : legacy.exportedAt(), legacy == null ? null : legacy.applicationVersion(),
+                    legacy == null ? 0 : legacy.schemaVersion(), null
+            );
+        }
+        ExportFormat.DataV2 data = legacy.data();
+        return new ExportFormat.FullExport(
+                legacy.format(), ExportFormat.VERSION, legacy.exportedAt(), legacy.applicationVersion(), legacy.schemaVersion(),
+                new ExportFormat.Data(
+                        data.mottoShows(), data.candidates(), data.participants(), data.participantAliases(),
+                        upgradeV2ContestEntries(data.contestEntries()), data.ballotSnapshots(), data.ballotSnapshotItems(), data.receivedScores()
+                )
+        );
+    }
+
+    private static List<ExportFormat.ContestEntry> upgradeV2ContestEntries(List<ExportFormat.ContestEntryV2> entries) {
+        if (entries == null) return null;
+        return entries.stream().map(entry -> entry == null ? null : new ExportFormat.ContestEntry(
+                entry.id(), entry.mottoShowId(), entry.artist(), entry.title(), entry.youtubeUrl(), entry.comment(),
+                migratedAssessment(entry.listened()), migratedConfidence(entry.listened(), entry.relisten()), entry.poolPosition(), entry.rankingPosition(),
+                entry.participantId(), entry.createdAt(), entry.updatedAt()
+        )).toList();
+    }
+
+    /** Uses the same conservative flag mapping as the schema-8 SQLite migration. */
+    private static Integer migratedAssessment(boolean listened) {
+        return listened ? 3 : null;
+    }
+
+    private static Integer migratedConfidence(boolean listened, boolean relisten) {
+        if (!listened) return null;
+        return relisten ? 1 : 2;
+    }
+
+    private static boolean validAssessmentPair(Integer assessment, Integer assessmentConfidence) {
+        if (assessment == null || assessmentConfidence == null) {
+            return assessment == null && assessmentConfidence == null;
+        }
+        return assessment >= 1 && assessment <= 5 && assessmentConfidence >= 1 && assessmentConfidence <= 5;
     }
 
     private static List<ExportFormat.BallotSnapshot> ballotSnapshots(Connection connection) throws SQLException {

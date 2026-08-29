@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import tools.jackson.databind.JsonNode;
 
 @RestController
 @RequestMapping("/api/shows/{showId}/entries")
@@ -50,6 +51,15 @@ class ContestEntryController {
             @Valid @RequestBody UpdateContestEntryRequest request
     ) {
         return ContestEntryResponse.from(service.update(showId, entryId, request));
+    }
+
+    @PatchMapping("/{entryId}/assessment")
+    ContestEntryResponse updateAssessment(
+            @PathVariable long showId,
+            @PathVariable long entryId,
+            @RequestBody(required = false) JsonNode body
+    ) {
+        return ContestEntryResponse.from(service.updateAssessment(showId, entryId, UpdateContestEntryAssessmentRequest.from(body)));
     }
 
     @PutMapping("/{entryId}/participant")

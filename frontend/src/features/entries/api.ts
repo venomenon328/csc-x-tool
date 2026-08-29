@@ -5,8 +5,8 @@ import type { PlayableSong } from '../songs/PlayableSong'
 export type ContestEntry = PlayableSong & {
   mottoShowId: number
   comment: string | null
-  listened: boolean
-  relisten: boolean
+  assessment: number | null
+  assessmentConfidence: number | null
   poolPosition: number
   rankingPosition: number | null
   participantId: number | null
@@ -69,9 +69,16 @@ export function updateEntry(showId: number, entry: ContestEntry): Promise<Contes
     title: entry.title,
     youtubeUrl: entry.youtubeUrl,
     comment: entry.comment,
-    listened: entry.listened,
-    relisten: entry.relisten,
   }))
+}
+
+export function updateEntryAssessment(
+  showId: number,
+  entryId: number,
+  assessment: number | null,
+  assessmentConfidence: number | null,
+): Promise<ContestEntry> {
+  return request(`/api/shows/${showId}/entries/${entryId}/assessment`, json('PATCH', { assessment, assessmentConfidence }))
 }
 
 export function updateParticipantAssignment(showId: number, entryId: number, participantId: number | null): Promise<ContestEntry> {

@@ -7,7 +7,7 @@ Das Tool begleitet den praktischen Ablauf einer Mottoshow:
 1. Kandidaten sammeln, anhören, kommentieren und priorisieren
 2. die eigene Einreichung festlegen
 3. die anonymen Beiträge der anderen Teilnehmer direkt aus dem formatierten CSC-Beitragsblock per Zwischenablage importieren und anhören
-4. eine eindeutige persönliche Top 15 per Drag-and-drop erstellen
+4. Beiträge mit Einschätzung und Sicherheit kompakt bewerten und eine eindeutige persönliche Top 15 per Drag-and-drop erstellen
 5. nach Abschluss der Abstimmung Beiträge den Teilnehmern zuordnen
 6. die für die eigene Einreichung erhaltenen Punkte erfassen
 7. Gesamtpunktzahl und Endplatzierung dokumentieren
@@ -20,7 +20,7 @@ Die Entwicklungsinhalte bis 0.1.0 sind umgesetzt: Die Anwendung verwaltet die zw
 
 Die Seite `/data` erzeugt manuelle Sicherungen, listet automatische und manuelle Artefakte, lädt sie herunter und führt Restore-Vorschau sowie eine separate Bestätigung aus. Backups sind einzelne `.cscbackup`-Container mit einem SQLite-Snapshot und prüfbarem Manifest; sie dürfen nicht manuell verändert werden. Bei jedem Restore entsteht unmittelbar davor eine zusätzliche, nicht rotierte Sicherheitskopie.
 
-Der vollständige JSON-Download verwendet den versionierten Contract `csc-x-tool-full-export` v1 und enthält alle fachlichen Daten einschließlich historischer Top-15-Snapshots und Ergebniszustände. CSV-Downloads sind UTF-8 mit BOM, Semikolon und CRLF für Kandidaten, Wettbewerbsbeiträge, Teilnehmer und Ergebnisse. Der bestehende Top-15-Textdownload bleibt getrennt.
+Der vollständige JSON-Download verwendet den versionierten Contract `csc-x-tool-full-export` v3 und enthält alle fachlichen Daten einschließlich Einschätzung und Sicherheit, historischer Top-15-Snapshots und Ergebniszustände. JSON-v1 und JSON-v2 bleiben für Restore-Imports kompatibel. CSV-Downloads sind UTF-8 mit BOM, Semikolon und CRLF für Kandidaten, Wettbewerbsbeiträge, Teilnehmer und Ergebnisse. Der bestehende Top-15-Textdownload bleibt getrennt.
 
 ## Festgelegte Grundrichtung
 
