@@ -298,7 +298,13 @@ Wettbewerbsbeiträge speichern ab Schema 9 nur noch die nullable Integer `assess
 
 Metadaten-PATCH und Bewertungs-PATCH sind absichtlich getrennt. Der Bewertungs-PATCH darf weder Metadaten noch Pool- oder Rangposition verändern; der Client sperrt ihn pro Beitrag bis zur Serverantwort und übernimmt daraus nur die Bewertungsfelder. Der vollständige Export verwendet v3. Die Import-Upgrades von JSON-v1 und JSON-v2 führen dieselbe konservative Flag-Abbildung aus; CSV exportiert Einschätzung und Sicherheit als leere oder numerische Felder.
 
-Die Kartensteuerung nutzt fünf Sterne für Einschätzung und fünf Punkte für Sicherheit. Filter und Sortierungen verwenden die neue Fachsprache, die manuelle Pool- und Ranglisten-DnD-Semantik bleibt unverändert. Dieses Paket führt weder Ranglistenvorschläge noch Abschlusswarnungen ein; beide bleiben ein bewusst getrenntes Folgepaket.
+Die Kartensteuerung nutzt fünf Sterne für Einschätzung und fünf Punkte für Sicherheit. Filter und Sortierungen verwenden die neue Fachsprache, die manuelle Pool- und Ranglisten-DnD-Semantik bleibt unverändert.
+
+### A-020 – Bewusster Ranglistenvorschlag und nicht blockierende Abschlusswarnungen
+
+Eine zentrale reine Frontend-Funktion berechnet für bewertete Beiträge den ganzzahligen Sortierwert `300 + (Einschätzung - 3) × Faktor`; die Faktoren 35, 55, 70, 85 und 100 ziehen unsichere Urteile zur neutralen Mitte 300. Bei gleichem Wert dient die vorhandene Rangposition als Tie-Breaker, anschließend die persistente Poolposition. Unbewertete Beiträge enthält der Vorschlag nie. Das Anwenden ist nur nach bewusster Aktion möglich, bei vorhandener Rangliste nach Bestätigung, und persistiert ausschließlich über den bestehenden vollständigen `reorderBallot`-Command. Bewertungsänderungen bleiben ohne jeden Umordnungseffekt.
+
+Dieselbe Domänenschicht leitet vor dem Abschluss Hinweise zu unbewerteten Beiträgen, unsicheren oder niedrig eingeschätzten Top-15-Beiträgen, hoch eingeschätzten Beiträgen außerhalb der Top 15 sowie zur knappen unsicheren 15/16-Grenze ab. Sie werden im Client angezeigt und erweitern keine Backendvalidierung: Der bisherige lückenlose Top-15-/Snapshot-Vertrag ist unverändert die einzige harte Blockade.
 
 ## Bewusst vertagte Entscheidungen
 

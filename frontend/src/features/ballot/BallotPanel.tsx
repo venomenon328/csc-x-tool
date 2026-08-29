@@ -19,8 +19,9 @@ import {
 import { useState } from 'react'
 import { DragIcon, PlaylistRemoveIcon } from '../../components/AppIcons'
 import type { ContestEntry } from '../entries/api'
-import type { Ballot } from './api'
+import type { Ballot, BallotRanking } from './api'
 import { RANKING_DROPPABLE_ID, rankedEntries } from './ballotReorder'
+import { ballotWarningText, deriveBallotWarnings, suggestedBallotRanking, type BallotWarning } from './ballotSuggestion'
 
 export function BallotPanel({
   ballot,
@@ -29,6 +30,7 @@ export function BallotPanel({
   reordering,
   activeEntryId,
   onClose,
+  onApplySuggestion,
   onReopen,
   onRemove,
   onSelect,
@@ -39,16 +41,20 @@ export function BallotPanel({
   reordering: boolean
   activeEntryId: number | null
   onClose: () => void
+  onApplySuggestion: (ranking: BallotRanking) => void
   onReopen: () => void
   onRemove: (entry: ContestEntry) => void
   onSelect: (entry: ContestEntry) => void
 }) {
   const [confirmingClose, setConfirmingClose] = useState(false)
+  const [confirmingSuggestion, setConfirmingSuggestion] = useState(false)
   const [confirmingReopen, setConfirmingReopen] = useState(false)
   const [clipboardNotice, setClipboardNotice] = useState<string | null>(null)
   const ranked = rankedEntries(entries)
   const closed = ballot.ballotClosedAt !== null
   const canClose = ranked.length >= 15
+  const suggestion = suggestedBallotRanking(entries)
+  const warnings = deriveBallotWarnings(entries)
 
   async function copySnapshot() {
     if (ballot.renderedText === null) return
@@ -67,11 +73,13 @@ export function BallotPanel({
         closed={closed}
         entries={ranked}
         onClose={() => setConfirmingClose(true)}
+        onApplySuggestion={() => ranked.length > 0 ? setConfirmingSuggestion(true) : onApplySuggestion(suggestion)}
         onRemove={onRemove}
         onReopen={() => setConfirmingReopen(true)}
         onSelect={onSelect}
         reordering={reordering}
         canClose={canClose}
+        canSuggest={suggestion.rankedEntryIds.length > 0}
       />
 
       {ballot.currentSnapshot !== null && ballot.renderedText === null && (
@@ -107,6 +115,15 @@ export function BallotPanel({
         confirmLabel="Abstimmung abschließen"
         onCancel={() => setConfirmingClose(false)}
         onConfirm={() => { setConfirmingClose(false); onClose() }}
+        warnings={warnings}
+      />
+      <ConfirmationDialog
+        open={confirmingSuggestion}
+        title="Bestehende Rangliste überschreiben?"
+        message="Der Vorschlag ersetzt die aktuelle Rangliste einmalig anhand deiner Einschätzungen. Danach bleibt Drag-and-drop wieder vollständig maßgeblich."
+        confirmLabel="Ranglistenvorschlag anwenden"
+        onCancel={() => setConfirmingSuggestion(false)}
+        onConfirm={() => { setConfirmingSuggestion(false); onApplySuggestion(suggestion) }}
       />
       <ConfirmationDialog
         open={confirmingReopen}
@@ -120,20 +137,30 @@ export function BallotPanel({
   )
 }
 
-function RankingSurface({ activeEntryId, closed, entries, reordering, canClose, onClose, onReopen, onRemove, onSelect }: {
+function RankingSurface({ activeEntryId, closed, entries, reordering, canClose, canSuggest, onClose, onApplySuggestion, onReopen, onRemove, onSelect }: {
   activeEntryId: number | null
   closed: boolean
   entries: ContestEntry[]
   reordering: boolean
   canClose: boolean
+  canSuggest: boolean
   onClose: () => void
+  onApplySuggestion: () => void
   onReopen: () => void
   onRemove: (entry: ContestEntry) => void
   onSelect: (entry: ContestEntry) => void
 }) {
-  const action = closed
+  const completionAction = closed
     ? <Button color="warning" onClick={onReopen} size="small" variant="outlined">Abstimmung wieder öffnen</Button>
     : <Button disabled={!canClose || reordering} onClick={onClose} size="small" variant="contained">Abstimmung abschließen</Button>
+  const action = closed
+    ? completionAction
+    : <Stack direction={{ sm: 'row', xs: 'column' }} spacing={1}>
+      <Tooltip title={canSuggest ? 'Sortiert ausschließlich bewertete Beiträge nach Einschätzung und Sicherheit.' : 'Setze zuerst mindestens eine Einschätzung.'}>
+        <span><Button disabled={!canSuggest || reordering} onClick={onApplySuggestion} size="small" variant="outlined">Ranglistenvorschlag anwenden</Button></span>
+      </Tooltip>
+      {completionAction}
+    </Stack>
   const notice = closed
     ? 'Die Top 15 ist abgeschlossen. Für Rangänderungen bitte bewusst wieder öffnen.'
     : !canClose ? `Für den Abschluss fehlen noch ${15 - entries.length} gerankte Beiträge.` : undefined
@@ -299,18 +326,26 @@ function TopFifteenBoundary() {
   return <Typography color="secondary" sx={{ fontWeight: 700, my: 0.5 }} variant="caption">Außerhalb der Top 15</Typography>
 }
 
-function ConfirmationDialog({ open, title, message, confirmLabel, onCancel, onConfirm }: {
+function ConfirmationDialog({ open, title, message, confirmLabel, onCancel, onConfirm, warnings = [] }: {
   open: boolean
   title: string
   message: string
   confirmLabel: string
   onCancel: () => void
   onConfirm: () => void
+  warnings?: BallotWarning[]
 }) {
   return (
     <Dialog onClose={onCancel} open={open}>
       <DialogTitle>{title}</DialogTitle>
-      <DialogContent><Typography>{message}</Typography></DialogContent>
+      <DialogContent><Stack spacing={1.5}><Typography>{message}</Typography>
+        {warnings.length > 0 && <Alert severity="warning">
+          <Typography component="p" sx={{ fontWeight: 700 }} variant="body2">Hinweise vor dem Abschluss</Typography>
+          <Box component="ul" sx={{ mb: 0, mt: 0.5, pl: 2.5 }}>
+            {warnings.map((warning) => <li key={warning.code}>{ballotWarningText(warning)}</li>)}
+          </Box>
+        </Alert>}
+      </Stack></DialogContent>
       <DialogActions>
         <Button onClick={onCancel}>Abbrechen</Button>
         <Button color="warning" onClick={onConfirm} variant="contained">{confirmLabel}</Button>

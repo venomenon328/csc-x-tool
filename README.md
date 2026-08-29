@@ -7,7 +7,7 @@ Das Tool begleitet den praktischen Ablauf einer Mottoshow:
 1. Kandidaten sammeln, anhören, kommentieren und priorisieren
 2. die eigene Einreichung festlegen
 3. die anonymen Beiträge der anderen Teilnehmer direkt aus dem formatierten CSC-Beitragsblock per Zwischenablage importieren und anhören
-4. Beiträge mit Einschätzung und Sicherheit kompakt bewerten und eine eindeutige persönliche Top 15 per Drag-and-drop erstellen
+4. Beiträge mit Einschätzung und Sicherheit kompakt bewerten, bei Bedarf einen bewussten Ranglistenvorschlag anwenden und die persönliche Top 15 per Drag-and-drop finalisieren
 5. nach Abschluss der Abstimmung Beiträge den Teilnehmern zuordnen
 6. die für die eigene Einreichung erhaltenen Punkte erfassen
 7. Gesamtpunktzahl und Endplatzierung dokumentieren

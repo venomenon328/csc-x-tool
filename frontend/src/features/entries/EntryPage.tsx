@@ -10,7 +10,7 @@ import {
   DeleteIcon, DragIcon, EditIcon, FilterIcon, MoreIcon, PlayIcon, RankIcon, SearchIcon, SortIcon, SubmissionIcon,
 } from '../../components/AppIcons'
 import { BallotPanel } from '../ballot/BallotPanel'
-import { BallotApiError, closeBallot, fetchBallot, reopenBallot, reorderBallot, type Ballot } from '../ballot/api'
+import { BallotApiError, closeBallot, fetchBallot, reopenBallot, reorderBallot, type Ballot, type BallotRanking } from '../ballot/api'
 import {
   ENTRY_POOL_DROPPABLE_ID, RANKING_DROPPABLE_ID, applyConfirmedRanking, ballotRankingPayload,
   persistDroppedBallot, removeFromRanking,
@@ -255,6 +255,20 @@ export function EntryPage() {
     } finally { setRankingReordering(false) }
   }
 
+  async function applyRankingSuggestion(ranking: BallotRanking) {
+    if (showId === null || entries === null || ballot?.ballotClosedAt !== null || dndBusy) return
+    const confirmed = entries
+    setError(null)
+    setRankingReordering(true)
+    try {
+      const serverConfirmed = await reorderBallot(showId, ranking)
+      setEntries(applyConfirmedRanking(confirmed, serverConfirmed))
+    } catch (caught) {
+      setEntries(confirmed)
+      setError(asEntryApiError(caught, `/api/shows/${showId}/ballot/reorder`))
+    } finally { setRankingReordering(false) }
+  }
+
   async function closeRanking() {
     if (showId === null) return
     setError(null)
@@ -366,6 +380,7 @@ export function EntryPage() {
                   activeEntryId={activeEntryId}
                   ballot={ballot}
                   entries={entries}
+                  onApplySuggestion={(ranking) => void applyRankingSuggestion(ranking)}
                   onClose={() => void closeRanking()}
                   onRemove={(entry) => void removeRanking(entry)}
                   onReopen={() => void reopenRanking()}

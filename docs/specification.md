@@ -429,7 +429,7 @@ Die Oberfläche bietet auf jeder Poolkarte fünf Sterne für die Einschätzung u
 
 Die Filter `Ohne Einschätzung` und `Unsicher` (Sicherheit 1–2) sowie die Sortierungen `Einschätzung` und `Sicherheit` ersetzen die früheren Statusfunktionen. Einschätzungssortierung zeigt bewertete Beiträge zuerst, dann Einschätzung und Sicherheit jeweils absteigend; Sicherheitssortierung zeigt unbewertete Beiträge zuerst, danach niedrigste Sicherheit. Alle Gleichstände verwenden die manuelle Poolposition.
 
-Bewertungen verändern weder Pool- noch Rangposition. Sie erzeugen insbesondere keinen Ranglistenvorschlag und keine Abschlusswarnung.
+Bewertungen verändern weder Pool- noch Rangposition und lösen niemals eine automatische Umordnung aus. Ein Ranglistenvorschlag wird nur durch eine bewusste Aktion angewendet; Abschlusswarnungen erscheinen ausschließlich im Abschlussdialog.
 
 ### ENTRY-010 – Hören
 
@@ -486,6 +486,12 @@ Das Drag-and-drop-Verhalten muss insbesondere bei ungefähr 30 Beiträgen komfor
 - stabile Darstellung der Grenze zwischen Platz 15 und 16
 - Möglichkeit, einen Beitrag wieder in „Noch nicht eingeordnet“ zurückzulegen
 
+### BALLOT-005a – Bewusster Ranglistenvorschlag
+
+In einer offenen Rangliste kann der Benutzer `Ranglistenvorschlag anwenden` wählen. Die Aktion ist ohne bewertete Beiträge deaktiviert und bei bereits vorhandener Rangliste ausdrücklich zu bestätigen. Der Vorschlag enthält nur bewertete Beiträge; unbewertete Beiträge bleiben ungeordnet im Pool. Seine Sortierung verwendet den ganzzahligen Wert `300 + (Einschätzung - 3) × Faktor`, mit den Faktoren 35, 55, 70, 85 und 100 für Sicherheit 1 bis 5. Damit schwächt eine niedrige Sicherheit zur neutralen Mitte ab, statt einen Bonus zu geben.
+
+Bei Gleichstand erhält eine vorhandene Rangposition Vorrang, danach entscheidet die persistente Poolposition. Die Aktion sendet ausschließlich die vollständigen Listen an den bestehenden atomaren Reorder-Vertrag. Nach der bewussten Anwendung bleibt Drag-and-drop vollständig maßgeblich; spätere Bewertungsänderungen wenden keinen Vorschlag automatisch erneut an.
+
 ### BALLOT-006 – Interne Punktzuordnung
 
 Die Anwendung ordnet den Rängen intern folgende Punkte zu:
@@ -529,6 +535,12 @@ Vor dem Abschluss prüft die Anwendung mindestens:
 - keine mehrfach verwendete Beitrags-ID
 
 Gleichstände werden weder angeboten noch akzeptiert.
+
+### BALLOT-008a – Abschlusswarnungen
+
+Der Abschlussdialog weist kompakt auf unbewertete Beiträge, unsichere Top-15-Beiträge (Sicherheit 1–2), hoch eingeschätzte Beiträge außerhalb der Top 15 oder ungeordnet, niedrig eingeschätzte Top-15-Beiträge sowie eine rechnerisch knappe und unsichere Grenze zwischen Rang 15 und 16 hin. Die Grenze gilt bei einem Abstand der Sortierwerte von höchstens 15, wenn mindestens einer der beiden Beiträge Sicherheit 1 oder 2 hat.
+
+Diese Hinweise sind nie zusätzliche Abschlussblockaden. Die bestehende Prüfung auf mindestens 15 lückenlose Ränge und den gültigen Snapshot bleibt allein maßgeblich.
 
 ### BALLOT-009 – Snapshot
 

@@ -1,5 +1,6 @@
 import { DragDropContext } from '@hello-pangea/dnd'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { ContestEntry } from '../entries/api'
 import type { Ballot } from './api'
@@ -13,7 +14,7 @@ const entries: ContestEntry[] = Array.from({ length: 16 }, (_, index) => ({
 
 function renderPanel(ballot: Ballot = { ballotClosedAt: null, currentSnapshot: null, snapshots: [], renderedText: null }) {
   return render(<DragDropContext onDragEnd={vi.fn()}><BallotPanel
-    activeEntryId={null} ballot={ballot} entries={entries} onClose={vi.fn()} onRemove={vi.fn()} onReopen={vi.fn()}
+    activeEntryId={null} ballot={ballot} entries={entries} onApplySuggestion={vi.fn()} onClose={vi.fn()} onRemove={vi.fn()} onReopen={vi.fn()}
     onSelect={vi.fn()} reordering={false} showId={1}
   /></DragDropContext>)
 }
@@ -44,6 +45,7 @@ describe('BallotPanel', () => {
     expect(screen.getByRole('button', { name: 'Abstimmung wieder öffnen' })).toBeVisible()
     expect(screen.getByText(/Die Top 15 ist abgeschlossen/)).toBeVisible()
     expect(screen.queryByRole('button', { name: 'Artist 1 – Song 1 aus Ranking entfernen' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Ranglistenvorschlag anwenden' })).not.toBeInTheDocument()
   })
 
   it('keeps snapshot output and the matching text-file endpoint available', () => {
@@ -57,5 +59,35 @@ describe('BallotPanel', () => {
 
     expect(screen.getByRole('textbox')).toHaveValue(snapshotText)
     expect(screen.getByRole('link', { name: 'Textdatei herunterladen' })).toHaveAttribute('href', '/api/shows/1/ballot/export')
+  })
+
+  it('only applies a ranking suggestion after confirmation when a ranking already exists', async () => {
+    const user = userEvent.setup()
+    const onApplySuggestion = vi.fn()
+    const assessed = entries.map((entry, index) => ({ ...entry, assessment: index === 0 ? 5 : 3, assessmentConfidence: 5 }))
+    render(<DragDropContext onDragEnd={vi.fn()}><BallotPanel
+      activeEntryId={null} ballot={{ ballotClosedAt: null, currentSnapshot: null, snapshots: [], renderedText: null }} entries={assessed}
+      onApplySuggestion={onApplySuggestion} onClose={vi.fn()} onRemove={vi.fn()} onReopen={vi.fn()} onSelect={vi.fn()} reordering={false} showId={1}
+    /></DragDropContext>)
+
+    await user.click(screen.getByRole('button', { name: 'Ranglistenvorschlag anwenden' }))
+    expect(onApplySuggestion).not.toHaveBeenCalled()
+    expect(screen.getByRole('heading', { name: 'Bestehende Rangliste überschreiben?' })).toBeVisible()
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Ranglistenvorschlag anwenden' }))
+
+    expect(onApplySuggestion).toHaveBeenCalledWith({
+      rankedEntryIds: [1, ...Array.from({ length: 15 }, (_, index) => index + 2)],
+      unrankedEntryIds: [],
+    })
+  })
+
+  it('shows completion warnings as hints without disabling the close action', async () => {
+    const user = userEvent.setup()
+    renderPanel()
+
+    await user.click(screen.getByRole('button', { name: 'Abstimmung abschließen' }))
+    expect(screen.getByText('Hinweise vor dem Abschluss')).toBeVisible()
+    expect(screen.getByText('16 Beiträge haben noch keine Einschätzung.')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Abstimmung abschließen' })).toBeEnabled()
   })
 })
