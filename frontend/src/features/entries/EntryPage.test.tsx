@@ -4,13 +4,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { App } from '../../app/App'
 import type { ContestEntry, ImportPreviewLine } from './api'
 
-const show = { id: 1, showNumber: 1, name: 'Show Eins', candidateCount: 0, contestEntryCount: 2, listenedEntryCount: 0, selectedCandidate: null }
+const show = { id: 1, showNumber: 1, name: 'Show Eins', candidateCount: 0, contestEntryCount: 2, assessedEntryCount: 0, selectedCandidate: null }
 const first: ContestEntry = {
   id: 11, mottoShowId: 1, artist: 'Imminence', title: 'Paralyzed', youtubeUrl: 'https://www.youtube.com/watch?v=2Dqu1Gh45qU',
-  comment: null, listened: false, relisten: false, poolPosition: 1, rankingPosition: null, participantId: null,
+  comment: null, assessment: null, assessmentConfidence: null, poolPosition: 1, rankingPosition: null, participantId: null,
   createdAt: '2026-08-27T00:00:00Z', updatedAt: '2026-08-27T00:00:00Z',
 }
-const second: ContestEntry = { ...first, id: 12, artist: 'Alice In Chains', title: 'Would?', youtubeUrl: 'https://www.youtube.com/watch?v=mOJEcEkR1a8', poolPosition: 2, relisten: true }
+const second: ContestEntry = { ...first, id: 12, artist: 'Alice In Chains', title: 'Would?', youtubeUrl: 'https://www.youtube.com/watch?v=mOJEcEkR1a8', poolPosition: 2, assessment: 3, assessmentConfidence: 1 }
 const openBallot = { ballotClosedAt: null, currentSnapshot: null, snapshots: [], renderedText: null }
 
 function jsonResponse(body: unknown, status = 200) {
@@ -108,7 +108,7 @@ describe('EntryPage', () => {
     expect(importButton).toBeEnabled()
   })
 
-  it('offers compact cards with independent status actions, filtered navigation, editing and manual CRUD', async () => {
+  it('saves compact assessments independently from metadata and keeps the existing pool and ranking state', async () => {
     const user = userEvent.setup()
     let entries = [first, second]
     fetchMock.mockImplementation(async (input, init) => {
@@ -125,6 +125,11 @@ describe('EntryPage', () => {
         entries = entries.map((entry) => entry.id === 11 ? { ...entry, ...request } : entry)
         return jsonResponse(entries[0])
       }
+      if (path === '/api/shows/1/entries/11/assessment' && init?.method === 'PATCH') {
+        const request = JSON.parse(String(init.body)) as Pick<ContestEntry, 'assessment' | 'assessmentConfidence'>
+        entries = entries.map((entry) => entry.id === 11 ? { ...entry, ...request } : entry)
+        return jsonResponse({ ...entries[0], artist: 'Veralteter Interpret', poolPosition: 99, rankingPosition: 5 })
+      }
       if (path === '/api/shows/1/entries/12' && init?.method === 'DELETE') return new Response(null, { status: 204 })
       if (path === '/api/shows/1/entries') return jsonResponse(entries)
       throw new Error(`Unexpected request ${path}`)
@@ -133,16 +138,29 @@ describe('EntryPage', () => {
 
     await screen.findAllByRole('heading', { name: 'Paralyzed' })
     expect(screen.getByText('Imminence')).toBeVisible()
-    expect(screen.queryByText('Ungelesen')).not.toBeInTheDocument()
-    expect(screen.queryByText('keine Wiedervorlage')).not.toBeInTheDocument()
     expect(screen.getByLabelText('Paralyzed: Noch nicht gerankt')).toBeVisible()
     await user.click(screen.getByRole('button', { name: 'Paralyzed von Imminence auswählen' }))
-    await user.click(screen.getByLabelText('Paralyzed: Nicht gehört'))
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/shows/1/entries/11', expect.objectContaining({
-      method: 'PATCH', body: expect.stringContaining('"listened":true'),
+    await user.click(screen.getByLabelText('Paralyzed: Einschätzung 4 – Klarer Punkte-Kandidat'))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/shows/1/entries/11/assessment', expect.objectContaining({
+      method: 'PATCH', body: JSON.stringify({ assessment: 4, assessmentConfidence: 1 }),
     })))
-    expect(screen.getByLabelText('Paralyzed: Gehört')).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByLabelText('Would?: Erneut anhören')).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByLabelText('Paralyzed: Einschätzung 4 – Klarer Punkte-Kandidat')).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByLabelText('Paralyzed: Sicherheit 1 – Erster Eindruck; kann sich noch deutlich verändern')).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByText('Imminence')).toBeVisible()
+    expect(screen.getByLabelText('Paralyzed: Noch nicht gerankt')).toBeVisible()
+    await user.click(screen.getByLabelText('Paralyzed: Einschätzung 5 – Favorit'))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/shows/1/entries/11/assessment', expect.objectContaining({
+      body: JSON.stringify({ assessment: 5, assessmentConfidence: 1 }),
+    })))
+    await user.click(screen.getByLabelText('Paralyzed: Sicherheit 3 – Meinung bildet sich; kleinere bis mittlere Verschiebungen bleiben möglich'))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/shows/1/entries/11/assessment', expect.objectContaining({
+      body: JSON.stringify({ assessment: 5, assessmentConfidence: 3 }),
+    })))
+    await user.click(screen.getByLabelText('Weitere Aktionen für Imminence – Paralyzed'))
+    await user.click(screen.getByRole('menuitem', { name: 'Einschätzung zurücksetzen' }))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/shows/1/entries/11/assessment', expect.objectContaining({
+      body: JSON.stringify({ assessment: null, assessmentConfidence: null }),
+    })))
     await user.click(screen.getByLabelText('Weitere Aktionen für Imminence – Paralyzed'))
     await user.click(screen.getByRole('menuitem', { name: 'Bearbeiten' }))
     await user.type(screen.getByLabelText('Kommentar / Hörnotiz'), 'Meine Notiz')
@@ -153,8 +171,9 @@ describe('EntryPage', () => {
     await user.click(screen.getByRole('button', { name: 'Nächster' }))
     expect(screen.getByRole('heading', { name: 'Alice In Chains – Would?' })).toBeVisible()
 
-    await user.click(screen.getByLabelText('Nicht gehört'))
-    expect(within(screen.getByLabelText('Beitragspool')).queryByRole('button', { name: 'Paralyzed von Imminence auswählen' })).not.toBeInTheDocument()
+    await user.click(screen.getByLabelText('Ohne Einschätzung'))
+    expect(within(screen.getByLabelText('Beitragspool')).getByRole('button', { name: 'Paralyzed von Imminence auswählen' })).toBeVisible()
+    expect(within(screen.getByLabelText('Beitragspool')).queryByRole('button', { name: 'Would? von Alice In Chains auswählen' })).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Beitrag manuell anlegen' }))
     const dialog = screen.getByRole('dialog')
@@ -164,6 +183,35 @@ describe('EntryPage', () => {
     await user.type(fields[2]!, 'https://youtu.be/dQw4w9WgXcQ')
     await user.click(screen.getByRole('button', { name: 'Speichern' }))
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/shows/1/entries', expect.objectContaining({ method: 'POST' })))
+  })
+
+  it('offers every assessment level by keyboard and locks an entry while its assessment is pending', async () => {
+    const user = userEvent.setup()
+    let finishAssessment: ((response: Response) => void) | undefined
+    fetchMock.mockImplementation(async (input, init) => {
+      const path = String(input)
+      if (path === '/api/shows') return jsonResponse([show])
+      if (path === '/api/shows/1/ballot') return jsonResponse(openBallot)
+      if (path === '/api/shows/1/entries/11/assessment' && init?.method === 'PATCH') {
+        return new Promise<Response>((resolve) => { finishAssessment = resolve })
+      }
+      if (path === '/api/shows/1/entries') return jsonResponse([first, second])
+      throw new Error(`Unexpected request ${path}`)
+    })
+    render(<App />)
+
+    const favorite = await screen.findByLabelText('Paralyzed: Einschätzung 5 – Favorit')
+    favorite.focus()
+    await user.keyboard('{Enter}')
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/shows/1/entries/11/assessment', expect.objectContaining({
+      body: JSON.stringify({ assessment: 5, assessmentConfidence: 1 }),
+    })))
+    expect(favorite).toBeDisabled()
+    expect(screen.getByLabelText('Paralyzed: Sicherheit 1 – Erster Eindruck; kann sich noch deutlich verändern')).toBeDisabled()
+
+    finishAssessment?.(jsonResponse({ ...first, assessment: 5, assessmentConfidence: 1 }))
+    await waitFor(() => expect(favorite).not.toBeDisabled())
+    expect(favorite).toHaveAttribute('aria-pressed', 'true')
   })
 
   it('unlocks bundled participant assignment and the without-participant filter only after ballot closure', async () => {

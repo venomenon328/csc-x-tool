@@ -8,7 +8,7 @@ record MottoShow(
         String name,
         int candidateCount,
         int contestEntryCount,
-        int listenedEntryCount,
+        int assessedEntryCount,
         int rankedEntryCount,
         int assignedEntryCount,
         int activeParticipantCount,

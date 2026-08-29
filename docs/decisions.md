@@ -89,12 +89,11 @@ Wettbewerbsbeiträge werden zunächst ohne Teilnehmer erfasst.
 
 Die Teilnehmerzuordnung wird erst nach Abschluss der eigenen Abstimmung freigeschaltet.
 
-### D-012 – Schlanker Hörzustand
+### D-012 – Kompakte Beitragseinschätzung
 
 Für einen Wettbewerbsbeitrag genügen:
 
-- gehört
-- erneut anhören
+- Einschätzung und Sicherheit als gemeinsames fünfstufiges Paar oder unbewertet
 - Kommentar
 - optionale Rangposition
 
@@ -292,6 +291,14 @@ Ein fairer zentraler Read/Write-Lock um jede normale JDBC-Verbindung und den fin
 Erg\u00e4nzend ist der JSON-Vollauszug ein einziger SQLite-Lesesnapshot: Alle Tabellen werden in derselben Read-Transaktion gelesen, so dass ein paralleler WAL-Schreibvorgang keine gemischten St\u00e4nde erzeugt und der exklusive Restore-Switch bis zum Exportende wartet. Ein JSON-v1-Import pr\u00fcft vor dem Staging neben Format und Version auch den UTC-Exportzeitpunkt, genau zw\u00f6lf Mottoshows, alle Referenzen, Abschluss-/Snapshot-Invarianten sowie Codes des lokalen L\u00e4nderkatalogs.
 
 Die Entscheidung f\u00fcr PRE_MIGRATION basiert auf einer vor DataSource-Erzeugung ermittelten vorhandenen Liquibase-Schemahistorie, nicht auf der blo\u00dfen Existenz einer SQLite-Datei. Schlagen nach einem Live-Restore sowohl die Wiederherstellung als auch die gepr\u00fcfte R\u00fccksicherung fehl, liefert die API den eigenen technischen Zustand `RESTORE_RECOVERY_FAILED`; sie behauptet in diesem Fall keinen erhaltenen oder bekannten Datenstand.
+
+### A-019 – Persistente Beitragseinschätzung als Paar ohne automatische Rangfolge
+
+Wettbewerbsbeiträge speichern ab Schema 9 nur noch die nullable Integer `assessment` und `assessment_confidence`. Sie sind entweder beide `NULL` oder jeweils im Bereich 1 bis 5. Die SQLite-Migration rebuildet die reale Schema-8-Tabelle kontrolliert und erhält IDs, Pool- und Rangpositionen, Teilnehmerbeziehungen, Kommentare, Zeitstempel, Fremdschlüssel und Indizes. Die ehemaligen Flags werden bewusst neutral abgebildet: Nicht bearbeitete Beiträge bleiben unbewertet; ein bearbeiteter Beitrag wird zu Einschätzung 3 mit Sicherheit 1 bei erneutem Anhören beziehungsweise 2 sonst.
+
+Metadaten-PATCH und Bewertungs-PATCH sind absichtlich getrennt. Der Bewertungs-PATCH darf weder Metadaten noch Pool- oder Rangposition verändern; der Client sperrt ihn pro Beitrag bis zur Serverantwort und übernimmt daraus nur die Bewertungsfelder. Der vollständige Export verwendet v3. Die Import-Upgrades von JSON-v1 und JSON-v2 führen dieselbe konservative Flag-Abbildung aus; CSV exportiert Einschätzung und Sicherheit als leere oder numerische Felder.
+
+Die Kartensteuerung nutzt fünf Sterne für Einschätzung und fünf Punkte für Sicherheit. Filter und Sortierungen verwenden die neue Fachsprache, die manuelle Pool- und Ranglisten-DnD-Semantik bleibt unverändert. Dieses Paket führt weder Ranglistenvorschläge noch Abschlusswarnungen ein; beide bleiben ein bewusst getrenntes Folgepaket.
 
 ## Bewusst vertagte Entscheidungen
 

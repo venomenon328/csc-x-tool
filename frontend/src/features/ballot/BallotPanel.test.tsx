@@ -7,7 +7,7 @@ import { BallotPanel } from './BallotPanel'
 
 const entries: ContestEntry[] = Array.from({ length: 16 }, (_, index) => ({
   id: index + 1, mottoShowId: 1, artist: `Artist ${index + 1}`, title: `Song ${index + 1}`,
-  youtubeUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', comment: null, listened: false, relisten: false,
+  youtubeUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', comment: null, assessment: null, assessmentConfidence: null,
   poolPosition: index + 1, rankingPosition: index + 1, participantId: null, createdAt: '', updatedAt: '',
 }))
 

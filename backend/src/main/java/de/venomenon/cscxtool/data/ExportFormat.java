@@ -6,8 +6,9 @@ import java.util.List;
 public final class ExportFormat {
 
     public static final String FORMAT = "csc-x-tool-full-export";
-    public static final int VERSION = 2;
+    public static final int VERSION = 3;
     public static final int LEGACY_VERSION = 1;
+    public static final int VERSION_2 = 2;
 
     private ExportFormat() { }
 
@@ -26,7 +27,7 @@ public final class ExportFormat {
                               String createdAt, String updatedAt) { }
     public record ParticipantAlias(long id, long participantId, String alias) { }
     public record ContestEntry(long id, long mottoShowId, String artist, String title, String youtubeUrl,
-                               String comment, boolean listened, boolean relisten, int poolPosition, Integer rankingPosition,
+                               String comment, Integer assessment, Integer assessmentConfidence, int poolPosition, Integer rankingPosition,
                                Long participantId, String createdAt, String updatedAt) { }
     public record BallotSnapshot(long id, long mottoShowId, int snapshotNumber, String createdAt, boolean current) { }
     public record BallotSnapshotItem(long id, long ballotSnapshotId, int rank, Long contestEntryId,
@@ -43,5 +44,16 @@ public final class ExportFormat {
                          List<ReceivedScore> receivedScores) { }
     public record ContestEntryV1(long id, long mottoShowId, String artist, String title, String youtubeUrl,
                                  String comment, boolean listened, boolean relisten, Integer rankingPosition,
+                                 Long participantId, String createdAt, String updatedAt) { }
+
+    /** The explicit v2 input contract is retained solely to upgrade existing exports on import. */
+    public record FullExportV2(String format, int formatVersion, String exportedAt, String applicationVersion,
+                               int schemaVersion, DataV2 data) { }
+    public record DataV2(List<MottoShow> mottoShows, List<Candidate> candidates, List<Participant> participants,
+                         List<ParticipantAlias> participantAliases, List<ContestEntryV2> contestEntries,
+                         List<BallotSnapshot> ballotSnapshots, List<BallotSnapshotItem> ballotSnapshotItems,
+                         List<ReceivedScore> receivedScores) { }
+    public record ContestEntryV2(long id, long mottoShowId, String artist, String title, String youtubeUrl,
+                                 String comment, boolean listened, boolean relisten, int poolPosition, Integer rankingPosition,
                                  Long participantId, String createdAt, String updatedAt) { }
 }

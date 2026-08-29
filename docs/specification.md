@@ -35,7 +35,7 @@ Der Kernablauf lautet:
 - Teilnehmerstammdaten mit Land und Flagge
 - Import der anonymen Wettbewerbsbeiträge aus einem formatierten, aus dem CSC kopierten Beitragsblock
 - Übernahme der in der Zwischenablage enthaltenen Linkziele, insbesondere YouTube-URLs
-- Hörstatus, Wiedervorlage, Kommentar und Rangposition der Beiträge
+- Einschätzung, Sicherheit, Kommentar und Rangposition der Beiträge
 - komfortable Rangbildung per Drag-and-drop
 - Abschluss und Textausgabe einer eindeutigen Top 15
 - nachträgliche Zuordnung der Beiträge zu Teilnehmern
@@ -162,7 +162,7 @@ Angezeigt werden mindestens:
 - Anzahl der Kandidaten
 - ausgewählte eigene Einreichung oder Hinweis, dass noch keine gewählt wurde
 - Anzahl der Wettbewerbsbeiträge
-- Anzahl gehörter Beiträge
+- Anzahl eingeschätzter Beiträge
 - Anzahl einsortierter Beiträge
 - Status der abgeschlossenen Top 15
 - Status der Teilnehmerzuordnung
@@ -325,8 +325,8 @@ Ein Wettbewerbsbeitrag besitzt:
 - Titel, Pflichtfeld
 - YouTube-Link, Pflichtfeld
 - Kommentar oder Hörnotiz, optional
-- Kennzeichnung `gehört`
-- Kennzeichnung `erneut anhören`
+- Einschätzung, optional 1 bis 5
+- Sicherheit, gemeinsam mit der Einschätzung optional 1 bis 5
 - optionale Rangposition
 - optionale Teilnehmerzuordnung, erst nach Abstimmungsabschluss
 - Erstellungs- und Änderungszeitpunkt
@@ -419,11 +419,17 @@ Eine automatische Zusammenführung anhand von Interpret und Titel findet nicht s
 
 Wettbewerbsbeiträge können auch einzeln hinzugefügt, bearbeitet und gelöscht werden.
 
-### ENTRY-009 – Hörstatus
+### ENTRY-009 – Einschätzung und Sicherheit
 
-Die Informationen `gehört` und `erneut anhören` sind voneinander unabhängig.
+Ein Wettbewerbsbeitrag ist entweder vollständig unbewertet oder besitzt gemeinsam eine fünfstufige **Einschätzung** und **Sicherheit**. Die Einschätzung bedeutet 1 `Raus`, 2 `Eher raus`, 3 `Wackelkandidat`, 4 `Klarer Punkte-Kandidat` und 5 `Favorit`. Die Sicherheit beschreibt von 1 `Erster Eindruck` bis 5 `sehr gut bekannt oder abschließend bewertet`, wie belastbar dieses Urteil ist.
 
-Ein Beitrag kann gleichzeitig gehört, zur erneuten Anhörung markiert und bereits gerankt sein.
+Das erstmalige Setzen einer Einschätzung setzt die Sicherheit auf 1. Jede spätere Änderung der Einschätzung behält die Sicherheit. Der Benutzer kann beide Werte gemeinsam zurücksetzen. Eine vorhandene Einschätzung bedeutet, dass der Beitrag bearbeitet wurde.
+
+Die Oberfläche bietet auf jeder Poolkarte fünf Sterne für die Einschätzung und fünf klar unterscheidbare Punkte für die Sicherheit. Jede Stufe ist per Tastatur erreichbar, mit ihrem Klartext beschriftet und besitzt eine Pressed-Semantik. Die Sicherheit wird erst nach einer Einschätzung bedienbar. Farbe ergänzt nur Füllstand und Symbolform.
+
+Die Filter `Ohne Einschätzung` und `Unsicher` (Sicherheit 1–2) sowie die Sortierungen `Einschätzung` und `Sicherheit` ersetzen die früheren Statusfunktionen. Einschätzungssortierung zeigt bewertete Beiträge zuerst, dann Einschätzung und Sicherheit jeweils absteigend; Sicherheitssortierung zeigt unbewertete Beiträge zuerst, danach niedrigste Sicherheit. Alle Gleichstände verwenden die manuelle Poolposition.
+
+Bewertungen verändern weder Pool- noch Rangposition. Sie erzeugen insbesondere keinen Ranglistenvorschlag und keine Abschlusswarnung.
 
 ### ENTRY-010 – Hören
 
@@ -433,8 +439,7 @@ Die Höransicht bietet:
 - externen YouTube-Link
 - Interpret und Titel
 - Kommentar/Hörnotiz
-- Kennzeichnung `gehört`
-- Kennzeichnung `erneut anhören`
+- kompakte Anzeige und Bearbeitung von Einschätzung und Sicherheit
 - aktuelle Rangposition, sofern vorhanden
 - Navigation zum vorherigen und nächsten Beitrag
 
@@ -659,8 +664,8 @@ Die Kandidatenansicht unterstützt mindestens:
 Die Abstimmungsansicht unterstützt mindestens:
 
 - Suche nach Interpret oder Titel
-- Filter `ungehört`
-- Filter `erneut anhören`
+- Filter `ohne Einschätzung`
+- Filter `unsicher` für Sicherheit 1 bis 2
 - Filter `noch nicht eingeordnet`
 - Filter `ohne Teilnehmer`, sobald Zuordnungen freigeschaltet sind
 
@@ -696,6 +701,8 @@ Sie werden nicht im Installationsverzeichnis gespeichert.
 
 Die Anwendung kann alle fachlichen Daten in ein versioniertes JSON-Format exportieren und aus einem kompatiblen vollständigen Export wiederherstellen.
 
+Der Export verwendet Version 3 mit Einschätzung und Sicherheit. Die Importstrecke unterstützt weiterhin Version 1 und Version 2 und bildet deren frühere Statusdaten konservativ auf das Bewertungspaar ab.
+
 Vor einer Wiederherstellung wird automatisch eine Sicherung des aktuellen Stands angelegt.
 
 ### DATA-005 – Tabellenexporte
@@ -703,7 +710,7 @@ Vor einer Wiederherstellung wird automatisch eine Sicherung des aktuellen Stands
 Sinnvolle CSV-Exporte sind mindestens vorgesehen für:
 
 - Kandidaten
-- Wettbewerbsbeiträge und Rangpositionen
+- Wettbewerbsbeiträge mit Einschätzung, Sicherheit und Rangpositionen
 - Teilnehmer
 - erhaltene Punkte und Endergebnisse
 
@@ -761,7 +768,7 @@ Wichtige Zustände werden nicht allein durch Farbe vermittelt. Beschriftung, Ico
 
 ### UI-004 – Inline-Aktionen
 
-Häufige Aktionen wie Statuswechsel, `gehört`, `erneut anhören`, Kommentarbearbeitung und Öffnen des YouTube-Links sind ohne unnötige Navigationswechsel erreichbar.
+Häufige Aktionen wie Einschätzung, Sicherheit, Kommentarbearbeitung und Öffnen des YouTube-Links sind ohne unnötige Navigationswechsel erreichbar.
 
 ### UI-005 – Rückmeldungen
 
@@ -855,7 +862,7 @@ Eine erste fachlich vollständige Version gilt als benutzbar, wenn folgender Abl
 8. Ein CSC-Beitragsblock mit ungefähr 30 anklickbaren `Interpret - Titel`-Links wird im Forum kopiert und per `Strg+V` in die Importfläche eingefügt.
 9. Die Anwendung übernimmt die Linktexte und YouTube-Ziele aus der Rich-Text-/HTML-Zwischenablage, zeigt eine Vorschau und markiert problematische Datensätze.
 10. Erkannte oder korrigierte Beiträge werden importiert.
-11. Beiträge werden angehört, markiert und teilweise oder vollständig in eine Rangliste gezogen.
+11. Beiträge werden angehört, eingeschätzt und teilweise oder vollständig in eine Rangliste gezogen.
 12. Die ersten 15 Plätze werden eindeutig gereiht und die Abstimmung abgeschlossen.
 13. Die Top 15 wird ohne Punktangaben in einem geeigneten Textformat in die Zwischenablage kopiert.
 14. Nach dem Abschluss werden Beiträge den Teilnehmern zugeordnet.

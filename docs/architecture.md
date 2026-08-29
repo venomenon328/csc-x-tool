@@ -213,7 +213,7 @@ candidate/
 - Wettbewerbsbeiträge
 - Zwischenablage-/Beitragsblockimport und Vorschau
 - Extraktion formatierter Links und Fallback-Parsing
-- Hörstatus und Kommentar
+- Einschätzung, Sicherheit und Kommentar
 - Teilnehmerzuordnung nach Abschluss
 
 #### `ballot`
@@ -274,6 +274,7 @@ Die Show-Detailansicht darf diese Routen optisch als Tabs innerhalb eines gemein
 - Nach erfolgreichem Reorder wird die vollständige neue Reihenfolge bestätigt.
 - Optimistische Aktualisierung ist zulässig, sofern bei einem Fehler zuverlässig auf den letzten bestätigten Stand zurückgerollt wird.
 - Zwischenablageinhalte existieren nur temporär für Import und Vorschau und werden nicht als dauerhafter Frontendzustand behandelt.
+- Metadaten und Bewertung verwenden getrennte PATCH-Verträge. Eine Bewertungsantwort wird im Client ausschließlich auf Einschätzung, Sicherheit und Änderungszeitpunkt zusammengeführt, damit sie keine ältere Pool-/Rangposition oder Kartenmetadaten zurückspielen kann.
 
 ### Zentrale UI-Komponenten
 
@@ -347,8 +348,9 @@ Das folgende Modell beschreibt die fachlichen Beziehungen. Spaltennamen und tech
 - `title`
 - `youtube_url`
 - `comment`
-- `listened`
-- `relisten`
+- `assessment`, optional 1 bis 5
+- `assessment_confidence`, optional 1 bis 5 und nur gemeinsam mit `assessment` gesetzt
+- `pool_position`
 - `ranking_position`, optional
 - `participant_id`, optional
 - `created_at`

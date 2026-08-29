@@ -33,16 +33,16 @@ public class CsvExportService {
     }
 
     public byte[] contestEntries() {
-        return csv(List.of("Show", "Interpret", "Titel", "YouTube-URL", "Kommentar", "Gehört", "Wiedervorlage", "Manuelle Position", "Rangposition", "Teilnehmer"),
+        return csv(List.of("Show", "Interpret", "Titel", "YouTube-URL", "Kommentar", "Einschätzung (1–5)", "Sicherheit (1–5)", "Manuelle Position", "Rangposition", "Teilnehmer"),
                 jdbc.query("""
                         SELECT motto_show.show_number,motto_show.name,contest_entry.artist,contest_entry.title,contest_entry.youtube_url,
-                               contest_entry.comment,contest_entry.listened,contest_entry.relisten,contest_entry.pool_position,
+                               contest_entry.comment,contest_entry.assessment,contest_entry.assessment_confidence,contest_entry.pool_position,
                                contest_entry.ranking_position,participant.display_name
                         FROM contest_entry JOIN motto_show ON motto_show.id=contest_entry.motto_show_id
                         LEFT JOIN participant ON participant.id=contest_entry.participant_id
                         ORDER BY motto_show.show_number,contest_entry.pool_position
                         """, (r,n) -> List.of(show(r.getInt(1),r.getString(2)),r.getString(3),r.getString(4),r.getString(5),nullable(r,6),
-                        yesNo(r.getBoolean(7)),yesNo(r.getBoolean(8)),Integer.toString(r.getInt(9)),nullableNumber(r,10),nullable(r,11))));
+                        nullableNumber(r,7),nullableNumber(r,8),Integer.toString(r.getInt(9)),nullableNumber(r,10),nullable(r,11))));
     }
 
     public byte[] participants() {

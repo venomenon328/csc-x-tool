@@ -283,7 +283,7 @@ Parserpriorität:
 
 Clipboard-HTML wird niemals direkt gerendert oder dauerhaft gespeichert.
 
-Danach folgen Beitragsliste, Hörstatus, Wiedervorlage, Kommentare, Player, externe Links und Filter.
+Danach folgen Beitragsliste, Einschätzung und Sicherheit, Kommentare, Player, externe Links und Filter.
 
 ## 10. Paket P5 – Ranking und Top 15
 
@@ -374,6 +374,12 @@ P8 verbindet Anwendung und vorgesehenen Windows-Betrieb:
 
 Ein kleiner Paketierungsspike darf deutlich früher stattfinden. Die endgültige Launcherarbeit bleibt trotzdem spät, damit nicht zuerst ein sehr eleganter Startknopf für eine weitgehend leere Anwendung entsteht.
 
+## Fortschreibung – Issue #61, Paket 1
+
+Paket 1 ersetzt die früheren Beitragsstatus durch das persistente Paar Einschätzung/Sicherheit. Es umfasst die Schema-8-zu-9-Migration, getrennte Metadaten- und Bewertungs-APIs, JSON-v3-Export mit kompatiblen v1/v2-Import-Upgrades, CSV-Felder sowie die kompakte, zugängliche Kartensteuerung mit Filtern und Sortierungen. Die Pool- und Ranking-DnD-Verträge bleiben dabei unverändert.
+
+Bewusst nicht Teil dieses Pakets sind Ranglistenvorschlag, dessen Anwendung oder erneute Anwendung sowie Abschlusswarnungen. Diese Folgearbeit darf die bestehende manuelle Rangfolge erst nach einer gesonderten Produktentscheidung beeinflussen.
+
 ## 14. Freigabepunkte
 
 ### A – Technische Basis
@@ -398,7 +404,7 @@ Nach P2 und frühem Backup-Kern:
 Nach P4 und P5:
 
 - realer CSC-Beitragsblock ist importierbar
-- Beiträge können gehört und sortiert werden
+- Beiträge können eingeschätzt und sortiert werden
 - Top 15 kann abgeschlossen und ausgegeben werden
 
 ### D – Fachlich vollständig

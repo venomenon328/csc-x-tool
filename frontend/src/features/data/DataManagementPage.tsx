@@ -89,7 +89,7 @@ export function DataManagementPage() {
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
           <ExportCard title="Vollständiger JSON-Export" detail="Alle fachlichen Daten, Beziehungen und historischen Snapshots." href="/api/data/export/full" />
           <ExportCard title="Kandidaten" detail="CSV mit Showbezug, Status und Reihenfolge." href="/api/data/export/candidates.csv" />
-          <ExportCard title="Wettbewerbsbeiträge" detail="CSV mit Hörstatus, Rang und Zuordnung." href="/api/data/export/contest-entries.csv" />
+          <ExportCard title="Wettbewerbsbeiträge" detail="CSV mit Einschätzung, Sicherheit, Rang und Zuordnung." href="/api/data/export/contest-entries.csv" />
           <ExportCard title="Teilnehmer" detail="CSV mit Land, Aktivstatus und Aliasnamen." href="/api/data/export/participants.csv" />
           <ExportCard title="Ergebnisse" detail="CSV mit Abstimmungsstatus, Punkten und Abschlussdaten." href="/api/data/export/results.csv" />
         </Stack>

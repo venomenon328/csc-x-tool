@@ -44,9 +44,9 @@ class ContestEntryRepository {
         jdbcTemplate.update(connection -> {
             PreparedStatement statement = connection.prepareStatement("""
                     INSERT INTO contest_entry (
-                      motto_show_id, artist, title, youtube_url, comment, listened, relisten,
+                      motto_show_id, artist, title, youtube_url, comment, assessment, assessment_confidence,
                       pool_position, ranking_position, participant_id, created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, 0, 0,
+                    ) VALUES (?, ?, ?, ?, ?, NULL, NULL,
                       (SELECT COALESCE(MAX(pool_position), 0) + 1 FROM contest_entry WHERE motto_show_id = ?),
                       NULL, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                     """, Statement.RETURN_GENERATED_KEYS);
@@ -71,15 +71,21 @@ class ContestEntryRepository {
             String artist,
             String title,
             String youtubeUrl,
-            String comment,
-            boolean listened,
-            boolean relisten
+            String comment
     ) {
         return jdbcTemplate.update("""
                 UPDATE contest_entry
-                SET artist = ?, title = ?, youtube_url = ?, comment = ?, listened = ?, relisten = ?, updated_at = CURRENT_TIMESTAMP
+                SET artist = ?, title = ?, youtube_url = ?, comment = ?, updated_at = CURRENT_TIMESTAMP
                 WHERE id = ? AND motto_show_id = ?
-                """, artist, title, youtubeUrl, comment, listened, relisten, entryId, showId) == 1;
+                """, artist, title, youtubeUrl, comment, entryId, showId) == 1;
+    }
+
+    boolean updateAssessment(long entryId, long showId, Integer assessment, Integer assessmentConfidence) {
+        return jdbcTemplate.update("""
+                UPDATE contest_entry
+                SET assessment = ?, assessment_confidence = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ? AND motto_show_id = ?
+                """, assessment, assessmentConfidence, entryId, showId) == 1;
     }
 
     boolean delete(long entryId, long showId) {
@@ -181,7 +187,7 @@ class ContestEntryRepository {
 
     private static String selectSql(String whereClause) {
         return """
-                SELECT id, motto_show_id, artist, title, youtube_url, comment, listened, relisten,
+                SELECT id, motto_show_id, artist, title, youtube_url, comment, assessment, assessment_confidence,
                        pool_position, ranking_position, participant_id, created_at, updated_at
                 FROM contest_entry
                 """ + whereClause;
@@ -199,13 +205,18 @@ class ContestEntryRepository {
                 resultSet.getString("title"),
                 resultSet.getString("youtube_url"),
                 resultSet.getString("comment"),
-                resultSet.getBoolean("listened"),
-                resultSet.getBoolean("relisten"),
+                nullableInt(resultSet, "assessment"),
+                nullableInt(resultSet, "assessment_confidence"),
                 resultSet.getInt("pool_position"),
                 nullableRankingPosition,
                 nullableParticipantId,
                 resultSet.getTimestamp("created_at").toInstant(),
                 resultSet.getTimestamp("updated_at").toInstant()
         );
+    }
+
+    private static Integer nullableInt(ResultSet resultSet, String columnName) throws SQLException {
+        int value = resultSet.getInt(columnName);
+        return resultSet.wasNull() ? null : value;
     }
 }

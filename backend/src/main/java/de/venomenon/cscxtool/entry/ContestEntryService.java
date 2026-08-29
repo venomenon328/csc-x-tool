@@ -75,10 +75,24 @@ class ContestEntryService {
                 requiredText(request.artist(), "Der Interpret darf nicht leer sein."),
                 requiredText(request.title(), "Der Titel darf nicht leer sein."),
                 youtubeUrlNormalizer.normalize(request.youtubeUrl()),
-                optionalText(request.comment()),
-                request.listened(),
-                request.relisten()
+                optionalText(request.comment())
         )) {
+            throw new ContestEntryNotFoundException(entryId, showId);
+        }
+        return repository.findByIdAndShowId(entryId, showId)
+                .orElseThrow(() -> new ContestEntryNotFoundException(entryId, showId));
+    }
+
+    @Transactional
+    ContestEntry updateAssessment(long showId, long entryId, UpdateContestEntryAssessmentRequest request) {
+        requireShow(showId);
+        if (request == null || !isValidAssessmentPair(request.assessment(), request.assessmentConfidence())) {
+            throw new ApiBadRequestException(
+                    "INVALID_ENTRY_ASSESSMENT",
+                    "Einschätzung und Sicherheit müssen gemeinsam leer sein oder jeweils zwischen 1 und 5 liegen."
+            );
+        }
+        if (!repository.updateAssessment(entryId, showId, request.assessment(), request.assessmentConfidence())) {
             throw new ContestEntryNotFoundException(entryId, showId);
         }
         return repository.findByIdAndShowId(entryId, showId)
@@ -273,6 +287,13 @@ class ContestEntryService {
 
     private static String artistTitleKey(String artist, String title) {
         return normalized(artist) + "|" + normalized(title);
+    }
+
+    private static boolean isValidAssessmentPair(Integer assessment, Integer assessmentConfidence) {
+        if (assessment == null || assessmentConfidence == null) {
+            return assessment == null && assessmentConfidence == null;
+        }
+        return assessment >= 1 && assessment <= 5 && assessmentConfidence >= 1 && assessmentConfidence <= 5;
     }
 
     private record ValidatedImportEntry(String artist, String title, String youtubeUrl, String comment) {

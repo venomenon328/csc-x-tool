@@ -1,12 +1,12 @@
 import type { DropResult } from '@hello-pangea/dnd'
 import type { ContestEntry } from './api'
 
-export type EntryPoolSortMode = 'MANUAL' | 'ARTIST' | 'TITLE' | 'LISTENED' | 'RELISTEN' | 'RANK' | 'CREATED'
+export type EntryPoolSortMode = 'MANUAL' | 'ARTIST' | 'TITLE' | 'ASSESSMENT' | 'CONFIDENCE' | 'RANK' | 'CREATED'
 
 export type EntryPoolFilters = {
   search: string
-  onlyUnlistened: boolean
-  onlyRelisten: boolean
+  onlyUnassessed: boolean
+  onlyUncertain: boolean
   onlyUnranked: boolean
   onlyWithoutParticipant: boolean
 }
@@ -15,16 +15,30 @@ export function visiblePoolEntries(entries: ContestEntry[], filters: EntryPoolFi
   const needle = filters.search.trim().toLocaleLowerCase('de-DE')
   return entries.filter((entry) => (
     (!needle || `${entry.artist} ${entry.title}`.toLocaleLowerCase('de-DE').includes(needle))
-    && (!filters.onlyUnlistened || !entry.listened)
-    && (!filters.onlyRelisten || entry.relisten)
+    && (!filters.onlyUnassessed || entry.assessment === null)
+    && (!filters.onlyUncertain || (entry.assessmentConfidence !== null && entry.assessmentConfidence <= 2))
     && (!filters.onlyUnranked || entry.rankingPosition === null)
     && (!filters.onlyWithoutParticipant || entry.participantId === null)
   )).sort((left, right) => {
     if (sortMode === 'MANUAL') return left.poolPosition - right.poolPosition
     if (sortMode === 'ARTIST') return left.artist.localeCompare(right.artist, 'de') || left.poolPosition - right.poolPosition
     if (sortMode === 'TITLE') return left.title.localeCompare(right.title, 'de') || left.poolPosition - right.poolPosition
-    if (sortMode === 'LISTENED') return Number(left.listened) - Number(right.listened) || left.poolPosition - right.poolPosition
-    if (sortMode === 'RELISTEN') return Number(right.relisten) - Number(left.relisten) || left.poolPosition - right.poolPosition
+    if (sortMode === 'ASSESSMENT') {
+      if (left.assessment !== null && right.assessment !== null) {
+        return right.assessment - left.assessment
+          || (right.assessmentConfidence ?? 0) - (left.assessmentConfidence ?? 0)
+          || left.poolPosition - right.poolPosition
+      }
+      if (left.assessment !== null) return -1
+      if (right.assessment !== null) return 1
+      return left.poolPosition - right.poolPosition
+    }
+    if (sortMode === 'CONFIDENCE') {
+      if (left.assessmentConfidence !== null && right.assessmentConfidence !== null) return left.assessmentConfidence - right.assessmentConfidence || left.poolPosition - right.poolPosition
+      if (left.assessmentConfidence === null && right.assessmentConfidence !== null) return -1
+      if (right.assessmentConfidence === null && left.assessmentConfidence !== null) return 1
+      return left.poolPosition - right.poolPosition
+    }
     if (sortMode === 'RANK') {
       if (left.rankingPosition !== null && right.rankingPosition !== null) return left.rankingPosition - right.rankingPosition
       if (left.rankingPosition !== null) return -1

@@ -86,7 +86,7 @@ class BallotApiIntegrationTest {
         assertThat(closed.body()).contains("\"snapshotNumber\":1", "\"renderedText\":null");
         assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM ballot_snapshot_item WHERE ballot_snapshot_id = 1", Integer.class)).isEqualTo(15);
 
-        HttpResponse<String> changedText = patch("/api/shows/3/entries/" + entries.getFirst(), entryJson("Korrigiert", "Neuer Titel", true));
+        HttpResponse<String> changedText = patch("/api/shows/3/entries/" + entries.getFirst(), entryJson("Korrigiert", "Neuer Titel"));
         assertThat(changedText.statusCode()).isEqualTo(200);
         HttpResponse<String> unchangedSnapshot = get("/api/shows/3/ballot");
         assertThat(unchangedSnapshot.body()).contains("\"artist\":\"Artist 1\"", "\"title\":\"Song 1\"");
@@ -193,9 +193,9 @@ class BallotApiIntegrationTest {
         return "{\"rankedEntryIds\":" + rankedEntryIds + ",\"unrankedEntryIds\":" + unrankedEntryIds + "}";
     }
 
-    private static String entryJson(String artist, String title, boolean listened) {
+    private static String entryJson(String artist, String title) {
         return "{\"artist\":\"" + artist + "\",\"title\":\"" + title
-                + "\",\"youtubeUrl\":\"https://youtu.be/dQw4w9WgXcQ\",\"comment\":null,\"listened\":" + listened + ",\"relisten\":false}";
+                + "\",\"youtubeUrl\":\"https://youtu.be/dQw4w9WgXcQ\",\"comment\":null}";
     }
 
     private long firstId(String body) {

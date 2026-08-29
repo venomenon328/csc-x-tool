@@ -144,7 +144,7 @@ export function ShowOverview() {
 function ShowCard({ show, onRename }: { show: MottoShow, onRename: () => void }) {
   const candidateCount = show.candidateCount ?? 0
   const contestEntryCount = show.contestEntryCount ?? 0
-  const listenedEntryCount = show.listenedEntryCount ?? 0
+  const assessedEntryCount = show.assessedEntryCount ?? 0
   const rankedEntryCount = show.rankedEntryCount ?? 0
   const ballotClosed = show.ballotClosedAt !== null && show.ballotClosedAt !== undefined
   const resultsClosed = show.resultsClosedAt !== null && show.resultsClosedAt !== undefined
@@ -183,7 +183,7 @@ function ShowCard({ show, onRename }: { show: MottoShow, onRename: () => void })
           <Typography color="text.secondary" variant="overline">Arbeitsfortschritt</Typography>
           <Box sx={{ display: 'grid', gap: 0.75, gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', mt: 0.5 }}>
             <ProgressMetric count={contestEntryCount} kind="entries" label="Beiträge" total={contestEntryCount} />
-            <ProgressMetric count={listenedEntryCount} kind="listened" label="Gehört" total={contestEntryCount} />
+            <ProgressMetric count={assessedEntryCount} kind="assessed" label="Eingeschätzt" total={contestEntryCount} />
             <ProgressMetric count={rankedEntryCount} kind="ranked" label="Gerankt" total={contestEntryCount} />
           </Box>
         </Box>
@@ -292,16 +292,16 @@ function SubmissionBlock({ selectedCandidate }: { selectedCandidate: MottoShow['
   )
 }
 
-type ProgressMetricKind = 'entries' | 'listened' | 'ranked'
+type ProgressMetricKind = 'entries' | 'assessed' | 'ranked'
 
 function ProgressMetric({ count, kind, label, total }: { count: number, kind: ProgressMetricKind, label: string, total: number }) {
-  const Icon = kind === 'entries' ? EntriesIcon : kind === 'listened' ? PlayIcon : RankIcon
+  const Icon = kind === 'entries' ? EntriesIcon : kind === 'assessed' ? PlayIcon : RankIcon
   const visibleValue = kind === 'entries' || total === 0 ? String(count) : `${count} / ${total}`
   const accessibleLabel = kind === 'entries'
     ? formatCount(count, 'Beitrag', 'Beiträge')
     : total === 0
-    ? `0 Beiträge ${kind === 'listened' ? 'gehört' : 'gerankt'}`
-    : `${count} von ${total} Beiträgen ${kind === 'listened' ? 'gehört' : 'gerankt'}`
+    ? `0 Beiträge ${kind === 'assessed' ? 'eingeschätzt' : 'gerankt'}`
+    : `${count} von ${total} Beiträgen ${kind === 'assessed' ? 'eingeschätzt' : 'gerankt'}`
 
   return (
     <Box

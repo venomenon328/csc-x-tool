@@ -7,14 +7,14 @@ const shows = [
   {
     id: 1, showNumber: 1, name: 'Super Men', candidateCount: 2,
     selectedCandidate: { id: 101, artist: 'Artist', title: 'Titel', youtubeUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' },
-    contestEntryCount: 18, listenedEntryCount: 16, rankedEntryCount: 15,
+    contestEntryCount: 18, assessedEntryCount: 16, rankedEntryCount: 15,
     assignedEntryCount: 0, activeParticipantCount: 0, knownActiveResultCount: 0,
     ballotClosedAt: null, resultsClosedAt: null, calculatedTotalPoints: 0,
     officialTotalPoints: null, officialTotalDifference: null, finalPlace: null, finalPlaceTied: false,
   },
   {
     id: 9, showNumber: 9, name: 'TBA', candidateCount: 0, selectedCandidate: null,
-    contestEntryCount: 0, listenedEntryCount: 0, rankedEntryCount: 0,
+    contestEntryCount: 0, assessedEntryCount: 0, rankedEntryCount: 0,
     assignedEntryCount: 0, activeParticipantCount: 0, knownActiveResultCount: 0,
     ballotClosedAt: null, resultsClosedAt: null, calculatedTotalPoints: 0,
     officialTotalPoints: null, officialTotalDifference: null, finalPlace: null, finalPlaceTied: false,
@@ -60,9 +60,9 @@ describe('App', () => {
     expect(within(entriesMetric).getByText('Beiträge')).toBeVisible()
     expect(card.queryByText('18 / 18')).not.toBeInTheDocument()
 
-    const listenedMetric = card.getByRole('group', { name: '16 von 18 Beiträgen gehört' })
-    expect(within(listenedMetric).getByText('16 / 18')).toBeVisible()
-    expect(within(listenedMetric).getByText('Gehört')).toBeVisible()
+    const assessedMetric = card.getByRole('group', { name: '16 von 18 Beiträgen eingeschätzt' })
+    expect(within(assessedMetric).getByText('16 / 18')).toBeVisible()
+    expect(within(assessedMetric).getByText('Eingeschätzt')).toBeVisible()
 
     const rankedMetric = card.getByRole('group', { name: '15 von 18 Beiträgen gerankt' })
     expect(within(rankedMetric).getByText('15 / 18')).toBeVisible()
@@ -82,7 +82,7 @@ describe('App', () => {
     expect(emptyCard.getByText('Noch nicht festgelegt')).toBeVisible()
     expect(emptyCard.getByText('0 Kandidaten')).toBeVisible()
     expect(emptyCard.getByRole('group', { name: '0 Beiträge' })).toBeVisible()
-    expect(emptyCard.getByRole('group', { name: '0 Beiträge gehört' })).toBeVisible()
+    expect(emptyCard.getByRole('group', { name: '0 Beiträge eingeschätzt' })).toBeVisible()
     expect(emptyCard.getByRole('group', { name: '0 Beiträge gerankt' })).toBeVisible()
     expect(emptyCard.queryByText('0 / 0')).not.toBeInTheDocument()
   })
