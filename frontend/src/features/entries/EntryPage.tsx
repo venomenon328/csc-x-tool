@@ -2,26 +2,29 @@ import {
   Alert,
   Box,
   Button,
-  Checkbox,
+  Card,
+  CardContent,
+  Chip,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
-  Divider,
-  FormControlLabel,
-  List,
-  ListItemButton,
-  ListItemText,
+  IconButton,
+  InputAdornment,
+  Menu,
+  MenuItem,
   Paper,
   Skeleton,
   Stack,
   TextField,
+  Tooltip,
   Typography,
 } from '@mui/material'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link as RouterLink, useParams } from 'react-router-dom'
 import type { DropResult } from '@hello-pangea/dnd'
 import { ApiErrorNotice } from '../../components/ApiErrorNotice'
+import { CheckIcon, ClockIcon, DeleteIcon, EditIcon, FilterIcon, MoreIcon, PlayIcon, RankIcon, SearchIcon } from '../../components/AppIcons'
 import { BallotPanel } from '../ballot/BallotPanel'
 import { BallotApiError, closeBallot, fetchBallot, reopenBallot, reorderBallot, type Ballot } from '../ballot/api'
 import { combineBallotLists, persistDroppedBallot, splitBallotEntries } from '../ballot/ballotReorder'
@@ -80,6 +83,12 @@ export function EntryPage() {
   }), [entries, onlyRelisten, onlyUnlistened, onlyUnranked, onlyWithoutParticipant, search])
   const activeEntry = activeEntryId === null ? null : visibleEntries.find((entry) => entry.id === activeEntryId) ?? null
   const activeIndex = activeEntry === null ? -1 : visibleEntries.findIndex((entry) => entry.id === activeEntry.id)
+  const poolFiltersActive = search.trim() !== '' || onlyUnlistened || onlyRelisten || onlyUnranked || onlyWithoutParticipant
+  const visibleCountLabel = entries === null
+    ? null
+    : poolFiltersActive
+      ? `${visibleEntries.length} / ${entries.length} sichtbar`
+      : `${entries.length} insgesamt`
 
   const load = useCallback(async () => {
     if (showId === null) return
@@ -279,60 +288,60 @@ export function EntryPage() {
           <ClipboardImportArea onPasteData={pasteForPreview} />
           {previewLines !== null && <ImportPreview importing={importing} lines={previewLines} onCancel={() => setPreviewLines(null)} onChange={setPreviewLines} onImport={() => void confirmImport()} />}
           {ballot !== null && <BallotPanel ballot={ballot} entries={entries} onClose={() => void closeRanking()} onDrop={(result) => void reorderEntries(result)} onReopen={() => void reopenRanking()} reordering={reordering} showId={showId} />}
-          <Stack direction={{ xs: 'column', md: 'row' }} spacing={3}>
-            <Paper aria-label="Beitragspool" component="section" sx={{ flex: 1, minWidth: 0, p: 2 }}>
-              <Stack spacing={2}>
-                <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} sx={{ alignItems: { md: 'center' }, justifyContent: 'space-between' }}>
-                  <Typography component="h2" variant="h6">Beitragspool ({visibleEntries.length})</Typography>
-                  <Button onClick={() => { setEditing(null); setCreating(true) }} variant="outlined">Beitrag manuell anlegen</Button>
-                </Stack>
-                <TextField fullWidth label="Interpret oder Titel suchen" onChange={(event) => setSearch(event.target.value)} value={search} />
-                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-                  <FormControlLabel control={<Checkbox checked={onlyUnlistened} onChange={(event) => setOnlyUnlistened(event.target.checked)} />} label="Ungehört" />
-                  <FormControlLabel control={<Checkbox checked={onlyRelisten} onChange={(event) => setOnlyRelisten(event.target.checked)} />} label="Erneut anhören" />
-                  <FormControlLabel control={<Checkbox checked={onlyUnranked} onChange={(event) => setOnlyUnranked(event.target.checked)} />} label="Noch nicht eingeordnet" />
-                  {participantAssignmentOpen && <FormControlLabel control={<Checkbox checked={onlyWithoutParticipant} onChange={(event) => setOnlyWithoutParticipant(event.target.checked)} />} label="Ohne Teilnehmer" />}
-                </Stack>
-                {entries.length === 0 && <Alert severity="info">Noch keine Wettbewerbsbeiträge. Lege einen Beitrag an oder füge einen CSC-Beitragsblock ein.</Alert>}
-                {entries.length > 0 && visibleEntries.length === 0 && <Alert severity="info">Kein Beitrag erfüllt die aktuelle Suche und Filterkombination.</Alert>}
-                {visibleEntries.length > 0 && (
-                  <List aria-label="Wettbewerbsbeiträge" disablePadding sx={{ border: 1, borderColor: 'divider' }}>
-                    {visibleEntries.map((entry, index) => (
-                      <Box key={entry.id}>
-                        {index > 0 && <Divider />}
-                        <ListItemButton aria-current={activeEntry?.id === entry.id ? 'true' : undefined} onClick={() => setActiveEntryId(entry.id)} selected={activeEntry?.id === entry.id}>
-                          <ListItemText
-                            primary={`${entry.artist} – ${entry.title}`}
-                            secondary={`${entry.listened ? 'Gehört' : 'Ungelesen'} · ${entry.relisten ? 'erneut anhören' : 'keine Wiedervorlage'}${entry.rankingPosition === null ? ' · noch nicht eingeordnet' : ` · Rang ${entry.rankingPosition}`}${participantAssignmentOpen ? ` · ${entry.participantId === null ? 'ohne Teilnehmer' : participantLabel(entry.participantId, participants)}` : ''}`}
-                          />
-                        </ListItemButton>
-                      </Box>
-                    ))}
-                  </List>
-                )}
-              </Stack>
-            </Paper>
-            <Paper component="aside" sx={{ flex: 1, minWidth: 0, p: 2 }}>
-              <Stack spacing={2}>
-                <YoutubePlayerPanel contextLabel="Aktuell ausgewählter Wettbewerbsbeitrag" emptyMessage="Wähle einen Wettbewerbsbeitrag aus, um ihn hier anzuhören." song={activeEntry} />
-                {activeEntry !== null && (
-                  <>
-                    <Stack direction="row" spacing={1}>
-                      <Button disabled={activeIndex <= 0} onClick={() => setActiveEntryId(visibleEntries[activeIndex - 1]?.id ?? null)}>Vorheriger</Button>
-                      <Button disabled={activeIndex < 0 || activeIndex >= visibleEntries.length - 1} onClick={() => setActiveEntryId(visibleEntries[activeIndex + 1]?.id ?? null)}>Nächster</Button>
-                    </Stack>
-                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-                      <FormControlLabel control={<Checkbox checked={activeEntry.listened} onChange={(event) => void saveEntry({ ...activeEntry, listened: event.target.checked })} />} label="Gehört" />
-                      <FormControlLabel control={<Checkbox checked={activeEntry.relisten} onChange={(event) => void saveEntry({ ...activeEntry, relisten: event.target.checked })} />} label="Erneut anhören" />
-                    </Stack>
-                    <TextField defaultValue={activeEntry.comment ?? ''} fullWidth key={activeEntry.id} label="Kommentar / Hörnotiz" minRows={3} multiline onBlur={(event) => {
-                      if (event.target.value !== (activeEntry.comment ?? '')) void saveEntry({ ...activeEntry, comment: event.target.value })
-                    }} />
-                    <Stack direction="row" spacing={1}>
-                      <Button onClick={() => setEditing(activeEntry)}>Bearbeiten</Button>
-                      <Button color="error" onClick={() => setEntryPendingDeletion(activeEntry)}>Löschen</Button>
-                    </Stack>
-                    {participantAssignmentOpen && (
+           <Stack direction={{ xs: 'column', md: 'row' }} spacing={3} sx={{ alignItems: 'flex-start' }}>
+             <Box aria-label="Beitragspool" component="section" sx={{ flex: 1, minWidth: 0 }}>
+               <Stack spacing={1.5}>
+                 <Stack direction={{ sm: 'row', xs: 'column' }} spacing={1} sx={{ alignItems: { sm: 'center' }, justifyContent: 'space-between' }}>
+                   <Stack direction="row" spacing={1} sx={{ alignItems: 'center', minWidth: 0 }}>
+                     <Typography component="h2" variant="h5">Beitragspool</Typography>
+                     {visibleCountLabel !== null && <Chip label={visibleCountLabel} size="small" />}
+                   </Stack>
+                   <Button onClick={() => { setEditing(null); setCreating(true) }} variant="outlined">Beitrag manuell anlegen</Button>
+                 </Stack>
+                 <EntryPoolControls
+                   onOnlyRelisten={() => setOnlyRelisten((current) => !current)}
+                   onOnlyUnlistened={() => setOnlyUnlistened((current) => !current)}
+                   onOnlyUnranked={() => setOnlyUnranked((current) => !current)}
+                   onOnlyWithoutParticipant={() => setOnlyWithoutParticipant((current) => !current)}
+                   onSearch={setSearch}
+                   onlyRelisten={onlyRelisten}
+                   onlyUnlistened={onlyUnlistened}
+                   onlyUnranked={onlyUnranked}
+                   onlyWithoutParticipant={onlyWithoutParticipant}
+                   participantAssignmentOpen={participantAssignmentOpen}
+                   search={search}
+                 />
+                 {entries.length === 0 && <Alert severity="info">Noch keine Wettbewerbsbeiträge. Lege einen Beitrag an oder füge einen CSC-Beitragsblock ein.</Alert>}
+                 {entries.length > 0 && visibleEntries.length === 0 && <Alert severity="info">Kein Beitrag erfüllt die aktuelle Suche und Filterkombination.</Alert>}
+                 {visibleEntries.length > 0 && (
+                   <Stack aria-label="Wettbewerbsbeiträge" spacing={0.75}>
+                     {visibleEntries.map((entry) => (
+                       <EntryPoolCard
+                         active={activeEntry?.id === entry.id}
+                         entry={entry}
+                         key={entry.id}
+                         onDelete={() => setEntryPendingDeletion(entry)}
+                         onEdit={() => setEditing(entry)}
+                         onPlay={() => setActiveEntryId(entry.id)}
+                         onSelect={() => setActiveEntryId(entry.id)}
+                         onToggleListened={() => void saveEntry({ ...entry, listened: !entry.listened })}
+                         onToggleRelisten={() => void saveEntry({ ...entry, relisten: !entry.relisten })}
+                       />
+                     ))}
+                   </Stack>
+                 )}
+               </Stack>
+             </Box>
+             <Paper component="aside" elevation={0} sx={{ backgroundColor: 'action.hover', border: 1, borderColor: 'divider', p: 2, position: { md: 'sticky' }, top: 24, width: { md: 400, xs: '100%' } }}>
+               <Stack spacing={2}>
+                 <YoutubePlayerPanel contextLabel="Aktuell ausgewählter Wettbewerbsbeitrag" emptyMessage="Wähle einen Wettbewerbsbeitrag aus, um ihn hier anzuhören." song={activeEntry} />
+                 {activeEntry !== null && (
+                   <>
+                     <Stack direction="row" spacing={1}>
+                       <Button disabled={activeIndex <= 0} onClick={() => setActiveEntryId(visibleEntries[activeIndex - 1]?.id ?? null)}>Vorheriger</Button>
+                       <Button disabled={activeIndex < 0 || activeIndex >= visibleEntries.length - 1} onClick={() => setActiveEntryId(visibleEntries[activeIndex + 1]?.id ?? null)}>Nächster</Button>
+                     </Stack>
+                     {participantAssignmentOpen && (
                       <Stack spacing={1}>
                         <Typography component="h2" variant="subtitle1">Teilnehmerzuordnung</Typography>
                         {participants === null ? <Skeleton height={56} variant="rounded" /> : (
@@ -356,6 +365,187 @@ export function EntryPage() {
       <EntryDialog creating={creating} entry={editing} key={`${creating}-${editing?.id ?? 'none'}`} onClose={() => { setEditing(null); setCreating(false) }} onCreate={(input) => void saveNewEntry(input)} onSave={(entry) => void saveEntry(entry)} saving={savingNewEntry} />
       <DeleteEntryDialog entry={entryPendingDeletion} onClose={() => setEntryPendingDeletion(null)} onConfirm={() => entryPendingDeletion !== null && void removeEntry(entryPendingDeletion)} />
     </Stack>
+  )
+}
+function EntryPoolControls({
+  search,
+  onlyUnlistened,
+  onlyRelisten,
+  onlyUnranked,
+  onlyWithoutParticipant,
+  participantAssignmentOpen,
+  onSearch,
+  onOnlyUnlistened,
+  onOnlyRelisten,
+  onOnlyUnranked,
+  onOnlyWithoutParticipant,
+}: {
+  search: string
+  onlyUnlistened: boolean
+  onlyRelisten: boolean
+  onlyUnranked: boolean
+  onlyWithoutParticipant: boolean
+  participantAssignmentOpen: boolean
+  onSearch: (value: string) => void
+  onOnlyUnlistened: () => void
+  onOnlyRelisten: () => void
+  onOnlyUnranked: () => void
+  onOnlyWithoutParticipant: () => void
+}) {
+  return (
+    <Paper component="section" elevation={0} sx={{ backgroundColor: 'action.hover', border: 1, borderColor: 'divider', p: 1 }}>
+      <Stack aria-label="Beitragspool filtern" direction={{ lg: 'row', xs: 'column' }} role="toolbar" spacing={1}>
+        <TextField
+          label="Beiträge suchen"
+          onChange={(event) => onSearch(event.target.value)}
+          placeholder="Interpret oder Titel"
+          size="small"
+          slotProps={{ input: { startAdornment: <InputAdornment position="start"><SearchIcon aria-hidden="true" color="secondary" fontSize="small" /></InputAdornment> } }}
+          sx={{ flex: 1, minWidth: { lg: 220 } }}
+          value={search}
+        />
+        <Stack direction="row" spacing={0.5} sx={{ flexShrink: 0, flexWrap: 'wrap' }} useFlexGap>
+          <PoolFilterButton icon={<CheckIcon aria-hidden="true" fontSize="small" />} label="Nicht gehört" onClick={onOnlyUnlistened} pressed={onlyUnlistened} />
+          <PoolFilterButton icon={<ClockIcon aria-hidden="true" fontSize="small" />} label="Erneut anhören" onClick={onOnlyRelisten} pressed={onlyRelisten} />
+          <PoolFilterButton icon={<RankIcon aria-hidden="true" fontSize="small" />} label="Noch nicht gerankt" onClick={onOnlyUnranked} pressed={onlyUnranked} />
+          {participantAssignmentOpen && <PoolFilterButton icon={<FilterIcon aria-hidden="true" fontSize="small" />} label="Ohne Teilnehmer" onClick={onOnlyWithoutParticipant} pressed={onlyWithoutParticipant} />}
+        </Stack>
+      </Stack>
+    </Paper>
+  )
+}
+
+function PoolFilterButton({ label, pressed, icon, onClick }: { label: string, pressed: boolean, icon: ReactNode, onClick: () => void }) {
+  return (
+    <Button aria-label={label} aria-pressed={pressed} onClick={onClick} size="small" startIcon={icon} variant={pressed ? 'contained' : 'outlined'}>
+      {label}
+    </Button>
+  )
+}
+
+function EntryPoolCard({ entry, active, onSelect, onPlay, onToggleListened, onToggleRelisten, onEdit, onDelete }: {
+  entry: ContestEntry
+  active: boolean
+  onSelect: () => void
+  onPlay: () => void
+  onToggleListened: () => void
+  onToggleRelisten: () => void
+  onEdit: () => void
+  onDelete: () => void
+}) {
+  return (
+    <Card
+      elevation={0}
+      sx={{
+        backgroundColor: active ? 'action.selected' : 'background.paper',
+        border: 1,
+        borderColor: active ? 'secondary.main' : 'divider',
+        transition: 'border-color 120ms ease, background-color 120ms ease',
+      }}
+    >
+      <CardContent sx={{ p: { xs: 1, md: 1.25 }, '&:last-child': { pb: { xs: 1, md: 1.25 } } }}>
+        <Stack direction={{ md: 'row', xs: 'column' }} spacing={1} sx={{ alignItems: { md: 'center', xs: 'stretch' } }}>
+          <Box
+            aria-current={active ? 'true' : undefined}
+            aria-label={`${entry.title} von ${entry.artist} auswählen`}
+            onClick={onSelect}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault()
+                onSelect()
+              }
+            }}
+            role="button"
+            sx={{ cursor: 'pointer', flex: 1, minWidth: 0, outlineOffset: 4, '&:focus-visible': { outline: '2px solid', outlineColor: 'secondary.main' } }}
+            tabIndex={0}
+          >
+            <Typography component="h3" sx={{ fontWeight: 650, overflowWrap: 'anywhere' }} variant="subtitle1">{entry.title}</Typography>
+            <Typography color="text.secondary" sx={{ overflowWrap: 'anywhere' }} variant="body2">{entry.artist}</Typography>
+            {active && <Chip color="secondary" icon={<PlayIcon aria-hidden="true" />} label="Wird angehört" size="small" sx={{ mt: 0.75 }} />}
+            {entry.comment !== null && entry.comment.trim() !== '' && <Typography color="text.secondary" sx={{ mt: 0.5, overflowWrap: 'anywhere' }} variant="body2">{entry.comment}</Typography>}
+          </Box>
+          <Stack direction="row" spacing={0.25} sx={{ alignItems: 'center', flexShrink: 0, flexWrap: { md: 'nowrap', xs: 'wrap' }, justifyContent: 'flex-end', minHeight: 40 }}>
+            <EntryStatusToggle
+              ariaLabel={`${entry.title}: ${entry.listened ? 'Gehört' : 'Nicht gehört'}`}
+              icon={<CheckIcon aria-hidden="true" fontSize="small" />}
+              onClick={onToggleListened}
+              pressed={entry.listened}
+              title={entry.listened ? 'Gehört – als nicht gehört markieren' : 'Nicht gehört – als gehört markieren'}
+            />
+            <EntryStatusToggle
+              ariaLabel={`${entry.title}: ${entry.relisten ? 'Erneut anhören' : 'Nicht zur Wiedervorlage markiert'}`}
+              icon={<ClockIcon aria-hidden="true" fontSize="small" />}
+              onClick={onToggleRelisten}
+              pressed={entry.relisten}
+              title={entry.relisten ? 'Erneut anhören – Wiedervorlage entfernen' : 'Für erneutes Anhören vormerken'}
+            />
+            <Tooltip title={entry.rankingPosition === null ? 'Noch nicht gerankt' : `Rang ${entry.rankingPosition}`}>
+              <Chip
+                aria-label={`${entry.title}: ${entry.rankingPosition === null ? 'Noch nicht gerankt' : `Rang ${entry.rankingPosition}`}`}
+                icon={<RankIcon aria-hidden="true" fontSize="small" />}
+                label={entry.rankingPosition === null ? 'Noch nicht gerankt' : `Rang ${entry.rankingPosition}`}
+                size="small"
+                sx={{ color: entry.rankingPosition === null ? 'text.secondary' : 'secondary.main', maxWidth: { xs: 'none', sm: 164 } }}
+              />
+            </Tooltip>
+            <Tooltip title="Anhören">
+              <IconButton aria-label={`${entry.artist} – ${entry.title} anhören`} color={active ? 'secondary' : 'primary'} onClick={onPlay} size="small">
+                <PlayIcon aria-hidden="true" fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            <EntryOverflowMenu entry={entry} onDelete={onDelete} onEdit={onEdit} />
+          </Stack>
+        </Stack>
+      </CardContent>
+    </Card>
+  )
+}
+
+function EntryStatusToggle({ ariaLabel, icon, onClick, pressed, title }: { ariaLabel: string, icon: ReactNode, onClick: () => void, pressed: boolean, title: string }) {
+  return (
+    <Tooltip title={title}>
+      <IconButton aria-label={ariaLabel} aria-pressed={pressed} color={pressed ? 'secondary' : 'default'} onClick={onClick} size="small" sx={{ border: 1, borderColor: pressed ? 'secondary.main' : 'divider', color: pressed ? 'secondary.main' : 'text.secondary' }}>
+        {icon}
+      </IconButton>
+    </Tooltip>
+  )
+}
+
+function EntryOverflowMenu({ entry, onEdit, onDelete }: { entry: ContestEntry, onEdit: () => void, onDelete: () => void }) {
+  const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null)
+  const open = anchorEl !== null
+
+  function run(action: () => void) {
+    setAnchorEl(null)
+    action()
+  }
+
+  return (
+    <>
+      <Tooltip title="Weitere Aktionen">
+        <IconButton
+          aria-controls={open ? `entry-${entry.id}-actions` : undefined}
+          aria-expanded={open ? 'true' : undefined}
+          aria-haspopup="menu"
+          aria-label={`Weitere Aktionen für ${entry.artist} – ${entry.title}`}
+          color="primary"
+          onClick={(event) => setAnchorEl(event.currentTarget)}
+          size="small"
+        >
+          <MoreIcon aria-hidden="true" fontSize="small" />
+        </IconButton>
+      </Tooltip>
+      <Menu anchorEl={anchorEl} id={`entry-${entry.id}-actions`} onClose={() => setAnchorEl(null)} open={open}>
+        <MenuItem onClick={() => run(onEdit)}>
+          <EditIcon aria-hidden="true" fontSize="small" sx={{ mr: 1 }} />
+          Bearbeiten
+        </MenuItem>
+        <MenuItem onClick={() => run(onDelete)} sx={{ color: 'error.main' }}>
+          <DeleteIcon aria-hidden="true" fontSize="small" sx={{ mr: 1 }} />
+          Löschen
+        </MenuItem>
+      </Menu>
+    </>
   )
 }
 
@@ -413,9 +603,4 @@ function asEntryApiError(error: unknown, path: string): EntryApiError {
     timestamp: new Date().toISOString(), status: 0, code: 'NETWORK_ERROR',
     message: 'Die Wettbewerbsbeiträge konnten nicht verarbeitet werden.', path,
   })
-}
-
-function participantLabel(participantId: number, participants: Participant[] | null): string {
-  const participant = participants?.find((item) => item.id === participantId)
-  return participant === undefined ? 'Teilnehmer wird geladen' : participant.displayName
 }

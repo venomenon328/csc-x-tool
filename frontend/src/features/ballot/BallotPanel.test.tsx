@@ -36,6 +36,47 @@ describe('BallotPanel', () => {
     expect(screen.getByText('Rang 15 · Top 15')).toBeVisible()
     expect(screen.getByText('Rang 16')).toBeVisible()
     expect(screen.getByRole('button', { name: 'Abstimmung abschließen' })).toBeEnabled()
+    expect(screen.getByRole('heading', { name: 'Noch nicht gerankt' })).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'Rangliste' })).toBeVisible()
+    expect(screen.queryByText('Persönliche Rangliste')).not.toBeInTheDocument()
+  })
+
+  it('uses the non-native drag handle in both labelled drop zones', () => {
+    render(
+      <BallotPanel
+        ballot={{ ballotClosedAt: null, currentSnapshot: null, snapshots: [], renderedText: null }}
+        entries={entries}
+        onClose={vi.fn()}
+        onDrop={vi.fn()}
+        onReopen={vi.fn()}
+        reordering={false}
+        showId={1}
+      />,
+    )
+
+    const handle = screen.getByLabelText('Artist 1 verschieben')
+    expect(handle.tagName).toBe('DIV')
+    expect(screen.getByLabelText('Noch nicht gerankt')).toBeVisible()
+    expect(screen.getByLabelText('Rangliste')).toBeVisible()
+  })
+
+  it('keeps the reopening action in the locked ranking surface', () => {
+    render(
+      <BallotPanel
+        ballot={{ ballotClosedAt: '2026-08-27T12:00:00Z', currentSnapshot: null, snapshots: [], renderedText: null }}
+        entries={entries}
+        onClose={vi.fn()}
+        onDrop={vi.fn()}
+        onReopen={vi.fn()}
+        reordering={false}
+        showId={1}
+      />,
+    )
+
+    expect(screen.getByRole('heading', { name: 'Noch nicht gerankt' })).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'Rangliste (gesperrt)' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Abstimmung wieder öffnen' })).toBeVisible()
+    expect(screen.getByText(/Die Top 15 ist abgeschlossen/)).toBeVisible()
   })
 
   it('waits for participant countries before exposing the CSC export', () => {
