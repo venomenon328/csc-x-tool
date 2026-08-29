@@ -1,0 +1,68 @@
+databaseChangeLog:
+  - changeSet:
+      id: 008-entry-pool-order
+      author: venomenon328
+      runInTransaction: false
+      changes:
+        - sql:
+            sql: |-
+              -- SQLite cannot add NOT NULL/CHECK constraints to an existing column. Rebuild the
+              -- table so the database, rather than only application code, owns this invariant.
+              -- Foreign-key enforcement must be disabled outside a transaction while the parent
+              -- table is swapped; foreign_key_check below verifies that the completed schema is sound.
+              PRAGMA foreign_keys = OFF;
+
+              CREATE TABLE contest_entry_new (
+                id INTEGER PRIMARY KEY,
+                motto_show_id INTEGER NOT NULL,
+                artist TEXT NOT NULL
+                  CONSTRAINT ck_contest_entry_artist_not_blank CHECK (length(trim(artist)) > 0),
+                title TEXT NOT NULL
+                  CONSTRAINT ck_contest_entry_title_not_blank CHECK (length(trim(title)) > 0),
+                youtube_url TEXT NOT NULL
+                  CONSTRAINT ck_contest_entry_youtube_url_not_blank CHECK (length(trim(youtube_url)) > 0),
+                comment TEXT,
+                listened INTEGER NOT NULL DEFAULT 0
+                  CONSTRAINT ck_contest_entry_listened_boolean CHECK (listened IN (0, 1)),
+                relisten INTEGER NOT NULL DEFAULT 0
+                  CONSTRAINT ck_contest_entry_relisten_boolean CHECK (relisten IN (0, 1)),
+                pool_position INTEGER NOT NULL
+                  CONSTRAINT ck_contest_entry_pool_position_positive CHECK (pool_position > 0),
+                ranking_position INTEGER
+                  CONSTRAINT ck_contest_entry_ranking_position_positive CHECK (ranking_position IS NULL OR ranking_position > 0),
+                participant_id INTEGER,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                CONSTRAINT fk_contest_entry_motto_show
+                  FOREIGN KEY (motto_show_id) REFERENCES motto_show (id) ON DELETE RESTRICT,
+                CONSTRAINT fk_contest_entry_participant
+                  FOREIGN KEY (participant_id) REFERENCES participant (id) ON DELETE RESTRICT,
+                CONSTRAINT uq_contest_entry_motto_show_pool_position UNIQUE (motto_show_id, pool_position),
+                CONSTRAINT uq_contest_entry_motto_show_ranking_position UNIQUE (motto_show_id, ranking_position)
+              );
+
+              INSERT INTO contest_entry_new (
+                id, motto_show_id, artist, title, youtube_url, comment, listened, relisten,
+                pool_position, ranking_position, participant_id, created_at, updated_at
+              )
+              SELECT source.id, source.motto_show_id, source.artist, source.title, source.youtube_url, source.comment,
+                     source.listened, source.relisten,
+                     (
+                       SELECT COUNT(*)
+                       FROM contest_entry ordered
+                       WHERE ordered.motto_show_id = source.motto_show_id
+                         AND ordered.id <= source.id
+                     ),
+                     source.ranking_position, source.participant_id, source.created_at, source.updated_at
+              FROM contest_entry source;
+
+              DROP TABLE contest_entry;
+              ALTER TABLE contest_entry_new RENAME TO contest_entry;
+
+              CREATE INDEX ix_contest_entry_motto_show ON contest_entry (motto_show_id);
+              CREATE INDEX ix_contest_entry_participant ON contest_entry (participant_id);
+              CREATE UNIQUE INDEX ux_contest_entry_show_participant
+                ON contest_entry (motto_show_id, participant_id) WHERE participant_id IS NOT NULL;
+
+              PRAGMA foreign_key_check;
+              PRAGMA foreign_keys = ON;

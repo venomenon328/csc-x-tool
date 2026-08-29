@@ -1,49 +1,52 @@
-import { DragDropContext, Draggable, Droppable, type DraggableProvidedDragHandleProps, type DropResult } from '@hello-pangea/dnd'
+import { Draggable, Droppable, type DraggableProvided, type DraggableProvidedDragHandleProps } from '@hello-pangea/dnd'
 import {
   Alert,
   Box,
   Button,
   Card,
-  CardContent,
   Chip,
-  Divider,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
+  IconButton,
   Paper,
   Stack,
   TextField,
   Tooltip,
   Typography,
 } from '@mui/material'
-import { useState, type ReactNode } from 'react'
-import { DragIcon } from '../../components/AppIcons'
+import { useState } from 'react'
+import { DragIcon, PlaylistRemoveIcon } from '../../components/AppIcons'
 import type { ContestEntry } from '../entries/api'
-import { splitBallotEntries } from './ballotReorder'
 import type { Ballot } from './api'
+import { RANKING_DROPPABLE_ID, rankedEntries } from './ballotReorder'
 
 export function BallotPanel({
   ballot,
   entries,
   showId,
   reordering,
-  onDrop,
+  activeEntryId,
   onClose,
   onReopen,
+  onRemove,
+  onSelect,
 }: {
   ballot: Ballot
   entries: ContestEntry[]
   showId: number
   reordering: boolean
-  onDrop: (result: DropResult) => void
+  activeEntryId: number | null
   onClose: () => void
   onReopen: () => void
+  onRemove: (entry: ContestEntry) => void
+  onSelect: (entry: ContestEntry) => void
 }) {
   const [confirmingClose, setConfirmingClose] = useState(false)
   const [confirmingReopen, setConfirmingReopen] = useState(false)
   const [clipboardNotice, setClipboardNotice] = useState<string | null>(null)
-  const { ranked, unranked } = splitBallotEntries(entries)
+  const ranked = rankedEntries(entries)
   const closed = ballot.ballotClosedAt !== null
   const canClose = ranked.length >= 15
 
@@ -58,23 +61,18 @@ export function BallotPanel({
   }
 
   return (
-    <Stack spacing={2.5}>
-      {closed
-        ? <ClosedRanking lists={{ ranked, unranked }} onReopen={() => setConfirmingReopen(true)} />
-        : <DragDropContext onDragEnd={onDrop}>
-          <Stack direction={{ xs: 'column', lg: 'row' }} spacing={2.5}>
-            <EntryDropZone entries={unranked} title="Noch nicht gerankt" droppableId="unranked-entries" reordering={reordering} />
-            <EntryDropZone
-              action={<Button disabled={!canClose || reordering} onClick={() => setConfirmingClose(true)} size="small" variant="contained">Abstimmung abschließen</Button>}
-              entries={ranked}
-              notice={!canClose ? `Für den Abschluss fehlen noch ${15 - ranked.length} gerankte Beiträge.` : undefined}
-              droppableId="ranked-entries"
-              ranked
-              reordering={reordering}
-              title="Rangliste"
-            />
-          </Stack>
-        </DragDropContext>}
+    <Stack spacing={2}>
+      <RankingSurface
+        activeEntryId={activeEntryId}
+        closed={closed}
+        entries={ranked}
+        onClose={() => setConfirmingClose(true)}
+        onRemove={onRemove}
+        onReopen={() => setConfirmingReopen(true)}
+        onSelect={onSelect}
+        reordering={reordering}
+        canClose={canClose}
+      />
 
       {ballot.currentSnapshot !== null && ballot.renderedText === null && (
         <Alert severity="info">
@@ -83,12 +81,9 @@ export function BallotPanel({
       )}
 
       {ballot.currentSnapshot !== null && ballot.renderedText !== null && (
-        <Paper component="section" elevation={0} sx={{ border: 1, borderColor: 'success.main', p: 2.5 }}>
-          <Stack spacing={1.5}>
-            <Typography component="h2" variant="h6">Abgeschlossene Top 15 · Snapshot {ballot.currentSnapshot.snapshotNumber}</Typography>
-            <Typography color="text.secondary" variant="body2">
-              Rang, Interpret und Titel stammen aus dem gespeicherten Snapshot; das Land wird aus der nach Abschluss vorgenommenen Teilnehmerzuordnung ergänzt. Vorschau, Zwischenablage und Textdatei verwenden dieselbe Ausgabe.
-            </Typography>
+        <Paper component="section" elevation={0} sx={{ border: 1, borderColor: 'success.main', p: 2 }}>
+          <Stack spacing={1.25}>
+            <Typography component="h2" variant="subtitle1">Abgeschlossene Top 15 · Snapshot {ballot.currentSnapshot.snapshotNumber}</Typography>
             <TextField aria-label="Top-15-Textvorschau" fullWidth multiline minRows={15} slotProps={{ htmlInput: { readOnly: true } }} value={ballot.renderedText} />
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
               <Button onClick={() => void copySnapshot()}>Top 15 kopieren</Button>
@@ -125,145 +120,183 @@ export function BallotPanel({
   )
 }
 
-function ClosedRanking({ lists, onReopen }: { lists: { ranked: ContestEntry[], unranked: ContestEntry[] }, onReopen: () => void }) {
-  return (
-    <Stack direction={{ xs: 'column', lg: 'row' }} spacing={2.5}>
-      <ReadOnlyEntryList entries={lists.unranked} title="Noch nicht gerankt" />
-      <ReadOnlyEntryList
-        action={<Button color="warning" onClick={onReopen} size="small" variant="outlined">Abstimmung wieder öffnen</Button>}
-        entries={lists.ranked}
-        notice="Die Top 15 ist abgeschlossen. Für Rangänderungen bitte bewusst wieder öffnen."
-        ranked
-        title="Rangliste (gesperrt)"
-      />
-    </Stack>
-  )
-}
-
-function BallotListHeader({ title, count, action }: { title: string, count: number, action?: ReactNode }) {
-  return (
-    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ alignItems: { sm: 'center' }, justifyContent: 'space-between' }}>
-      <Stack direction="row" spacing={1} sx={{ alignItems: 'center', minWidth: 0 }}>
-        <Typography component="h3" variant="h6">{title}</Typography>
-        <Chip aria-label={`${count} Beiträge`} label={count} size="small" />
-      </Stack>
-      {action}
-    </Stack>
-  )
-}
-
-function ReadOnlyEntryList({ entries, title, ranked = false, action, notice }: {
+function RankingSurface({ activeEntryId, closed, entries, reordering, canClose, onClose, onReopen, onRemove, onSelect }: {
+  activeEntryId: number | null
+  closed: boolean
   entries: ContestEntry[]
-  title: string
-  ranked?: boolean
-  action?: ReactNode
-  notice?: string
-}) {
-  return (
-    <Paper component="section" elevation={0} sx={{ border: 1, borderColor: ranked ? 'secondary.main' : 'divider', flex: 1, minWidth: 0, p: 2 }}>
-      <BallotListHeader action={action} count={entries.length} title={title} />
-      {notice !== undefined && <Alert severity="success" sx={{ mt: 1.5 }}>{notice}</Alert>}
-      <Stack spacing={1} sx={{ maxHeight: '58vh', mt: 1.5, overflowY: 'auto', pr: 0.5 }}>
-        {entries.length === 0 && <Alert severity="info">Keine Beiträge in dieser Liste.</Alert>}
-        {entries.map((entry, index) => (
-          <Box key={entry.id}>
-            {ranked && index === 15 && <TopFifteenBoundary />}
-            <Card elevation={0} sx={{ border: 1, borderColor: 'divider' }}>
-              <CardContent sx={{ py: '12px !important' }}><EntryCard entry={entry} index={index} ranked={ranked} /></CardContent>
-            </Card>
-          </Box>
-        ))}
-      </Stack>
-    </Paper>
-  )
-}
-
-function EntryDropZone({ entries, title, droppableId, ranked = false, reordering, action, notice }: {
-  entries: ContestEntry[]
-  title: string
-  droppableId: string
-  ranked?: boolean
   reordering: boolean
-  action?: ReactNode
-  notice?: string
+  canClose: boolean
+  onClose: () => void
+  onReopen: () => void
+  onRemove: (entry: ContestEntry) => void
+  onSelect: (entry: ContestEntry) => void
 }) {
+  const action = closed
+    ? <Button color="warning" onClick={onReopen} size="small" variant="outlined">Abstimmung wieder öffnen</Button>
+    : <Button disabled={!canClose || reordering} onClick={onClose} size="small" variant="contained">Abstimmung abschließen</Button>
+  const notice = closed
+    ? 'Die Top 15 ist abgeschlossen. Für Rangänderungen bitte bewusst wieder öffnen.'
+    : !canClose ? `Für den Abschluss fehlen noch ${15 - entries.length} gerankte Beiträge.` : undefined
+
   return (
-    <Paper component="section" elevation={0} sx={{ border: 1, borderColor: ranked ? 'secondary.main' : 'divider', flex: 1, minWidth: 0, p: 2 }}>
-      <BallotListHeader action={action} count={entries.length} title={title} />
-      {notice !== undefined && <Alert severity="info" sx={{ mt: 1.5 }}>{notice}</Alert>}
-      <Droppable droppableId={droppableId} isDropDisabled={reordering}>
-        {(provided, snapshot) => (
-          <Box
-            {...provided.droppableProps}
-            aria-label={title}
-            ref={provided.innerRef}
-            sx={{ minHeight: 260, mt: 1.5, overflowY: 'auto', pr: 0.5, maxHeight: '58vh' }}
-          >
-            {snapshot.isDraggingOver && <Alert severity="info" sx={{ mb: 1 }}>Hier wird der Beitrag eingefügt.</Alert>}
-            {entries.length === 0 && !snapshot.isDraggingOver && <Alert severity="info">Ziehe Beiträge hierher.</Alert>}
-            <Stack spacing={1}>
-              {entries.map((entry, index) => (
-                <Box key={entry.id}>
-                  {ranked && index === 15 && <TopFifteenBoundary />}
-                  <Draggable draggableId={String(entry.id)} index={index} isDragDisabled={reordering}>
-                    {(dragProvided, dragSnapshot) => (
-                      <Card
-                        {...dragProvided.draggableProps}
-                        elevation={dragSnapshot.isDragging ? 8 : 0}
-                        ref={dragProvided.innerRef}
-                        sx={{ border: 1, borderColor: dragSnapshot.isDragging ? 'secondary.main' : 'divider', outline: dragSnapshot.isDragging ? '2px solid' : 'none', outlineColor: 'secondary.main' }}
-                      >
-                        <CardContent sx={{ py: '12px !important' }}>
-                          <EntryCard dragging={dragSnapshot.isDragging} dragHandleProps={dragProvided.dragHandleProps} entry={entry} index={index} ranked={ranked} />
-                        </CardContent>
-                      </Card>
-                    )}
-                  </Draggable>
+    <Paper component="section" elevation={0} sx={{ border: 1, borderColor: closed ? 'divider' : 'secondary.main', p: 1.5 }}>
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ alignItems: { sm: 'center' }, justifyContent: 'space-between' }}>
+        <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+          <Typography component="h2" variant="h6">{closed ? 'Rangliste (gesperrt)' : 'Persönliche Rangliste'}</Typography>
+          <Chip aria-label={`${entries.length} gerankte Beiträge`} label={entries.length} size="small" />
+        </Stack>
+        {action}
+      </Stack>
+      {notice !== undefined && <Alert severity={closed ? 'success' : 'info'} sx={{ mt: 1 }}>{notice}</Alert>}
+      {closed
+        ? <ReadOnlyRanking activeEntryId={activeEntryId} entries={entries} onSelect={onSelect} />
+        : <Droppable droppableId={RANKING_DROPPABLE_ID} isDropDisabled={reordering}>
+          {(provided, snapshot) => (
+            <Box
+              {...provided.droppableProps}
+              aria-label="Persönliche Rangliste"
+              ref={provided.innerRef}
+              sx={{ maxHeight: '42vh', minHeight: 200, mt: 1.25, overflowY: 'auto', pr: 0.5 }}
+            >
+              {entries.length === 0 && !snapshot.isDraggingOver && <Alert severity="info">Ziehe Beiträge hierher.</Alert>}
+              <Stack spacing={0.5}>
+                {entries.map((entry, index) => (
+                  <Box key={entry.id}>
+                    {index === 15 && <TopFifteenBoundary />}
+                    <Draggable draggableId={`ranking-entry-${entry.id}`} index={index} isDragDisabled={reordering}>
+                      {(dragProvided, dragSnapshot) => (
+                        <RankingEntry
+                          active={activeEntryId === entry.id}
+                          dragHandleProps={dragProvided.dragHandleProps}
+                          dragging={dragSnapshot.isDragging}
+                          entry={entry}
+                          index={index}
+                          onRemove={() => onRemove(entry)}
+                          onSelect={() => onSelect(entry)}
+                          provided={dragProvided}
+                        />
+                      )}
+                    </Draggable>
+                  </Box>
+                ))}
+                {provided.placeholder}
+                <Box
+                  aria-label="Am Ende der Rangliste anhängen"
+                  sx={{ alignItems: 'center', border: 1, borderColor: snapshot.isDraggingOver ? 'secondary.main' : 'transparent', borderRadius: 1, color: 'text.secondary', display: 'flex', justifyContent: 'center', minHeight: 96, px: 1, transition: 'border-color 120ms ease, background-color 120ms ease', backgroundColor: snapshot.isDraggingOver ? 'action.hover' : 'transparent' }}
+                >
+                  <Typography variant="body2">Hier ablegen, um am Ende anzuhängen</Typography>
                 </Box>
-              ))}
-              {provided.placeholder}
-            </Stack>
-          </Box>
-        )}
-      </Droppable>
+              </Stack>
+            </Box>
+          )}
+        </Droppable>}
     </Paper>
   )
 }
 
-function TopFifteenBoundary() {
-  return <Divider sx={{ borderColor: 'secondary.main', borderWidth: 1, my: 0.75 }} textAlign="left"><Chip color="secondary" label="Außerhalb der Top 15" size="small" /></Divider>
+function ReadOnlyRanking({ activeEntryId, entries, onSelect }: { activeEntryId: number | null, entries: ContestEntry[], onSelect: (entry: ContestEntry) => void }) {
+  return (
+    <Stack spacing={0.5} sx={{ maxHeight: '42vh', mt: 1.25, overflowY: 'auto', pr: 0.5 }}>
+      {entries.length === 0 && <Alert severity="info">Keine gerankten Beiträge.</Alert>}
+      {entries.map((entry, index) => (
+        <Box key={entry.id}>
+          {index === 15 && <TopFifteenBoundary />}
+          <CompactEntry active={activeEntryId === entry.id} entry={entry} index={index} onSelect={() => onSelect(entry)} />
+        </Box>
+      ))}
+    </Stack>
+  )
 }
 
-function EntryCard({ entry, index, ranked, dragHandleProps, dragging = false }: {
+function RankingEntry({ active, dragHandleProps, dragging, entry, index, onRemove, onSelect, provided }: {
+  active: boolean
+  dragHandleProps: DraggableProvidedDragHandleProps | null | undefined
+  dragging: boolean
   entry: ContestEntry
   index: number
-  ranked: boolean
+  onRemove: () => void
+  onSelect: () => void
+  provided: DraggableProvided
+}) {
+  /* eslint-disable react-hooks/refs -- @hello-pangea/dnd requires forwarding these render-prop refs. */
+  return (
+    <Card
+      {...provided.draggableProps}
+      elevation={dragging ? 8 : 0}
+      ref={provided.innerRef}
+      sx={{ border: 1, borderColor: dragging || active ? 'secondary.main' : 'divider', outline: dragging ? '2px solid' : 'none', outlineColor: 'secondary.main' }}
+    >
+      <CompactEntry
+        active={active}
+        dragHandleProps={dragHandleProps}
+        dragging={dragging}
+        entry={entry}
+        index={index}
+        onRemove={onRemove}
+        onSelect={onSelect}
+      />
+    </Card>
+  )
+  /* eslint-enable react-hooks/refs */
+}
+
+function CompactEntry({ active, entry, index, onSelect, dragHandleProps, dragging = false, onRemove }: {
+  active: boolean
+  entry: ContestEntry
+  index: number
+  onSelect: () => void
   dragHandleProps?: DraggableProvidedDragHandleProps | null
   dragging?: boolean
+  onRemove?: () => void
 }) {
   const dragEnabled = dragHandleProps !== null && dragHandleProps !== undefined
   return (
-    <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+    <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', minHeight: 54, p: 0.75 }}>
+      <Chip color={index < 15 ? 'secondary' : 'default'} label={index + 1} size="small" sx={{ flexShrink: 0, fontWeight: 700, minWidth: 34 }} />
       {dragHandleProps !== undefined && (
         <Tooltip title={dragEnabled ? 'Ziehen, um die Rangfolge zu ändern' : 'Drag-and-drop wird gespeichert'}>
           <Box
             {...(dragHandleProps ?? {})}
             aria-disabled={!dragEnabled}
             aria-label={`${entry.artist} verschieben`}
-            sx={{ alignItems: 'center', borderRadius: 1, color: dragEnabled ? 'text.secondary' : 'action.disabled', cursor: dragging ? 'grabbing' : dragEnabled ? 'grab' : 'default', display: 'inline-flex', flexShrink: 0, justifyContent: 'center', minHeight: 40, minWidth: 40, '&:active': { cursor: 'grabbing' } }}
+            sx={{ alignItems: 'center', borderRadius: 1, color: dragEnabled ? 'text.secondary' : 'action.disabled', cursor: dragging ? 'grabbing' : dragEnabled ? 'grab' : 'default', display: 'inline-flex', flexShrink: 0, justifyContent: 'center', minHeight: 36, minWidth: 32, '&:active': { cursor: 'grabbing' } }}
           >
-            <DragIcon aria-hidden="true" />
+            <DragIcon aria-hidden="true" fontSize="small" />
           </Box>
         </Tooltip>
       )}
-      <Box sx={{ flex: 1, minWidth: 0 }}>
-        <Typography component="h4" sx={{ fontWeight: 650, overflowWrap: 'anywhere' }} variant="subtitle1">{entry.title}</Typography>
-        <Typography color="text.secondary" sx={{ overflowWrap: 'anywhere' }} variant="body2">{entry.artist}</Typography>
-        {ranked && <Typography color="text.secondary" variant="body2">Rang {index + 1}{index < 15 ? ' · Top 15' : ''}</Typography>}
+      <Box
+        aria-current={active ? 'true' : undefined}
+        aria-label={`${entry.title} von ${entry.artist} auswählen`}
+        onClick={onSelect}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault()
+            onSelect()
+          }
+        }}
+        role="button"
+        sx={{ cursor: 'pointer', flex: 1, minWidth: 0, outlineOffset: 2, '&:focus-visible': { outline: '2px solid', outlineColor: 'secondary.main' } }}
+        tabIndex={0}
+      >
+        <Tooltip title={`${entry.artist} – ${entry.title}`}>
+          <Typography noWrap sx={{ fontWeight: 650 }} variant="body2">{entry.title}</Typography>
+        </Tooltip>
+        <Typography color="text.secondary" noWrap variant="caption">{entry.artist}</Typography>
       </Box>
-      {ranked && index < 15 && <Chip color="secondary" label={index + 1} size="small" />}
+      {onRemove !== undefined && (
+        <Tooltip title="Aus Ranking entfernen">
+          <IconButton aria-label={`${entry.artist} – ${entry.title} aus Ranking entfernen`} color="primary" onClick={onRemove} size="small">
+            <PlaylistRemoveIcon aria-hidden="true" fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      )}
     </Stack>
   )
+}
+
+function TopFifteenBoundary() {
+  return <Typography color="secondary" sx={{ fontWeight: 700, my: 0.5 }} variant="caption">Außerhalb der Top 15</Typography>
 }
 
 function ConfirmationDialog({ open, title, message, confirmLabel, onCancel, onConfirm }: {

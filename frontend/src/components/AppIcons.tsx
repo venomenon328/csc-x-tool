@@ -56,6 +56,14 @@ export function PlayIcon(props: SvgIconProps) {
   return <SvgIcon {...props}><path d="M8 5v14l11-7L8 5z" /></SvgIcon>
 }
 
+export function PlaylistRemoveIcon(props: SvgIconProps) {
+  return <SvgIcon {...props}><path d="M3 6h12v2H3V6zm0 4h12v2H3v-2zm0 4h8v2H3v-2zm14-2v-2h-2v2h-2v2h2v2h2v-2h2v-2h-2z" /></SvgIcon>
+}
+
+export function ReplayIcon(props: SvgIconProps) {
+  return <SvgIcon {...props}><path d="M7 7h8.17l-1.58-1.59L15 4l4 4-4 4-1.41-1.41L15.17 9H7a4 4 0 0 0 0 8h3v2H7A6 6 0 0 1 7 7z" /></SvgIcon>
+}
+
 export function RankIcon(props: SvgIconProps) {
   return <SvgIcon {...props}><path d="M2 17h2v.5H3v1h1v.5H2v1h3v-4H2v1zm1-9h1V4H2v1h1v3zm-1 3h1.8L2 12.5v.5h3v-1H3.2L5 10.5V10H2v1zm5-6v2h14V5H7zm0 6v2h14v-2H7zm0 6v2h14v-2H7z" /></SvgIcon>
 }
@@ -70,6 +78,14 @@ export function ResultIcon(props: SvgIconProps) {
 
 export function SearchIcon(props: SvgIconProps) {
   return <SvgIcon {...props}><path d="M9.5 3a6.5 6.5 0 1 0 4.1 11.55L19.05 20l1.45-1.45-5.45-5.45A6.5 6.5 0 0 0 9.5 3zm0 2a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9z" /></SvgIcon>
+}
+
+export function SpeakerCheckIcon(props: SvgIconProps) {
+  return <SvgIcon {...props}><path d="M4 9v6h4l5 4V5L8 9H4zm11.5 6.5L14 14l1.5-1.5 1.5 1.5 3-3L21.5 12.5l-4.5 4.5-1.5-1.5z" /></SvgIcon>
+}
+
+export function SpeakerCrossIcon(props: SvgIconProps) {
+  return <SvgIcon {...props}><path d="M4 9v6h4l5 4V5L8 9H4zm11.5 2.09L17.09 9.5 18.5 8.09 20.09 9.68l1.59-1.59 1.41 1.41-1.59 1.59 1.59 1.59-1.41 1.41-1.59-1.59-1.59 1.59-1.41-1.41 1.59-1.59-1.59-1.59z" /></SvgIcon>
 }
 
 export function SortIcon(props: SvgIconProps) {

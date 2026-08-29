@@ -123,6 +123,10 @@ class BackupRestoreIntegrationTest {
     @Test
     void roundTripsAllBusinessTablesViaJsonAndLeavesSequencesUsable() throws Exception {
         insertFullData("Ä; \"Zitat\"\nZeile");
+        jdbc.update("UPDATE contest_entry SET pool_position = pool_position + 100 WHERE motto_show_id = 1");
+        for (int rank = 1; rank <= 15; rank++) {
+            jdbc.update("UPDATE contest_entry SET pool_position = ? WHERE id = ?", 16 - rank, 199 + rank);
+        }
         byte[] json = exports.exportJson();
         jdbc.update("DELETE FROM received_score");
         jdbc.update("DELETE FROM ballot_snapshot_item");
@@ -142,6 +146,8 @@ class BackupRestoreIntegrationTest {
         assertThat(jdbc.queryForObject("SELECT comment FROM candidate WHERE id = 100", String.class)).isEqualTo("Ä; \"Zitat\"\nZeile");
         assertThat(jdbc.queryForObject("SELECT contest_entry_id FROM ballot_snapshot_item WHERE id = 400", Long.class)).isNull();
         assertThat(jdbc.queryForObject("SELECT points FROM received_score WHERE id = 500", Integer.class)).isZero();
+        assertThat(jdbc.queryForList("SELECT id FROM contest_entry WHERE motto_show_id = 1 ORDER BY pool_position", Long.class))
+                .containsExactly(214L, 213L, 212L, 211L, 210L, 209L, 208L, 207L, 206L, 205L, 204L, 203L, 202L, 201L, 200L);
         jdbc.update("""
                 INSERT INTO candidate (motto_show_id, artist, title, youtube_url, status, manual_position, created_at, updated_at)
                 VALUES (1, 'Neu', 'Neu', 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', 'OFFEN', 2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
@@ -150,9 +156,38 @@ class BackupRestoreIntegrationTest {
     }
 
     @Test
+    void importsLegacyV1JsonWithDeterministicPoolPositions() throws Exception {
+        insertFullData("Legacy");
+        ExportFormat.FullExport current = exports.snapshot();
+        ExportFormat.Data data = current.data();
+        List<ExportFormat.ContestEntryV1> legacyEntries = data.contestEntries().stream().map(entry -> new ExportFormat.ContestEntryV1(
+                entry.id(), entry.mottoShowId(), entry.artist(), entry.title(), entry.youtubeUrl(), entry.comment(),
+                entry.listened(), entry.relisten(), entry.rankingPosition(), entry.participantId(), entry.createdAt(), entry.updatedAt()
+        )).toList();
+        ExportFormat.FullExportV1 legacy = new ExportFormat.FullExportV1(
+                ExportFormat.FORMAT, ExportFormat.LEGACY_VERSION, current.exportedAt(), current.applicationVersion(), current.schemaVersion(),
+                new ExportFormat.DataV1(data.mottoShows(), data.candidates(), data.participants(), data.participantAliases(), legacyEntries,
+                        data.ballotSnapshots(), data.ballotSnapshotItems(), data.receivedScores())
+        );
+        byte[] json = new ObjectMapper().writeValueAsBytes(legacy);
+        jdbc.update("DELETE FROM received_score");
+        jdbc.update("DELETE FROM ballot_snapshot_item");
+        jdbc.update("DELETE FROM ballot_snapshot");
+        jdbc.update("DELETE FROM contest_entry");
+
+        RestorePreview preview = restores.previewUploadedJson(new ByteArrayInputStream(json), "legacy-v1.json");
+        restores.restore(preview.token());
+
+        assertThat(jdbc.queryForList("SELECT pool_position FROM contest_entry WHERE motto_show_id = 1 ORDER BY pool_position", Integer.class))
+                .containsExactly(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
+        assertThat(jdbc.queryForList("SELECT ranking_position FROM contest_entry WHERE motto_show_id = 1 ORDER BY ranking_position", Integer.class))
+                .containsExactly(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
+    }
+
+    @Test
     void rejectsUnknownNewerJsonWithoutChangingLiveDatabase() throws Exception {
         insertFullData("Live");
-        String newer = new String(exports.exportJson(), StandardCharsets.UTF_8).replace("\"formatVersion\":1", "\"formatVersion\":2");
+        String newer = new String(exports.exportJson(), StandardCharsets.UTF_8).replace("\"formatVersion\":2", "\"formatVersion\":3");
         assertThatThrownBy(() -> restores.previewUploadedJson(new ByteArrayInputStream(newer.getBytes(StandardCharsets.UTF_8)), "new.json"))
                 .isInstanceOf(BackupFileException.class).hasMessageContaining("nicht unterst");
         assertThat(jdbc.queryForObject("SELECT comment FROM candidate WHERE id = 100", String.class)).isEqualTo("Live");
@@ -270,7 +305,7 @@ class BackupRestoreIntegrationTest {
 
         assertThat(lifecycleBackups.overview().automaticBackups()).extracting(BackupSummary::reason)
                 .containsExactlyInAnyOrder(BackupReason.PRE_MIGRATION, BackupReason.STARTUP);
-        assertThat(SchemaSupport.schemaVersion(lifecycleDataSource)).isEqualTo(7);
+        assertThat(SchemaSupport.schemaVersion(lifecycleDataSource)).isEqualTo(SchemaSupport.CURRENT_SCHEMA_VERSION);
     }
 
     @Test
@@ -358,9 +393,9 @@ class BackupRestoreIntegrationTest {
         jdbc.update("UPDATE motto_show SET selected_candidate_id=100,ballot_closed_at=CURRENT_TIMESTAMP,results_closed_at=CURRENT_TIMESTAMP,official_total_points=0,final_place=1,final_place_tied=1 WHERE id=1");
         for (int rank = 1; rank <= 15; rank++) {
             jdbc.update("""
-                    INSERT INTO contest_entry (id,motto_show_id,artist,title,youtube_url,comment,listened,relisten,ranking_position,participant_id,created_at,updated_at)
-                    VALUES (?,1,?,?,'https://www.youtube.com/watch?v=dQw4w9WgXcQ','Kommentar',1,1,?,?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
-                    """, 199 + rank, "Beitrag " + rank, "Song " + rank, rank, rank == 1 ? 10 : null);
+                    INSERT INTO contest_entry (id,motto_show_id,artist,title,youtube_url,comment,listened,relisten,pool_position,ranking_position,participant_id,created_at,updated_at)
+                    VALUES (?,1,?,?,'https://www.youtube.com/watch?v=dQw4w9WgXcQ','Kommentar',1,1,?,?,?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+                    """, 199 + rank, "Beitrag " + rank, "Song " + rank, rank, rank, rank == 1 ? 10 : null);
         }
         jdbc.update("INSERT INTO ballot_snapshot (id,motto_show_id,snapshot_number,created_at,is_current) VALUES (300,1,1,CURRENT_TIMESTAMP,1)");
         for (int rank = 1; rank <= 15; rank++) {

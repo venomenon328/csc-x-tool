@@ -11,6 +11,7 @@ record ContestEntry(
         String comment,
         boolean listened,
         boolean relisten,
+        int poolPosition,
         Integer rankingPosition,
         Long participantId,
         Instant createdAt,

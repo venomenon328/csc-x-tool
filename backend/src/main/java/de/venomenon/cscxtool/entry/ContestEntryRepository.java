@@ -31,7 +31,7 @@ class ContestEntryRepository {
     }
 
     List<ContestEntry> findAllByShowId(long showId) {
-        return jdbcTemplate.query(selectSql("WHERE motto_show_id = ? ORDER BY ranking_position IS NULL, ranking_position, id"), ROW_MAPPER, showId);
+        return jdbcTemplate.query(selectSql("WHERE motto_show_id = ? ORDER BY pool_position"), ROW_MAPPER, showId);
     }
 
     Optional<ContestEntry> findByIdAndShowId(long entryId, long showId) {
@@ -45,14 +45,17 @@ class ContestEntryRepository {
             PreparedStatement statement = connection.prepareStatement("""
                     INSERT INTO contest_entry (
                       motto_show_id, artist, title, youtube_url, comment, listened, relisten,
-                      ranking_position, participant_id, created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, 0, 0, NULL, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                      pool_position, ranking_position, participant_id, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, 0, 0,
+                      (SELECT COALESCE(MAX(pool_position), 0) + 1 FROM contest_entry WHERE motto_show_id = ?),
+                      NULL, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                     """, Statement.RETURN_GENERATED_KEYS);
             statement.setLong(1, showId);
             statement.setString(2, artist);
             statement.setString(3, title);
             statement.setString(4, youtubeUrl);
             statement.setString(5, comment);
+            statement.setLong(6, showId);
             return statement;
         }, keyHolder);
         Number generatedId = keyHolder.getKey();
@@ -123,6 +126,41 @@ class ContestEntryRepository {
         );
     }
 
+    List<Long> findPoolEntryIds(long showId) {
+        return jdbcTemplate.query(
+                "SELECT id FROM contest_entry WHERE motto_show_id = ? ORDER BY pool_position",
+                (resultSet, rowNumber) -> resultSet.getLong(1), showId
+        );
+    }
+
+    void replacePool(long showId, List<Long> entryIds) {
+        // A direct reassignment can violate SQLite's unique constraint while two positions swap.
+        // Move the complete order out of its value range first, then write the final values.
+        Integer offset = jdbcTemplate.queryForObject(
+                "SELECT COALESCE(MAX(pool_position), 0) + 1 FROM contest_entry WHERE motto_show_id = ?",
+                Integer.class,
+                showId
+        );
+        if (offset == null) {
+            throw new IllegalStateException("SQLite did not calculate a pool ordering offset.");
+        }
+        jdbcTemplate.update("""
+                UPDATE contest_entry
+                SET pool_position = pool_position + ?, updated_at = CURRENT_TIMESTAMP
+                WHERE motto_show_id = ?
+                """, offset, showId);
+        for (int index = 0; index < entryIds.size(); index++) {
+            int changed = jdbcTemplate.update("""
+                    UPDATE contest_entry
+                    SET pool_position = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ? AND motto_show_id = ?
+                    """, index + 1, entryIds.get(index), showId);
+            if (changed != 1) {
+                throw new IllegalStateException("A validated contest entry disappeared during pool ordering replacement.");
+            }
+        }
+    }
+
     void replaceRanking(long showId, List<Long> rankedEntryIds) {
         jdbcTemplate.update("""
                 UPDATE contest_entry
@@ -144,7 +182,7 @@ class ContestEntryRepository {
     private static String selectSql(String whereClause) {
         return """
                 SELECT id, motto_show_id, artist, title, youtube_url, comment, listened, relisten,
-                       ranking_position, participant_id, created_at, updated_at
+                       pool_position, ranking_position, participant_id, created_at, updated_at
                 FROM contest_entry
                 """ + whereClause;
     }
@@ -163,6 +201,7 @@ class ContestEntryRepository {
                 resultSet.getString("comment"),
                 resultSet.getBoolean("listened"),
                 resultSet.getBoolean("relisten"),
+                resultSet.getInt("pool_position"),
                 nullableRankingPosition,
                 nullableParticipantId,
                 resultSet.getTimestamp("created_at").toInstant(),
