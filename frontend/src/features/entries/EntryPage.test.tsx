@@ -108,7 +108,7 @@ describe('EntryPage', () => {
     expect(importButton).toBeEnabled()
   })
 
-  it('offers combined filters, independent listening flags, navigation, comment editing and manual CRUD', async () => {
+  it('offers compact cards with independent status actions, filtered navigation, editing and manual CRUD', async () => {
     const user = userEvent.setup()
     let entries = [first, second]
     fetchMock.mockImplementation(async (input, init) => {
@@ -131,23 +131,30 @@ describe('EntryPage', () => {
     })
     render(<App />)
 
-    await screen.findAllByText('Imminence – Paralyzed')
-    await user.click(screen.getAllByText('Imminence – Paralyzed')[1]!)
-    await user.click(screen.getByLabelText('Gehört'))
+    await screen.findAllByRole('heading', { name: 'Paralyzed' })
+    expect(screen.getAllByText('Imminence')).toHaveLength(2)
+    expect(screen.queryByText('Ungelesen')).not.toBeInTheDocument()
+    expect(screen.queryByText('keine Wiedervorlage')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Paralyzed: Noch nicht gerankt')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Paralyzed von Imminence auswählen' }))
+    await user.click(screen.getByLabelText('Paralyzed: Nicht gehört'))
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/shows/1/entries/11', expect.objectContaining({
       method: 'PATCH', body: expect.stringContaining('"listened":true'),
     })))
-    expect(screen.getAllByLabelText('Erneut anhören')[1]).not.toBeChecked()
+    expect(screen.getByLabelText('Paralyzed: Gehört')).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByLabelText('Would?: Erneut anhören')).toHaveAttribute('aria-pressed', 'true')
+    await user.click(screen.getByLabelText('Weitere Aktionen für Imminence – Paralyzed'))
+    await user.click(screen.getByRole('menuitem', { name: 'Bearbeiten' }))
     await user.type(screen.getByLabelText('Kommentar / Hörnotiz'), 'Meine Notiz')
-    await user.tab()
+    await user.click(screen.getByRole('button', { name: 'Speichern' }))
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/shows/1/entries/11', expect.objectContaining({
       method: 'PATCH', body: expect.stringContaining('"comment":"Meine Notiz"'),
     })))
     await user.click(screen.getByRole('button', { name: 'Nächster' }))
     expect(screen.getByRole('heading', { name: 'Alice In Chains – Would?' })).toBeVisible()
 
-    await user.click(screen.getByLabelText('Ungehört'))
-    expect(within(screen.getByLabelText('Beitragspool')).queryByText('Imminence – Paralyzed')).not.toBeInTheDocument()
+    await user.click(screen.getByLabelText('Nicht gehört'))
+    expect(within(screen.getByLabelText('Beitragspool')).queryByRole('button', { name: 'Paralyzed von Imminence auswählen' })).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Beitrag manuell anlegen' }))
     const dialog = screen.getByRole('dialog')
@@ -180,13 +187,13 @@ describe('EntryPage', () => {
 
     await screen.findByLabelText('Ohne Teilnehmer')
     expect(fetchMock).toHaveBeenCalledWith('/api/participants?includeInactive=true')
-    await user.click(screen.getAllByText('Imminence – Paralyzed')[1]!)
+    await user.click(screen.getByRole('button', { name: 'Paralyzed von Imminence auswählen' }))
     await user.click(screen.getByLabelText('Teilnehmer dieses Beitrags'))
     await user.click(await screen.findByText('Mira'))
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/shows/1/entries/11/participant', expect.objectContaining({
       method: 'PUT', body: JSON.stringify({ participantId: 31 }),
     })))
     await user.click(screen.getByLabelText('Ohne Teilnehmer'))
-    expect(within(screen.getByLabelText('Beitragspool')).queryByText('Imminence – Paralyzed')).not.toBeInTheDocument()
+    expect(within(screen.getByLabelText('Beitragspool')).queryByRole('button', { name: 'Paralyzed von Imminence auswählen' })).not.toBeInTheDocument()
   })
 })

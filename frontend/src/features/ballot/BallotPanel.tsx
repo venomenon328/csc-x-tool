@@ -14,9 +14,11 @@ import {
   Paper,
   Stack,
   TextField,
+  Tooltip,
   Typography,
 } from '@mui/material'
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
+import { DragIcon } from '../../components/AppIcons'
 import type { ContestEntry } from '../entries/api'
 import { splitBallotEntries } from './ballotReorder'
 import type { Ballot } from './api'
@@ -57,28 +59,20 @@ export function BallotPanel({
 
   return (
     <Stack spacing={2.5}>
-      <Paper component="section" elevation={0} sx={{ border: 1, borderColor: 'divider', p: 2.5 }}>
-        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ alignItems: { md: 'center' }, justifyContent: 'space-between' }}>
-          <Box>
-            <Typography component="h2" variant="h5">Persönliche Rangliste</Typography>
-            <Typography color="text.secondary" sx={{ mt: 0.5 }}>
-              {ranked.length} eingeordnet · {unranked.length} noch nicht eingeordnet · die ersten 15 Plätze werden abgegeben.
-            </Typography>
-          </Box>
-          {closed
-            ? <Button color="warning" onClick={() => setConfirmingReopen(true)} variant="outlined">Abstimmung wieder öffnen</Button>
-            : <Button disabled={!canClose || reordering} onClick={() => setConfirmingClose(true)} variant="contained">Abstimmung abschließen</Button>}
-        </Stack>
-        {!closed && !canClose && <Alert severity="info" sx={{ mt: 2 }}>Für den Abschluss fehlen noch {15 - ranked.length} gerankte Beiträge.</Alert>}
-        {closed && <Alert severity="success" sx={{ mt: 2 }}>Die Top 15 ist abgeschlossen. Für Rangänderungen bitte bewusst wieder öffnen.</Alert>}
-      </Paper>
-
       {closed
-        ? <ClosedRanking lists={{ ranked, unranked }} />
+        ? <ClosedRanking lists={{ ranked, unranked }} onReopen={() => setConfirmingReopen(true)} />
         : <DragDropContext onDragEnd={onDrop}>
           <Stack direction={{ xs: 'column', lg: 'row' }} spacing={2.5}>
-            <EntryDropZone entries={unranked} title="Noch nicht eingeordnet" droppableId="unranked-entries" reordering={reordering} />
-            <EntryDropZone entries={ranked} title="Rangliste" droppableId="ranked-entries" ranked reordering={reordering} />
+            <EntryDropZone entries={unranked} title="Noch nicht gerankt" droppableId="unranked-entries" reordering={reordering} />
+            <EntryDropZone
+              action={<Button disabled={!canClose || reordering} onClick={() => setConfirmingClose(true)} size="small" variant="contained">Abstimmung abschließen</Button>}
+              entries={ranked}
+              notice={!canClose ? `Für den Abschluss fehlen noch ${15 - ranked.length} gerankte Beiträge.` : undefined}
+              droppableId="ranked-entries"
+              ranked
+              reordering={reordering}
+              title="Rangliste"
+            />
           </Stack>
         </DragDropContext>}
 
@@ -131,36 +125,72 @@ export function BallotPanel({
   )
 }
 
-function ClosedRanking({ lists }: { lists: { ranked: ContestEntry[], unranked: ContestEntry[] } }) {
+function ClosedRanking({ lists, onReopen }: { lists: { ranked: ContestEntry[], unranked: ContestEntry[] }, onReopen: () => void }) {
   return (
     <Stack direction={{ xs: 'column', lg: 'row' }} spacing={2.5}>
-      <ReadOnlyEntryList entries={lists.ranked} title="Rangliste (gesperrt)" ranked />
-      <ReadOnlyEntryList entries={lists.unranked} title="Noch nicht eingeordnet" />
+      <ReadOnlyEntryList entries={lists.unranked} title="Noch nicht gerankt" />
+      <ReadOnlyEntryList
+        action={<Button color="warning" onClick={onReopen} size="small" variant="outlined">Abstimmung wieder öffnen</Button>}
+        entries={lists.ranked}
+        notice="Die Top 15 ist abgeschlossen. Für Rangänderungen bitte bewusst wieder öffnen."
+        ranked
+        title="Rangliste (gesperrt)"
+      />
     </Stack>
   )
 }
 
-function ReadOnlyEntryList({ entries, title, ranked = false }: { entries: ContestEntry[], title: string, ranked?: boolean }) {
+function BallotListHeader({ title, count, action }: { title: string, count: number, action?: ReactNode }) {
   return (
-    <Paper component="section" elevation={0} sx={{ border: 1, borderColor: 'divider', flex: 1, minWidth: 0, p: 2 }}>
-      <Typography component="h3" variant="h6">{title} ({entries.length})</Typography>
-      <Stack spacing={1} sx={{ maxHeight: '58vh', mt: 2, overflowY: 'auto', pr: 0.5 }}>
-        {entries.map((entry, index) => <EntryCard entry={entry} index={index} key={entry.id} ranked={ranked} />)}
+    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ alignItems: { sm: 'center' }, justifyContent: 'space-between' }}>
+      <Stack direction="row" spacing={1} sx={{ alignItems: 'center', minWidth: 0 }}>
+        <Typography component="h3" variant="h6">{title}</Typography>
+        <Chip aria-label={`${count} Beiträge`} label={count} size="small" />
+      </Stack>
+      {action}
+    </Stack>
+  )
+}
+
+function ReadOnlyEntryList({ entries, title, ranked = false, action, notice }: {
+  entries: ContestEntry[]
+  title: string
+  ranked?: boolean
+  action?: ReactNode
+  notice?: string
+}) {
+  return (
+    <Paper component="section" elevation={0} sx={{ border: 1, borderColor: ranked ? 'secondary.main' : 'divider', flex: 1, minWidth: 0, p: 2 }}>
+      <BallotListHeader action={action} count={entries.length} title={title} />
+      {notice !== undefined && <Alert severity="success" sx={{ mt: 1.5 }}>{notice}</Alert>}
+      <Stack spacing={1} sx={{ maxHeight: '58vh', mt: 1.5, overflowY: 'auto', pr: 0.5 }}>
+        {entries.length === 0 && <Alert severity="info">Keine Beiträge in dieser Liste.</Alert>}
+        {entries.map((entry, index) => (
+          <Box key={entry.id}>
+            {ranked && index === 15 && <TopFifteenBoundary />}
+            <Card elevation={0} sx={{ border: 1, borderColor: 'divider' }}>
+              <CardContent sx={{ py: '12px !important' }}><EntryCard entry={entry} index={index} ranked={ranked} /></CardContent>
+            </Card>
+          </Box>
+        ))}
       </Stack>
     </Paper>
   )
 }
 
-function EntryDropZone({ entries, title, droppableId, ranked = false, reordering }: {
+function EntryDropZone({ entries, title, droppableId, ranked = false, reordering, action, notice }: {
   entries: ContestEntry[]
   title: string
   droppableId: string
   ranked?: boolean
   reordering: boolean
+  action?: ReactNode
+  notice?: string
 }) {
   return (
     <Paper component="section" elevation={0} sx={{ border: 1, borderColor: ranked ? 'secondary.main' : 'divider', flex: 1, minWidth: 0, p: 2 }}>
-      <Typography component="h3" variant="h6">{title} ({entries.length})</Typography>
+      <BallotListHeader action={action} count={entries.length} title={title} />
+      {notice !== undefined && <Alert severity="info" sx={{ mt: 1.5 }}>{notice}</Alert>}
       <Droppable droppableId={droppableId} isDropDisabled={reordering}>
         {(provided, snapshot) => (
           <Box
@@ -181,10 +211,10 @@ function EntryDropZone({ entries, title, droppableId, ranked = false, reordering
                         {...dragProvided.draggableProps}
                         elevation={dragSnapshot.isDragging ? 8 : 0}
                         ref={dragProvided.innerRef}
-                        sx={{ outline: dragSnapshot.isDragging ? '2px solid' : 'none', outlineColor: 'secondary.main' }}
+                        sx={{ border: 1, borderColor: dragSnapshot.isDragging ? 'secondary.main' : 'divider', outline: dragSnapshot.isDragging ? '2px solid' : 'none', outlineColor: 'secondary.main' }}
                       >
                         <CardContent sx={{ py: '12px !important' }}>
-                          <EntryCard dragHandleProps={dragProvided.dragHandleProps} entry={entry} index={index} ranked={ranked} />
+                          <EntryCard dragging={dragSnapshot.isDragging} dragHandleProps={dragProvided.dragHandleProps} entry={entry} index={index} ranked={ranked} />
                         </CardContent>
                       </Card>
                     )}
@@ -204,17 +234,31 @@ function TopFifteenBoundary() {
   return <Divider sx={{ borderColor: 'secondary.main', borderWidth: 1, my: 0.75 }} textAlign="left"><Chip color="secondary" label="Außerhalb der Top 15" size="small" /></Divider>
 }
 
-function EntryCard({ entry, index, ranked, dragHandleProps }: {
+function EntryCard({ entry, index, ranked, dragHandleProps, dragging = false }: {
   entry: ContestEntry
   index: number
   ranked: boolean
   dragHandleProps?: DraggableProvidedDragHandleProps | null
+  dragging?: boolean
 }) {
+  const dragEnabled = dragHandleProps !== null && dragHandleProps !== undefined
   return (
     <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-      {dragHandleProps !== undefined && <Button {...dragHandleProps} aria-label={`${entry.artist} verschieben`} size="small" sx={{ minWidth: 34 }}>⠿</Button>}
+      {dragHandleProps !== undefined && (
+        <Tooltip title={dragEnabled ? 'Ziehen, um die Rangfolge zu ändern' : 'Drag-and-drop wird gespeichert'}>
+          <Box
+            {...(dragHandleProps ?? {})}
+            aria-disabled={!dragEnabled}
+            aria-label={`${entry.artist} verschieben`}
+            sx={{ alignItems: 'center', borderRadius: 1, color: dragEnabled ? 'text.secondary' : 'action.disabled', cursor: dragging ? 'grabbing' : dragEnabled ? 'grab' : 'default', display: 'inline-flex', flexShrink: 0, justifyContent: 'center', minHeight: 40, minWidth: 40, '&:active': { cursor: 'grabbing' } }}
+          >
+            <DragIcon aria-hidden="true" />
+          </Box>
+        </Tooltip>
+      )}
       <Box sx={{ flex: 1, minWidth: 0 }}>
-        <Typography variant="body1">{entry.artist} – {entry.title}</Typography>
+        <Typography component="h4" sx={{ fontWeight: 650, overflowWrap: 'anywhere' }} variant="subtitle1">{entry.title}</Typography>
+        <Typography color="text.secondary" sx={{ overflowWrap: 'anywhere' }} variant="body2">{entry.artist}</Typography>
         {ranked && <Typography color="text.secondary" variant="body2">Rang {index + 1}{index < 15 ? ' · Top 15' : ''}</Typography>}
       </Box>
       {ranked && index < 15 && <Chip color="secondary" label={index + 1} size="small" />}
