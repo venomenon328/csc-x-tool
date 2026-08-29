@@ -420,7 +420,6 @@ function EntryPoolControls({ filters, onFilters, participantAssignmentOpen, sort
         {participantAssignmentOpen && <PoolFilterButton icon={<FilterIcon aria-hidden="true" fontSize="small" />} label="Ohne Teilnehmer" onClick={onFilters.withoutParticipant} pressed={filters.onlyWithoutParticipant} />}
       </Stack>
     </Stack>
-    <Typography color="text.secondary" sx={{ display: 'block', mt: 0.75 }} variant="caption">Sterne: Einschätzung · Punkte: Sicherheit</Typography>
   </Paper>
 }
 
@@ -487,7 +486,7 @@ function EntryPoolCard({ entry, active, dragging, provided, dragHandleProps, onS
           {active && <Chip color="secondary" icon={<PlayIcon aria-hidden="true" />} label="Wird angehört" size="small" sx={{ mt: 0.75 }} />}
           {entry.comment !== null && entry.comment.trim() !== '' && <Typography color="text.secondary" sx={{ mt: 0.5, overflowWrap: 'anywhere' }} variant="body2">{entry.comment}</Typography>}
         </Box>
-        <Stack direction="row" spacing={0.25} sx={{ alignItems: 'center', flexShrink: 0, flexWrap: { md: 'nowrap', xs: 'wrap' }, justifyContent: 'flex-end', minHeight: 40 }}>
+        <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', flexShrink: 0, flexWrap: { md: 'nowrap', xs: 'wrap' }, justifyContent: 'flex-end', minHeight: 40 }}>
           <AssessmentControls entry={entry} onSave={onSaveAssessment} pending={pendingAssessment} />
           <Tooltip title={entry.rankingPosition === null ? 'Noch nicht gerankt' : `Rang ${entry.rankingPosition}`}><Chip aria-label={`${entry.title}: ${entry.rankingPosition === null ? 'Noch nicht gerankt' : `Rang ${entry.rankingPosition}`}`} icon={<RankIcon aria-hidden="true" fontSize="small" />} label={entry.rankingPosition === null ? 'Noch nicht gerankt' : `Rang ${entry.rankingPosition}`} size="small" sx={{ color: entry.rankingPosition === null ? 'text.secondary' : 'secondary.main', maxWidth: { xs: 'none', sm: 164 } }} /></Tooltip>
           <Tooltip title="Anhören"><IconButton aria-label={`${entry.artist} – ${entry.title} anhören`} color={active ? 'secondary' : 'primary'} onClick={onPlay} size="small"><PlayIcon aria-hidden="true" fontSize="small" /></IconButton></Tooltip>
@@ -515,37 +514,43 @@ function AssessmentControls({ entry, onSave, pending }: {
 }) {
   const assessment = entry.assessment
   const confidence = entry.assessmentConfidence
-  return <Stack aria-label={`${entry.title} bewerten`} direction="row" role="group" spacing={0.5} sx={{ alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }} useFlexGap>
-    <Box aria-label={`${entry.title}: Einschätzung`} role="group" sx={{ display: 'flex' }}>
-      {assessmentLabels.map((label, index) => {
-        const level = index + 1
-        return <Tooltip key={level} title={`Einschätzung ${level}: ${label}`}>
-          <span><IconButton
-            aria-label={`${entry.title}: Einschätzung ${level} – ${label}`}
-            aria-pressed={assessment === level}
-            disabled={pending}
-            onClick={() => onSave(level, confidence ?? 1)}
-            size="small"
-            sx={{ color: assessment !== null && level <= assessment ? 'secondary.main' : 'action.disabled', p: 0.25 }}
-          ><SubmissionIcon aria-hidden="true" sx={{ fontSize: '1.1rem' }} /></IconButton></span>
-        </Tooltip>
-      })}
-    </Box>
-    <Box aria-label={`${entry.title}: Sicherheit`} role="group" sx={{ display: 'flex' }}>
-      {confidenceLabels.map((label, index) => {
-        const level = index + 1
-        return <Tooltip key={level} title={`Sicherheit ${level}: ${label}`}>
-          <span><IconButton
-            aria-label={`${entry.title}: Sicherheit ${level} – ${label}`}
-            aria-pressed={confidence === level}
-            disabled={assessment === null || pending}
-            onClick={() => onSave(assessment, level)}
-            size="small"
-            sx={{ color: confidence !== null && level <= confidence ? 'secondary.main' : 'action.disabled', p: 0.25 }}
-          ><Typography aria-hidden="true" component="span" sx={{ fontSize: '0.85rem', fontWeight: 700, lineHeight: 1 }}>●</Typography></IconButton></span>
-        </Tooltip>
-      })}
-    </Box>
+  return <Stack aria-label={`${entry.title} bewerten`} direction="row" role="group" spacing={1.25} sx={{ alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }} useFlexGap>
+    <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center', whiteSpace: 'nowrap' }}>
+      <Typography color="text.secondary" component="span" sx={{ fontWeight: 650 }} variant="caption">Bewertung:</Typography>
+      <Box aria-label={`${entry.title}: Einschätzung`} role="group" sx={{ display: 'flex' }}>
+        {assessmentLabels.map((label, index) => {
+          const level = index + 1
+          return <Tooltip key={level} title={`Einschätzung ${level}: ${label}`}>
+            <span><IconButton
+              aria-label={`${entry.title}: Einschätzung ${level} – ${label}`}
+              aria-pressed={assessment === level}
+              disabled={pending}
+              onClick={() => onSave(level, confidence ?? 1)}
+              size="small"
+              sx={{ color: assessment !== null && level <= assessment ? 'secondary.main' : 'action.disabled', p: 0.25 }}
+            ><SubmissionIcon aria-hidden="true" sx={{ fontSize: '1.1rem' }} /></IconButton></span>
+          </Tooltip>
+        })}
+      </Box>
+    </Stack>
+    <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center', whiteSpace: 'nowrap' }}>
+      <Typography color="text.secondary" component="span" sx={{ fontWeight: 650 }} variant="caption">Sicherheit:</Typography>
+      <Box aria-label={`${entry.title}: Sicherheit`} role="group" sx={{ display: 'flex' }}>
+        {confidenceLabels.map((label, index) => {
+          const level = index + 1
+          return <Tooltip key={level} title={`Sicherheit ${level}: ${label}`}>
+            <span><IconButton
+              aria-label={`${entry.title}: Sicherheit ${level} – ${label}`}
+              aria-pressed={confidence === level}
+              disabled={assessment === null || pending}
+              onClick={() => onSave(assessment, level)}
+              size="small"
+              sx={{ color: confidence !== null && level <= confidence ? 'secondary.main' : 'action.disabled', p: 0.25 }}
+            ><Typography aria-hidden="true" component="span" sx={{ fontSize: '1.05rem', fontWeight: 700, lineHeight: 1 }}>●</Typography></IconButton></span>
+          </Tooltip>
+        })}
+      </Box>
+    </Stack>
   </Stack>
 }
 
