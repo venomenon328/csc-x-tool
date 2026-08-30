@@ -2,7 +2,7 @@ import { Alert, Box, Button, Card, CardActions, CardContent, Dialog, DialogActio
 import { Link as RouterLink } from 'react-router-dom'
 import { useCallback, useEffect, useState } from 'react'
 import { ApiErrorNotice } from '../../components/ApiErrorNotice'
-import { createHistoricalShow, deleteHistoricalShow, fetchShows, updateHistoricalShow, type MottoShow, ShowApiError } from '../shows/api'
+import { createHistoricalShow, deleteHistoricalShow, fetchShows, updateHistoricalShow, type MottoShow, type ShowApiError } from '../shows/api'
 import { useContest } from '../contests/ContestContext'
 
 export function HistoricalContestPage() {
@@ -17,10 +17,20 @@ export function HistoricalContestPage() {
 
   const load = useCallback(async () => {
     if (selectedContest === null) return
-    try { setError(null); setShows(await fetchShows(selectedContest.id)) } catch (caught) { setError(caught as ShowApiError); setShows(null) }
+    try {
+      const loadedShows = await fetchShows(selectedContest.id)
+      setError(null); setShows(loadedShows)
+    } catch (caught) { setError(caught as ShowApiError); setShows(null) }
   }, [selectedContest])
 
-  useEffect(() => { void load() }, [load])
+  useEffect(() => {
+    if (selectedContest === null) return
+    let cancelled = false
+    void fetchShows(selectedContest.id)
+      .then((loadedShows) => { if (!cancelled) { setError(null); setShows(loadedShows) } })
+      .catch((caught: unknown) => { if (!cancelled) { setError(caught as ShowApiError); setShows(null) } })
+    return () => { cancelled = true }
+  }, [selectedContest])
 
   async function create() {
     if (selectedContest === null) return

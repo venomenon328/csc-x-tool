@@ -47,6 +47,7 @@ export type HistoricalImportPreviewLine = {
   participantDisplayName: string | null
   status: ImportPreviewStatus
   warnings: ImportWarning[]
+  replaceEntryId: number | null
   possibleDuplicate: boolean
 }
 

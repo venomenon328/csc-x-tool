@@ -277,15 +277,20 @@ class ContestEntryService {
     private List<HistoricalImportPreviewLine> markHistoricalPossibleDuplicates(
             List<HistoricalImportPreviewLine> lines, List<ContestEntry> existingEntries
     ) {
-        Set<Long> assignedParticipants = existingEntries.stream().map(ContestEntry::participantId)
-                .filter(java.util.Objects::nonNull).collect(java.util.stream.Collectors.toSet());
+        Map<Long, ContestEntry> entriesByParticipant = existingEntries.stream()
+                .filter(entry -> entry.participantId() != null)
+                .collect(java.util.stream.Collectors.toMap(ContestEntry::participantId, entry -> entry));
         Set<String> existingArtistTitle = existingEntries.stream().map(entry -> artistTitleKey(entry.artist(), entry.title()))
                 .collect(java.util.stream.Collectors.toSet());
         Set<Long> seenParticipants = new HashSet<>();
-        return lines.stream().map(line -> line.participantId() != null
-                && (!seenParticipants.add(line.participantId()) || assignedParticipants.contains(line.participantId())
-                || (line.artist() != null && line.title() != null && existingArtistTitle.contains(artistTitleKey(line.artist(), line.title()))))
-                ? line.withPossibleDuplicate() : line).toList();
+        return lines.stream().map(line -> {
+            if (line.participantId() == null) return line;
+            ContestEntry existingParticipantEntry = entriesByParticipant.get(line.participantId());
+            boolean duplicate = !seenParticipants.add(line.participantId()) || existingParticipantEntry != null
+                    || (line.artist() != null && line.title() != null
+                    && existingArtistTitle.contains(artistTitleKey(line.artist(), line.title())));
+            return duplicate ? line.withPossibleDuplicate(existingParticipantEntry == null ? null : existingParticipantEntry.id()) : line;
+        }).toList();
     }
 
     private List<ImportPreviewLine> markPossibleDuplicates(List<ImportPreviewLine> lines, List<ContestEntry> existingEntries) {

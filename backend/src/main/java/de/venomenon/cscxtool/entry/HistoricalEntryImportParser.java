@@ -2,7 +2,7 @@ package de.venomenon.cscxtool.entry;
 
 import de.venomenon.cscxtool.participant.Country;
 import de.venomenon.cscxtool.participant.CountryCatalog;
-import de.venomenon.cscxtool.song.YoutubeUrlNormalizer;
+import java.net.URI;
 import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -29,11 +29,9 @@ class HistoricalEntryImportParser {
     private static final Pattern SONG_SEPARATOR = Pattern.compile("\\s+[-–—]\\s+");
     private static final Pattern URL = Pattern.compile("https?://[^\\s<>()]+", Pattern.CASE_INSENSITIVE);
 
-    private final YoutubeUrlNormalizer youtubeUrlNormalizer;
     private final Map<String, String> countryCodesByName;
 
-    HistoricalEntryImportParser(YoutubeUrlNormalizer youtubeUrlNormalizer, CountryCatalog countries) {
-        this.youtubeUrlNormalizer = youtubeUrlNormalizer;
+    HistoricalEntryImportParser(CountryCatalog countries) {
         Map<String, String> names = new HashMap<>();
         for (Country country : countries.findAll()) names.put(normalized(country.name()), country.code());
         // Common historic forum spellings are only used as plausibility signals, never as participant resolution.
@@ -41,6 +39,7 @@ class HistoricalEntryImportParser {
         names.put(normalized("Südkorea"), "KR");
         names.put(normalized("Türkei"), "TR");
         names.put(normalized("Südafrika"), "ZA");
+        names.put(normalized("Jamaica"), "JM");
         this.countryCodesByName = Map.copyOf(names);
     }
 
@@ -121,7 +120,7 @@ class HistoricalEntryImportParser {
         return new HistoricalImportPreviewLine(
                 sourcePosition, sourceText, artist, title, url, firstToken, secondToken,
                 resolution.participant() == null ? null : resolution.participant().participantId(),
-                resolution.participant() == null ? null : resolution.participant().displayName(), status, List.copyOf(warnings), false
+                resolution.participant() == null ? null : resolution.participant().displayName(), status, List.copyOf(warnings), null, false
         );
     }
 
@@ -162,12 +161,16 @@ class HistoricalEntryImportParser {
                 || participant.aliases().stream().anyMatch(alias -> normalized(alias).equals(needle))).toList();
     }
 
-    private String normalizeOptionalUrl(String url, List<ImportWarning> warnings) {
+    private static String normalizeOptionalUrl(String url, List<ImportWarning> warnings) {
         if (url == null || url.isBlank()) return null;
         try {
-            return youtubeUrlNormalizer.normalize(url);
-        } catch (RuntimeException exception) {
-            warnings.add(new ImportWarning("UNSUPPORTED_YOUTUBE_URL", "Der Link ist kein unterstützter YouTube-Video-Link; er kann entfernt oder korrigiert werden."));
+            URI uri = URI.create(compact(url));
+            if (!"http".equalsIgnoreCase(uri.getScheme()) && !"https".equalsIgnoreCase(uri.getScheme())) {
+                throw new IllegalArgumentException();
+            }
+            return uri.toString();
+        } catch (IllegalArgumentException exception) {
+            warnings.add(new ImportWarning("INVALID_SOURCE_URL", "Der Quelllink muss eine HTTP- oder HTTPS-Adresse sein; er kann entfernt oder korrigiert werden."));
             return compact(url);
         }
     }

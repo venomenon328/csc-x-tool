@@ -3,16 +3,13 @@ package de.venomenon.cscxtool.entry;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import de.venomenon.cscxtool.participant.CountryCatalog;
-import de.venomenon.cscxtool.song.YoutubeUrlNormalizer;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.ObjectMapper;
 
 class HistoricalEntryImportParserTest {
 
-    private final HistoricalEntryImportParser parser = new HistoricalEntryImportParser(
-            new YoutubeUrlNormalizer(), new CountryCatalog(new ObjectMapper())
-    );
+    private final HistoricalEntryImportParser parser = new HistoricalEntryImportParser(new CountryCatalog(new ObjectMapper()));
 
     @Test
     void parsesTheBindingPublishedHistoricalFixtureWithoutInventingLinksOrCorrectingSourceText() {
@@ -52,9 +49,25 @@ class HistoricalEntryImportParserTest {
         });
     }
 
+    @Test
+    void parsesTheSameFixtureFromRichClipboardBlocksAndResolvesAliases() {
+        String html = "<p>" + FIXTURE.replace("\n\n", "</p><p>") + "</p>";
+        List<HistoricalImportPreviewLine> richLines = parser.parse(html, "", participants());
+        List<HistoricalImportPreviewLine> aliasedLine = parser.parse(
+                "", "Imminence - Paralyzed (Finnland/Cortez-Alt)", participants()
+        );
+
+        assertThat(richLines).hasSize(27);
+        assertThat(richLines.get(17).participantDisplayName()).isEqualTo("snaggletooth");
+        assertThat(aliasedLine).singleElement().satisfies(line -> {
+            assertThat(line.participantDisplayName()).isEqualTo("Cortez");
+            assertThat(line.status()).isEqualTo(ImportPreviewStatus.READY);
+        });
+    }
+
     private static List<HistoricalImportParticipant> participants() {
         return List.of(
-                participant(1, "Cortez", "FI"), participant(2, "The Red-NGA Shankmos", "NG"), participant(3, "Jamie Hayter", "NZ"),
+                participant(1, "Cortez", "FI", "Cortez-Alt"), participant(2, "The Red-NGA Shankmos", "NG"), participant(3, "Jamie Hayter", "NZ"),
                 participant(4, "Rated M", "BR"), participant(5, "Toblerone Driver", "TR"), participant(6, "Clementine Lyon", "CH"),
                 participant(7, "Ratcatcher 2", "PT"), participant(8, "Serhou Guirassy", "JM"), participant(9, "Die Ente", "VA"),
                 participant(10, "Dr. King Schultz", "KR"), participant(11, "Fletcher Cox", "NR"), participant(12, "OMW", "WS"),
@@ -67,7 +80,11 @@ class HistoricalEntryImportParserTest {
     }
 
     private static HistoricalImportParticipant participant(long id, String name, String countryCode) {
-        return new HistoricalImportParticipant(id, id, name, countryCode, List.of());
+        return participant(id, name, countryCode, new String[0]);
+    }
+
+    private static HistoricalImportParticipant participant(long id, String name, String countryCode, String... aliases) {
+        return new HistoricalImportParticipant(id, id, name, countryCode, List.of(aliases));
     }
 
     private static final String FIXTURE = """
@@ -85,7 +102,7 @@ class HistoricalEntryImportParserTest {
 
             30 Seconds To Mars - Hurricane (Portugal/Ratcatcher 2)
 
-            Common Kings - No Other Love (Jamaika/Serhou Guirassy)
+            Common Kings - No Other Love (Jamaica/Serhou Guirassy)
 
             Penatonix feat. Ateez - A Little Space (Vatikan/Die Ente)
 

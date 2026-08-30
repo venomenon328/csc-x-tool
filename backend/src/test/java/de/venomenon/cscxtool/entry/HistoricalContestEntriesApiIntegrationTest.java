@@ -68,6 +68,25 @@ class HistoricalContestEntriesApiIntegrationTest {
         assertThat(imported.statusCode()).isEqualTo(200);
         assertThat(imported.body()).contains("\"youtubeUrl\":null", "https://source.example/song", "\"participantId\":" + alice);
 
+        long firstAliceEntryId = jdbc.queryForObject(
+                "SELECT id FROM contest_entry WHERE motto_show_id = ? AND contest_participation_id = (SELECT id FROM contest_participation WHERE contest_id = ? AND participant_id = ?)",
+                Long.class, showId, contestId, alice
+        );
+        HttpResponse<String> repeatPreview = post("/api/shows/" + showId + "/entries/historical-import-preview", """
+                {"html":"","text":"Artist One Revised - Replacement (Deutschland/Alice)"}
+                """);
+        assertThat(repeatPreview.statusCode()).isEqualTo(200);
+        assertThat(repeatPreview.body()).contains("POSSIBLE_DUPLICATE", "\"replaceEntryId\":" + firstAliceEntryId);
+        assertThat(post("/api/shows/" + showId + "/entries/historical-import", """
+                {"entries":[{"artist":"Artist One Revised","title":"Replacement","youtubeUrl":null,"participantId":%d}]}
+                """.formatted(alice)).statusCode()).isEqualTo(409);
+        HttpResponse<String> replacement = post("/api/shows/" + showId + "/entries/historical-import", """
+                {"entries":[{"artist":"Artist One Revised","title":"Replacement","youtubeUrl":null,"participantId":%d,"replaceEntryId":%d}]}
+                """.formatted(alice, firstAliceEntryId));
+        assertThat(replacement.statusCode()).isEqualTo(200);
+        assertThat(replacement.body()).contains("Artist One Revised", "Replacement");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM contest_entry WHERE motto_show_id = ?", Integer.class, showId)).isEqualTo(2);
+
         assertThat(post("/api/shows/" + showId + "/entries/entry-list/complete", "").statusCode()).isEqualTo(204);
         assertThat(get("/api/shows/" + showId).body()).contains("\"entryListComplete\":true");
         assertThat(post("/api/shows/" + showId + "/entries", "{\"artist\":\"Late\",\"title\":\"Entry\",\"youtubeUrl\":null,\"participantId\":" + alice + "}").statusCode()).isEqualTo(409);
