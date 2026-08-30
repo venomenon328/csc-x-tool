@@ -34,8 +34,14 @@ import {
 import { ApiErrorNotice } from '../../components/ApiErrorNotice'
 import { fetchShows, renameShow, ShowApiError, type MottoShow } from './api'
 import { useContest } from '../contests/ContestContext'
+import { HistoricalContestPage } from '../history/HistoricalContestPage'
 
 export function ShowOverview() {
+  const { selectedContest } = useContest()
+  return selectedContest !== null && !selectedContest.current ? <HistoricalContestPage /> : <CurrentShowOverview />
+}
+
+function CurrentShowOverview() {
   const { selectedContestId } = useContest()
   const [shows, setShows] = useState<MottoShow[] | null>(null)
   const [loadError, setLoadError] = useState<ShowApiError | null>(null)

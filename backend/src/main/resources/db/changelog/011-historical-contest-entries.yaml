@@ -1,0 +1,67 @@
+databaseChangeLog:
+  - changeSet:
+      id: 011-historical-contest-entries
+      author: venomenon328
+      runInTransaction: false
+      changes:
+        - sql:
+            sql: |-
+              -- The completion flag is deliberately held at the show.  Import previews are
+              -- ephemeral and therefore cannot leave a half-imported row in the database.
+              ALTER TABLE motto_show ADD COLUMN entry_list_complete INTEGER NOT NULL DEFAULT 0
+                CONSTRAINT ck_motto_show_entry_list_complete_boolean CHECK (entry_list_complete IN (0, 1));
+
+              -- Historical source lists may not contain a URL.  The existing current-contest
+              -- URL contract is kept in the service layer, where the contest context is known.
+              PRAGMA foreign_keys = OFF;
+              CREATE TABLE contest_entry_new (
+                id INTEGER PRIMARY KEY,
+                motto_show_id INTEGER NOT NULL,
+                contest_id INTEGER NOT NULL,
+                artist TEXT NOT NULL
+                  CONSTRAINT ck_contest_entry_artist_not_blank CHECK (length(trim(artist)) > 0),
+                title TEXT NOT NULL
+                  CONSTRAINT ck_contest_entry_title_not_blank CHECK (length(trim(title)) > 0),
+                youtube_url TEXT,
+                comment TEXT,
+                assessment INTEGER,
+                assessment_confidence INTEGER,
+                pool_position INTEGER NOT NULL
+                  CONSTRAINT ck_contest_entry_pool_position_positive CHECK (pool_position > 0),
+                ranking_position INTEGER
+                  CONSTRAINT ck_contest_entry_ranking_position_positive CHECK (ranking_position IS NULL OR ranking_position > 0),
+                contest_participation_id INTEGER,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                CONSTRAINT ck_contest_entry_assessment_pair CHECK (
+                  (assessment IS NULL AND assessment_confidence IS NULL)
+                  OR (
+                    assessment IS NOT NULL
+                    AND assessment_confidence IS NOT NULL
+                    AND assessment BETWEEN 1 AND 5
+                    AND assessment_confidence BETWEEN 1 AND 5
+                  )
+                ),
+                CONSTRAINT fk_contest_entry_motto_show_contest
+                  FOREIGN KEY (motto_show_id, contest_id) REFERENCES motto_show (id, contest_id) ON DELETE RESTRICT,
+                CONSTRAINT fk_contest_entry_participation_contest
+                  FOREIGN KEY (contest_participation_id, contest_id)
+                  REFERENCES contest_participation (id, contest_id) ON DELETE RESTRICT,
+                CONSTRAINT uq_contest_entry_motto_show_pool_position UNIQUE (motto_show_id, pool_position),
+                CONSTRAINT uq_contest_entry_motto_show_ranking_position UNIQUE (motto_show_id, ranking_position)
+              );
+              INSERT INTO contest_entry_new (
+                id, motto_show_id, contest_id, artist, title, youtube_url, comment, assessment,
+                assessment_confidence, pool_position, ranking_position, contest_participation_id, created_at, updated_at
+              )
+              SELECT id, motto_show_id, contest_id, artist, title, youtube_url, comment, assessment,
+                     assessment_confidence, pool_position, ranking_position, contest_participation_id, created_at, updated_at
+              FROM contest_entry;
+              DROP TABLE contest_entry;
+              ALTER TABLE contest_entry_new RENAME TO contest_entry;
+              CREATE INDEX ix_contest_entry_motto_show ON contest_entry (motto_show_id);
+              CREATE INDEX ix_contest_entry_participation ON contest_entry (contest_participation_id);
+              CREATE UNIQUE INDEX ux_contest_entry_show_participation
+                ON contest_entry (motto_show_id, contest_participation_id) WHERE contest_participation_id IS NOT NULL;
+              PRAGMA foreign_key_check;
+              PRAGMA foreign_keys = ON;

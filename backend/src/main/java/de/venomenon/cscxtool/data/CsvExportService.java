@@ -34,9 +34,9 @@ public class CsvExportService {
     }
 
     public byte[] contestEntries() {
-        return csv(List.of("CSC-Ausgabe", "Show", "Interpret", "Titel", "YouTube-URL", "Kommentar", "Einschätzung (1–5)", "Sicherheit (1–5)", "Manuelle Position", "Rangposition", "Teilnehmer", "Land"),
+        return csv(List.of("CSC-Ausgabe", "Show", "Songliste vollständig", "Interpret", "Titel", "Quell- oder YouTube-URL", "Kommentar", "Einschätzung (1–5)", "Sicherheit (1–5)", "Manuelle Position", "Rangposition", "Teilnehmer", "Land"),
                 jdbc.query("""
-                        SELECT contest.name,motto_show.show_number,motto_show.name,contest_entry.artist,contest_entry.title,contest_entry.youtube_url,
+                        SELECT contest.name,motto_show.show_number,motto_show.name,motto_show.entry_list_complete,contest_entry.artist,contest_entry.title,contest_entry.youtube_url,
                                contest_entry.comment,contest_entry.assessment,contest_entry.assessment_confidence,contest_entry.pool_position,
                                contest_entry.ranking_position,participant.display_name,participation.country_code
                         FROM contest_entry JOIN motto_show ON motto_show.id=contest_entry.motto_show_id
@@ -44,8 +44,8 @@ public class CsvExportService {
                         LEFT JOIN contest_participation participation ON participation.id=contest_entry.contest_participation_id
                         LEFT JOIN participant ON participant.id=participation.participant_id
                         ORDER BY contest.display_order,motto_show.show_number,contest_entry.pool_position
-                        """, (r,n) -> List.of(r.getString(1),show(r.getInt(2),r.getString(3)),r.getString(4),r.getString(5),r.getString(6),nullable(r,7),
-                        nullableNumber(r,8),nullableNumber(r,9),Integer.toString(r.getInt(10)),nullableNumber(r,11),nullable(r,12),nullable(r,13))));
+                        """, (r,n) -> List.of(r.getString(1),show(r.getInt(2),r.getString(3)),yesNo(r.getBoolean(4)),r.getString(5),r.getString(6),nullable(r,7),nullable(r,8),
+                        nullableNumber(r,9),nullableNumber(r,10),Integer.toString(r.getInt(11)),nullableNumber(r,12),nullable(r,13),nullable(r,14))));
     }
 
     public byte[] participants() {

@@ -1,10 +1,11 @@
 package de.venomenon.cscxtool.entry;
 
-record CreateContestEntryRequest(
+record HistoricalImportEntryRequest(
         String artist,
         String title,
         String youtubeUrl,
         String comment,
-        Long participantId
+        Long participantId,
+        Long replaceEntryId
 ) {
 }

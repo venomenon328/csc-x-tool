@@ -37,4 +37,5 @@ class MottoShowController {
     ) {
         return MottoShowResponse.from(service.rename(showId, request.name()));
     }
+
 }

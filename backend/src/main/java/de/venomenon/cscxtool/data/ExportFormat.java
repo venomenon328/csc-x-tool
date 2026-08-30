@@ -6,10 +6,11 @@ import java.util.List;
 public final class ExportFormat {
 
     public static final String FORMAT = "csc-x-tool-full-export";
-    public static final int VERSION = 4;
+    public static final int VERSION = 5;
     public static final int LEGACY_VERSION = 1;
     public static final int VERSION_2 = 2;
     public static final int VERSION_3 = 3;
+    public static final int VERSION_4 = 4;
 
     private ExportFormat() { }
 
@@ -31,7 +32,7 @@ public final class ExportFormat {
         }
     }
     public record Contest(long id, String name, int displayOrder, boolean current, String createdAt, String updatedAt) { }
-    public record MottoShow(long id, long contestId, int showNumber, String name, Long selectedCandidateId, String ballotClosedAt,
+    public record MottoShow(long id, long contestId, int showNumber, String name, boolean entryListComplete, Long selectedCandidateId, String ballotClosedAt,
                             String resultsClosedAt, Integer finalPlace, boolean finalPlaceTied,
                             Integer officialTotalPoints, String createdAt, String updatedAt) { }
     public record Candidate(long id, long mottoShowId, String artist, String title, String youtubeUrl, String comment,
@@ -62,6 +63,18 @@ public final class ExportFormat {
                                      String artistSnapshot, String titleSnapshot, String youtubeUrlSnapshot) { }
     public record ReceivedScore(long id, long mottoShowId, long contestId, long contestParticipationId, String status,
                                 Integer points, String createdAt, String updatedAt) { }
+
+    /** Schema-10 input is retained so a P9 full export remains importable after adding historical list completion. */
+    public record FullExportV4(String format, int formatVersion, String exportedAt, String applicationVersion,
+                               int schemaVersion, DataV4 data) { }
+    public record DataV4(List<Contest> contests, List<MottoShowV4> mottoShows, List<Candidate> candidates,
+                         List<Participant> participants, List<ContestParticipation> contestParticipations,
+                         List<ParticipantAlias> participantAliases, List<ContestEntry> contestEntries,
+                         List<BallotSnapshot> ballotSnapshots, List<BallotSnapshotItem> ballotSnapshotItems,
+                         List<ReceivedScore> receivedScores) { }
+    public record MottoShowV4(long id, long contestId, int showNumber, String name, Long selectedCandidateId, String ballotClosedAt,
+                              String resultsClosedAt, Integer finalPlace, boolean finalPlaceTied,
+                              Integer officialTotalPoints, String createdAt, String updatedAt) { }
 
     /** The explicit v1 input contract is retained solely to upgrade existing exports on import. */
     public record FullExportV1(String format, int formatVersion, String exportedAt, String applicationVersion,

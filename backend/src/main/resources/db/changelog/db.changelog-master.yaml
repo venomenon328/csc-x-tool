@@ -29,3 +29,6 @@ databaseChangeLog:
   - include:
       file: 010-multi-contest-participation.yaml
       relativeToChangelogFile: true
+  - include:
+      file: 011-historical-contest-entries.yaml
+      relativeToChangelogFile: true
