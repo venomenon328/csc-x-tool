@@ -2,34 +2,45 @@
 
 ## Resource safety
 
-Keeping the Windows workstation responsive is a hard requirement for all local agent work in this repository. Resource limits are product-development infrastructure, not optional tuning.
+Keeping the Windows workstation responsive is a hard requirement for all local agent work in this repository.
 
-A previous full local verification made the workstation effectively unresponsive. The exact cause was not proven; GPU/VRAM pressure is a plausible contributor, but this is not established. Treat both CPU/RAM pressure and hardware-accelerated GUI/browser processes as potential risks. Do not diagnose the incident by deliberately stress-testing the machine.
+Previous local build/test runs have repeatedly made the workstation effectively unusable despite conservative CPU, heap and worker limits. The exact bottleneck is not proven; RAM/commit pressure, page-file activity and GPU/VRAM pressure are all plausible contributors. Do not diagnose this by deliberately stressing the workstation.
 
-- Never run memory-intensive build or test commands in parallel.
-- In particular, do not overlap Maven, `npm ci`, frontend tests, frontend builds, linting, or typechecking with each other.
-- On Windows, run Maven through `./scripts/mvn-safe.cmd` and standalone npm commands through `./scripts/npm-safe.cmd`. These launchers invoke the repository PowerShell guards with a process-local execution-policy bypass, lower process priority, restrict the process tree to at most two logical CPUs, and apply the repository memory limits.
-- Do not call the underlying `.ps1` files directly unless needed for debugging the wrappers themselves.
-- Do not bypass the repository npm scripts with direct `npx`, direct Vitest/Vite/TypeScript/ESLint binaries, custom `NODE_OPTIONS`, or higher worker counts.
-- Do not start watch mode, a Vite dev server, or other long-running development processes unless the current task explicitly requires them. Terminate such processes as soon as the check is complete.
-- Do not launch Vivaldi, Chrome, Edge, Electron, Playwright, Cypress, WebView-based tooling, or another hardware-accelerated browser/GUI merely for automated verification. Browser acceptance is manual unless the task explicitly requires browser automation and the user has accepted that resource risk.
-- Before any heavy verification, ensure no agent-started dev server, watcher, stale Node process, stale Java process, or agent-started browser remains running from an earlier step.
-- During implementation, prefer the narrowest relevant backend or frontend tests. Run the full root verification only once after the implementation is otherwise complete.
-- Do not run `npm ci` repeatedly unless dependencies or the lockfile changed, or the installation is demonstrably invalid.
-- Respect the repository's Node/Vitest/Maven heap and concurrency limits. Do not raise them, increase CPU affinity, or enable parallel Maven builds unless the user explicitly asks for that.
-- If a test or build fails because a configured resource limit is too small, first narrow the test scope and investigate the concrete failure. Do not silently raise a limit just to make the command pass.
-- If Windows becomes visibly memory-, CPU-, GPU- or VRAM-constrained, or desktop responsiveness degrades materially, stop the heavy command immediately. Do not retry that full command in the same task.
-- If a local full Windows verification is aborted or skipped for resource safety, use targeted local checks only, push the branch, and require the GitHub Actions root build (`./mvnw clean verify`) to succeed before claiming verification. Report explicitly that the local Windows full run was not completed.
+### Hard rule: no local agent builds or tests
 
-The frontend resource contract is intentionally conservative: Node lifecycle processes are capped, Vitest is serial at both file and `test.concurrent` level, and spawned tooling inherits reduced CPU/process priority where supported.
+Unless the user explicitly reverses this rule for one concrete diagnostic command, agents must **not execute build, test, dependency-install, lint or typecheck workloads on the Windows workstation**.
+
+This prohibition includes, but is not limited to:
+
+- Maven build/test/verify/package commands, including `./scripts/mvn-safe.cmd`;
+- `npm ci` / `npm install`;
+- frontend tests, Vitest, Vite builds, ESLint and TypeScript typechecking;
+- direct `npx` or direct tool-binary execution;
+- Playwright, Cypress, Electron, WebView or automated browser/GUI verification;
+- watch mode, dev servers and other long-running development processes used for automated verification.
+
+The existing safe wrappers remain available for a future **explicitly user-requested diagnostic**, but they are not part of the normal agent workflow anymore.
+
+Local agent work should be limited to low-load operations such as reading/editing files, source inspection, Git status/diff/log operations, commits and pushes. Do not start Java/Node application processes merely to verify an implementation.
+
+### Verification belongs on GitHub
+
+All automated verification must run on GitHub Actions or another remote CI runner.
+
+- The authoritative full verification is the GitHub Actions root build executing `./mvnw clean verify`.
+- During implementation, commit and push coherent increments and use CI feedback instead of running targeted tests locally.
+- If narrower remote feedback is needed, prefer an existing targeted GitHub Actions workflow. It is acceptable to improve CI workflow ergonomics when that is genuinely useful, but do not weaken test coverage or change product behavior merely to make verification cheaper.
+- Do not claim an implementation is fully verified until the required GitHub Actions checks for the current head commit are green.
+- If CI fails, inspect the remote logs, patch locally without executing the failing workload, push again, and let CI rerun.
+
+### Browser/manual acceptance
+
+Automated browser acceptance on the Windows workstation is prohibited. If a change requires genuine browser or Windows acceptance that CI cannot provide, leave it as an explicit manual check for the user rather than launching hardware-accelerated tooling automatically.
 
 ## Required final verification
 
-Unless the task explicitly specifies a different verification contract, the authoritative full verification is:
+Unless a task explicitly defines additional remote checks, the required full-suite gate is:
 
-- Windows local/Codex, when the workstation remains demonstrably responsive: `./scripts/mvn-safe.cmd clean verify`
-- CI or non-Windows: `./mvnw clean verify`
+- GitHub Actions / non-Windows CI: `./mvnw clean verify`
 
-A local Windows full run may be attempted at most once per implementation after targeted checks are green. If it causes or begins to cause resource pressure, abort it and do not retry; the green CI root build then becomes the required full-suite gate.
-
-The root Maven build already executes frontend install, tests, build, lint and typecheck. Do not redundantly run the complete frontend verification sequence immediately before or after the root build unless a concrete failure requires isolation.
+No local Windows build or test command is required or permitted for normal agent implementation work.
