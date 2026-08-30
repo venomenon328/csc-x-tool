@@ -89,4 +89,30 @@ class ContestEntryController {
     ) {
         return service.importEntries(showId, request).stream().map(ContestEntryResponse::from).toList();
     }
+
+    @PostMapping("/historical-import-preview")
+    List<HistoricalImportPreviewLine> previewHistorical(
+            @PathVariable long showId, @RequestBody(required = false) ImportPreviewRequest request
+    ) {
+        return service.previewHistorical(showId, request);
+    }
+
+    @PostMapping("/historical-import")
+    List<ContestEntryResponse> importHistorical(
+            @PathVariable long showId, @RequestBody(required = false) HistoricalImportEntriesRequest request
+    ) {
+        return service.importHistoricalEntries(showId, request).stream().map(ContestEntryResponse::from).toList();
+    }
+
+    @PostMapping("/entry-list/complete")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void completeHistoricalEntryList(@PathVariable long showId) {
+        service.completeHistoricalEntryList(showId);
+    }
+
+    @PostMapping("/entry-list/reopen")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void reopenHistoricalEntryList(@PathVariable long showId) {
+        service.reopenHistoricalEntryList(showId);
+    }
 }

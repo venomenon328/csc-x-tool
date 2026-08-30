@@ -7,6 +7,7 @@ record MottoShow(
         long contestId,
         int showNumber,
         String name,
+        boolean entryListComplete,
         int candidateCount,
         int contestEntryCount,
         int assessedEntryCount,

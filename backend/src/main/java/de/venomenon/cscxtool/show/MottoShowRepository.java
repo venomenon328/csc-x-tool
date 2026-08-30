@@ -2,10 +2,14 @@ package de.venomenon.cscxtool.show;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.PreparedStatement;
+import java.sql.Statement;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.support.GeneratedKeyHolder;
+import org.springframework.jdbc.support.KeyHolder;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
 
@@ -22,7 +26,7 @@ class MottoShowRepository {
 
     List<MottoShow> findAll(long contestId) {
         return jdbcTemplate.query("""
-                SELECT motto_show.id, motto_show.contest_id, motto_show.show_number, motto_show.name,
+                SELECT motto_show.id, motto_show.contest_id, motto_show.show_number, motto_show.name, motto_show.entry_list_complete,
                        (SELECT COUNT(*) FROM candidate WHERE candidate.motto_show_id = motto_show.id) AS candidate_count,
                        (SELECT COUNT(*) FROM contest_entry WHERE contest_entry.motto_show_id = motto_show.id) AS contest_entry_count,
                        (SELECT COUNT(*) FROM contest_entry WHERE contest_entry.motto_show_id = motto_show.id AND contest_entry.assessment IS NOT NULL) AS assessed_entry_count,
@@ -56,7 +60,7 @@ class MottoShowRepository {
 
     Optional<MottoShow> findById(long id) {
         return jdbcTemplate.query("""
-                SELECT motto_show.id, motto_show.contest_id, motto_show.show_number, motto_show.name,
+                SELECT motto_show.id, motto_show.contest_id, motto_show.show_number, motto_show.name, motto_show.entry_list_complete,
                        (SELECT COUNT(*) FROM candidate WHERE candidate.motto_show_id = motto_show.id) AS candidate_count,
                        (SELECT COUNT(*) FROM contest_entry WHERE contest_entry.motto_show_id = motto_show.id) AS contest_entry_count,
                        (SELECT COUNT(*) FROM contest_entry WHERE contest_entry.motto_show_id = motto_show.id AND contest_entry.assessment IS NOT NULL) AS assessed_entry_count,
@@ -95,12 +99,79 @@ class MottoShowRepository {
                 """, name, id) == 1;
     }
 
+    Optional<ShowContext> findContext(long showId) {
+        return jdbcTemplate.query("""
+                SELECT motto_show.id, motto_show.contest_id, contest.is_current, motto_show.entry_list_complete
+                FROM motto_show JOIN contest ON contest.id = motto_show.contest_id
+                WHERE motto_show.id = ?
+                """, (resultSet, rowNumber) -> new ShowContext(
+                resultSet.getLong(1), resultSet.getLong(2), resultSet.getBoolean(3), resultSet.getBoolean(4)
+        ), showId).stream().findFirst();
+    }
+
+    MottoShow create(long contestId, int showNumber, String name) {
+        KeyHolder keyHolder = new GeneratedKeyHolder();
+        jdbcTemplate.update(connection -> {
+            PreparedStatement statement = connection.prepareStatement("""
+                    INSERT INTO motto_show (contest_id, show_number, name, created_at, updated_at)
+                    VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                    """, Statement.RETURN_GENERATED_KEYS);
+            statement.setLong(1, contestId);
+            statement.setInt(2, showNumber);
+            statement.setString(3, name);
+            return statement;
+        }, keyHolder);
+        Number generatedId = keyHolder.getKey();
+        if (generatedId == null) throw new IllegalStateException("SQLite did not return an ID for the new motto show.");
+        return findById(generatedId.longValue()).orElseThrow();
+    }
+
+    boolean showNumberExists(long contestId, int showNumber) {
+        return Boolean.TRUE.equals(jdbcTemplate.queryForObject(
+                "SELECT EXISTS(SELECT 1 FROM motto_show WHERE contest_id = ? AND show_number = ?)", Boolean.class, contestId, showNumber
+        ));
+    }
+
+    boolean otherShowNumberExists(long contestId, long showId, int showNumber) {
+        return Boolean.TRUE.equals(jdbcTemplate.queryForObject(
+                "SELECT EXISTS(SELECT 1 FROM motto_show WHERE contest_id = ? AND id <> ? AND show_number = ?)", Boolean.class,
+                contestId, showId, showNumber
+        ));
+    }
+
+    boolean updateHistorical(long contestId, long showId, int showNumber, String name) {
+        return jdbcTemplate.update("""
+                UPDATE motto_show SET show_number = ?, name = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ? AND contest_id = ?
+                """, showNumber, name, showId, contestId) == 1;
+    }
+
+    boolean delete(long contestId, long showId) {
+        return jdbcTemplate.update("DELETE FROM motto_show WHERE id = ? AND contest_id = ?", showId, contestId) == 1;
+    }
+
+    boolean hasReferences(long showId) {
+        return Boolean.TRUE.equals(jdbcTemplate.queryForObject("""
+                SELECT EXISTS(SELECT 1 FROM contest_entry WHERE motto_show_id = ?)
+                    OR EXISTS(SELECT 1 FROM candidate WHERE motto_show_id = ?)
+                    OR EXISTS(SELECT 1 FROM received_score WHERE motto_show_id = ?)
+                    OR EXISTS(SELECT 1 FROM ballot_snapshot WHERE motto_show_id = ?)
+                """, Boolean.class, showId, showId, showId, showId));
+    }
+
+    boolean updateEntryListComplete(long showId, boolean complete) {
+        return jdbcTemplate.update("""
+                UPDATE motto_show SET entry_list_complete = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
+                """, complete, showId) == 1;
+    }
+
     private static MottoShow mapRow(ResultSet resultSet, int rowNumber) throws SQLException {
         return new MottoShow(
                 resultSet.getLong("id"),
                 resultSet.getLong("contest_id"),
                 resultSet.getInt("show_number"),
                 resultSet.getString("name"),
+                resultSet.getBoolean("entry_list_complete"),
                 resultSet.getInt("candidate_count"),
                 resultSet.getInt("contest_entry_count"),
                 resultSet.getInt("assessed_entry_count"),

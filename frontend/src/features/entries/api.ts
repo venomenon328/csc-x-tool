@@ -4,6 +4,7 @@ import type { PlayableSong } from '../songs/PlayableSong'
 
 export type ContestEntry = PlayableSong & {
   mottoShowId: number
+  contestId?: number
   comment: string | null
   assessment: number | null
   assessmentConfidence: number | null
@@ -14,7 +15,16 @@ export type ContestEntry = PlayableSong & {
   updatedAt: string
 }
 
-export type ContestEntryInput = Pick<ContestEntry, 'artist' | 'title' | 'youtubeUrl' | 'comment'>
+export type ContestEntryInput = Pick<ContestEntry, 'artist' | 'title' | 'youtubeUrl' | 'comment'> & { participantId?: number | null }
+
+export type HistoricalContestEntryUpdate = {
+  id: number
+  artist: string
+  title: string
+  youtubeUrl: string | null
+  comment: string | null
+  participantId: number | null
+}
 
 export type ImportPreviewStatus = 'READY' | 'WARNING' | 'INCOMPLETE'
 
@@ -33,6 +43,31 @@ export type ImportPreviewLine = {
 }
 
 export type ImportEntry = { artist: string, title: string, youtubeUrl: string, comment: string | null }
+
+export type HistoricalImportPreviewLine = {
+  sourcePosition: number
+  sourceText: string
+  artist: string | null
+  title: string | null
+  youtubeUrl: string | null
+  participantToken: string | null
+  countryToken: string | null
+  participantId: number | null
+  participantDisplayName: string | null
+  status: ImportPreviewStatus
+  warnings: ImportWarning[]
+  replaceEntryId: number | null
+  possibleDuplicate: boolean
+}
+
+export type HistoricalImportEntry = {
+  artist: string
+  title: string
+  youtubeUrl: string | null
+  comment: string | null
+  participantId: number
+  replaceEntryId?: number | null
+}
 
 export class EntryApiError extends Error {
   constructor(readonly apiError: ApiError) {
@@ -72,6 +107,16 @@ export function updateEntry(showId: number, entry: ContestEntry): Promise<Contes
   }))
 }
 
+export function updateHistoricalEntry(showId: number, entry: HistoricalContestEntryUpdate): Promise<ContestEntry> {
+  return request(`/api/shows/${showId}/entries/${entry.id}`, json('PATCH', {
+    artist: entry.artist,
+    title: entry.title,
+    youtubeUrl: entry.youtubeUrl,
+    comment: entry.comment,
+    participantId: entry.participantId,
+  }))
+}
+
 export function updateEntryAssessment(
   showId: number,
   entryId: number,
@@ -95,4 +140,20 @@ export function previewImport(showId: number, html: string, text: string): Promi
 
 export function importEntries(showId: number, entries: ImportEntry[]): Promise<ContestEntry[]> {
   return request(`/api/shows/${showId}/entries/import`, json('POST', { entries }))
+}
+
+export function previewHistoricalImport(showId: number, html: string, text: string): Promise<HistoricalImportPreviewLine[]> {
+  return request(`/api/shows/${showId}/entries/historical-import-preview`, json('POST', { html, text }))
+}
+
+export function importHistoricalEntries(showId: number, entries: HistoricalImportEntry[]): Promise<ContestEntry[]> {
+  return request(`/api/shows/${showId}/entries/historical-import`, json('POST', { entries }))
+}
+
+export function completeHistoricalEntryList(showId: number): Promise<void> {
+  return request(`/api/shows/${showId}/entries/entry-list/complete`, { method: 'POST' })
+}
+
+export function reopenHistoricalEntryList(showId: number): Promise<void> {
+  return request(`/api/shows/${showId}/entries/entry-list/reopen`, { method: 'POST' })
 }

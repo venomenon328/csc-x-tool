@@ -6,6 +6,7 @@ export type MottoShow = {
   contestId: number
   showNumber: number
   name: string
+  entryListComplete: boolean
   candidateCount: number
   contestEntryCount: number
   assessedEntryCount: number
@@ -59,5 +60,26 @@ export async function renameShow(showId: number, name: string): Promise<MottoSho
   if (!response.ok) {
     throw new ShowApiError(await readApiError(response))
   }
+  return response.json() as Promise<MottoShow>
+}
+
+export async function createHistoricalShow(contestId: number, showNumber: number, name: string): Promise<MottoShow> {
+  const response = await apiFetch(`/api/contests/${contestId}/shows`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ showNumber, name }),
+  })
+  if (!response.ok) throw new ShowApiError(await readApiError(response))
+  return response.json() as Promise<MottoShow>
+}
+
+export async function deleteHistoricalShow(contestId: number, showId: number): Promise<void> {
+  const response = await apiFetch(`/api/contests/${contestId}/shows/${showId}`, { method: 'DELETE' })
+  if (!response.ok) throw new ShowApiError(await readApiError(response))
+}
+
+export async function updateHistoricalShow(contestId: number, showId: number, showNumber: number, name: string): Promise<MottoShow> {
+  const response = await apiFetch(`/api/contests/${contestId}/shows/${showId}`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ showNumber, name }),
+  })
+  if (!response.ok) throw new ShowApiError(await readApiError(response))
   return response.json() as Promise<MottoShow>
 }

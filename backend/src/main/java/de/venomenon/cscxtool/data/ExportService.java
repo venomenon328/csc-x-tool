@@ -114,6 +114,7 @@ public class ExportService {
                 case ExportFormat.LEGACY_VERSION -> upgradeV3(upgradeV1(strictMapper.readValue(input, ExportFormat.FullExportV1.class)));
                 case ExportFormat.VERSION_2 -> upgradeV3(upgradeV2(strictMapper.readValue(input, ExportFormat.FullExportV2.class)));
                 case ExportFormat.VERSION_3 -> upgradeV3(strictMapper.readValue(input, ExportFormat.FullExportV3.class));
+                case ExportFormat.VERSION_4 -> upgradeV4(strictMapper.readValue(input, ExportFormat.FullExportV4.class));
                 case ExportFormat.VERSION -> strictMapper.readValue(input, ExportFormat.FullExport.class);
                 default -> throw invalid("Das JSON-Format wird von dieser Anwendung nicht unterstützt.");
             };
@@ -157,10 +158,10 @@ public class ExportService {
             }
             for (ExportFormat.MottoShow row : data.mottoShows()) {
                 stage.update("""
-                        INSERT INTO motto_show (id,contest_id,show_number,name,selected_candidate_id,ballot_closed_at,results_closed_at,
+                        INSERT INTO motto_show (id,contest_id,show_number,name,entry_list_complete,selected_candidate_id,ballot_closed_at,results_closed_at,
                           final_place,final_place_tied,official_total_points,created_at,updated_at)
-                        VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?)
-                        """, row.id(), row.contestId(), row.showNumber(), row.name(), row.ballotClosedAt(), row.resultsClosedAt(),
+                        VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?)
+                        """, row.id(), row.contestId(), row.showNumber(), row.name(), row.entryListComplete(), row.ballotClosedAt(), row.resultsClosedAt(),
                         row.finalPlace(), row.finalPlaceTied(), row.officialTotalPoints(), row.createdAt(), row.updatedAt());
             }
             for (ExportFormat.Participant row : data.participants()) {
@@ -240,6 +241,7 @@ public class ExportService {
             throw invalid("Der JSON-Export enthält keine vollständigen fachlichen Daten.");
         }
         Set<Long> contestIds = uniquePositive(data.contests(), ExportFormat.Contest::id, "CSC-Ausgabe");
+        Map<Long, ExportFormat.Contest> contestsById = new HashMap<>();
         Set<String> contestNames = new HashSet<>();
         Set<Integer> contestOrders = new HashSet<>();
         int currentContests = 0;
@@ -250,6 +252,7 @@ public class ExportService {
             if (!contestNames.add(contest.name().trim().toLowerCase(java.util.Locale.ROOT)) || contest.displayOrder() < 1
                     || !contestOrders.add(contest.displayOrder())) throw invalid("Contestname oder Anzeigereihenfolge ist nicht gültig.");
             if (contest.current()) currentContests++;
+            contestsById.put(contest.id(), contest);
         }
         if (data.contests().isEmpty() || currentContests != 1) throw invalid("Der Export benötigt genau eine aktuelle CSC-Ausgabe.");
 
@@ -332,7 +335,9 @@ public class ExportService {
             if (show == null || show.contestId() != entry.contestId()) throw invalid("Ein Wettbewerbsbeitrag gehört nicht zum Contest seiner Mottoshow.");
             requireText(entry.artist(), "Ein Wettbewerbsbeitrag ohne Interpret ist nicht gültig.");
             requireText(entry.title(), "Ein Wettbewerbsbeitrag ohne Titel ist nicht gültig.");
-            requireText(entry.youtubeUrl(), "Ein Wettbewerbsbeitrag ohne YouTube-URL ist nicht gültig.");
+            if (contestsById.get(entry.contestId()).current()) {
+                requireText(entry.youtubeUrl(), "Ein Wettbewerbsbeitrag ohne YouTube-URL ist nicht gültig.");
+            }
             requireText(entry.createdAt(), "Ein Wettbewerbsbeitrag ohne Erstellungszeitpunkt ist nicht gültig.");
             requireText(entry.updatedAt(), "Ein Wettbewerbsbeitrag ohne Aktualisierungszeitpunkt ist nicht gültig.");
             if (!validAssessmentPair(entry.assessment(), entry.assessmentConfidence()) || entry.poolPosition() < 1
@@ -356,6 +361,17 @@ public class ExportService {
                 if (positions.get(index) != index + 1) {
                     throw invalid("Die manuelle Reihenfolge der Wettbewerbsbeiträge muss lückenlos sein.");
                 }
+            }
+        }
+        for (ExportFormat.MottoShow show : data.mottoShows()) {
+            if (!show.entryListComplete()) continue;
+            if (contestsById.get(show.contestId()).current()) {
+                throw invalid("Nur historische Mottoshows können eine vollständige Songliste bestätigen.");
+            }
+            List<ExportFormat.ContestEntry> showEntries = data.contestEntries().stream()
+                    .filter(entry -> entry.mottoShowId() == show.id()).toList();
+            if (showEntries.isEmpty() || showEntries.stream().anyMatch(entry -> entry.contestParticipationId() == null)) {
+                throw invalid("Eine vollständige historische Songliste benötigt mindestens einen vollständig zugeordneten Beitrag.");
             }
         }
 
@@ -483,7 +499,7 @@ public class ExportService {
         ExportFormat.DataV3 data = legacy.data();
         String timestamp = legacy.exportedAt();
         List<ExportFormat.MottoShow> shows = data.mottoShows() == null ? null : data.mottoShows().stream().map(show ->
-                new ExportFormat.MottoShow(show.id(), LEGACY_CSC_X_ID, show.showNumber(), show.name(), show.selectedCandidateId(),
+                new ExportFormat.MottoShow(show.id(), LEGACY_CSC_X_ID, show.showNumber(), show.name(), false, show.selectedCandidateId(),
                         show.ballotClosedAt(), show.resultsClosedAt(), show.finalPlace(), show.finalPlaceTied(),
                         show.officialTotalPoints(), show.createdAt(), show.updatedAt())).toList();
         List<ExportFormat.Participant> participants = data.participants() == null ? null : data.participants().stream().map(participant ->
@@ -502,6 +518,22 @@ public class ExportService {
                 new ExportFormat.Data(List.of(new ExportFormat.Contest(LEGACY_CSC_X_ID, "CSC X", 1, true, timestamp, timestamp)),
                         shows, data.candidates(), participants, participations, data.participantAliases(), entries,
                         data.ballotSnapshots(), data.ballotSnapshotItems(), scores));
+    }
+
+    private static ExportFormat.FullExport upgradeV4(ExportFormat.FullExportV4 legacy) {
+        if (legacy == null || legacy.data() == null) return new ExportFormat.FullExport(
+                legacy == null ? null : legacy.format(), ExportFormat.VERSION, legacy == null ? null : legacy.exportedAt(),
+                legacy == null ? null : legacy.applicationVersion(), legacy == null ? 0 : legacy.schemaVersion(), null);
+        ExportFormat.DataV4 data = legacy.data();
+        List<ExportFormat.MottoShow> shows = data.mottoShows() == null ? null : data.mottoShows().stream().map(show ->
+                new ExportFormat.MottoShow(show.id(), show.contestId(), show.showNumber(), show.name(), false,
+                        show.selectedCandidateId(), show.ballotClosedAt(), show.resultsClosedAt(), show.finalPlace(),
+                        show.finalPlaceTied(), show.officialTotalPoints(), show.createdAt(), show.updatedAt())
+        ).toList();
+        return new ExportFormat.FullExport(legacy.format(), ExportFormat.VERSION, legacy.exportedAt(), legacy.applicationVersion(),
+                legacy.schemaVersion(), new ExportFormat.Data(data.contests(), shows, data.candidates(), data.participants(),
+                        data.contestParticipations(), data.participantAliases(), data.contestEntries(), data.ballotSnapshots(),
+                        data.ballotSnapshotItems(), data.receivedScores()));
     }
 
     private static boolean validAssessmentPair(Integer assessment, Integer confidence) {
@@ -539,9 +571,9 @@ public class ExportService {
                 r -> new ExportFormat.Contest(r.getLong(1), r.getString(2), r.getInt(3), r.getBoolean(4), r.getString(5), r.getString(6)));
     }
     private static List<ExportFormat.MottoShow> mottoShows(Connection connection) throws SQLException {
-        return query(connection, "SELECT id,contest_id,show_number,name,selected_candidate_id,ballot_closed_at,results_closed_at,final_place,final_place_tied,official_total_points,created_at,updated_at FROM motto_show ORDER BY id",
-                r -> new ExportFormat.MottoShow(r.getLong(1), r.getLong(2), r.getInt(3), r.getString(4), nullableLong(r, 5),
-                        r.getString(6), r.getString(7), nullableInt(r, 8), r.getBoolean(9), nullableInt(r, 10), r.getString(11), r.getString(12)));
+        return query(connection, "SELECT id,contest_id,show_number,name,entry_list_complete,selected_candidate_id,ballot_closed_at,results_closed_at,final_place,final_place_tied,official_total_points,created_at,updated_at FROM motto_show ORDER BY id",
+                r -> new ExportFormat.MottoShow(r.getLong(1), r.getLong(2), r.getInt(3), r.getString(4), r.getBoolean(5), nullableLong(r, 6),
+                        r.getString(7), r.getString(8), nullableInt(r, 9), r.getBoolean(10), nullableInt(r, 11), r.getString(12), r.getString(13)));
     }
     private static List<ExportFormat.Candidate> candidates(Connection connection) throws SQLException {
         return query(connection, "SELECT id,motto_show_id,artist,title,youtube_url,comment,status,manual_position,created_at,updated_at FROM candidate ORDER BY id",

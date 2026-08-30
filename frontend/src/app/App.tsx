@@ -23,6 +23,7 @@ import { ParticipantPage } from '../features/participants/ParticipantPage'
 import { ResultPage } from '../features/results/ResultPage'
 import { DataManagementPage } from '../features/data/DataManagementPage'
 import { ContestPage } from '../features/contests/ContestPage'
+import { HistoricalShowPage } from '../features/history/HistoricalShowPage'
 import { ContestProvider, useContest } from '../features/contests/ContestContext'
 import { ErrorBoundary } from './ErrorBoundary'
 import { theme } from './theme'
@@ -147,6 +148,7 @@ function AppShell() {
           <Route element={<CandidatePage />} path="/shows/:showId/candidates" />
           <Route element={<EntryPage />} path="/shows/:showId/voting" />
           <Route element={<ResultPage />} path="/shows/:showId/result" />
+          <Route element={<HistoricalShowPage />} path="/historical-shows/:showId" />
           <Route element={<PlaceholderPage title="Seite nicht gefunden" />} path="*" />
         </Routes>
       </Box>

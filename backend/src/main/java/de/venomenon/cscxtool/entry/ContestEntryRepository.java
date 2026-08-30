@@ -1,5 +1,6 @@
 package de.venomenon.cscxtool.entry;
 
+import de.venomenon.cscxtool.show.ShowContext;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -40,6 +41,10 @@ class ContestEntryRepository {
     }
 
     ContestEntry create(long showId, String artist, String title, String youtubeUrl, String comment) {
+        return create(showId, artist, title, youtubeUrl, comment, null);
+    }
+
+    ContestEntry create(long showId, String artist, String title, String youtubeUrl, String comment, Long participationId) {
         KeyHolder keyHolder = new GeneratedKeyHolder();
         jdbcTemplate.update(connection -> {
             PreparedStatement statement = connection.prepareStatement("""
@@ -48,7 +53,7 @@ class ContestEntryRepository {
                       pool_position, ranking_position, contest_participation_id, created_at, updated_at
                     ) VALUES (?, (SELECT contest_id FROM motto_show WHERE id = ?), ?, ?, ?, ?, NULL, NULL,
                       (SELECT COALESCE(MAX(pool_position), 0) + 1 FROM contest_entry WHERE motto_show_id = ?),
-                      NULL, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                      NULL, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                     """, Statement.RETURN_GENERATED_KEYS);
             statement.setLong(1, showId);
             statement.setLong(2, showId);
@@ -57,6 +62,8 @@ class ContestEntryRepository {
             statement.setString(5, youtubeUrl);
             statement.setString(6, comment);
             statement.setLong(7, showId);
+            if (participationId == null) statement.setNull(8, java.sql.Types.BIGINT);
+            else statement.setLong(8, participationId);
             return statement;
         }, keyHolder);
         Number generatedId = keyHolder.getKey();
@@ -79,6 +86,16 @@ class ContestEntryRepository {
                 SET artist = ?, title = ?, youtube_url = ?, comment = ?, updated_at = CURRENT_TIMESTAMP
                 WHERE id = ? AND motto_show_id = ?
                 """, artist, title, youtubeUrl, comment, entryId, showId) == 1;
+    }
+
+    boolean updateHistorical(
+            long entryId, long showId, String artist, String title, String youtubeUrl, String comment, long participationId
+    ) {
+        return jdbcTemplate.update("""
+                UPDATE contest_entry
+                SET artist = ?, title = ?, youtube_url = ?, comment = ?, contest_participation_id = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ? AND motto_show_id = ?
+                """, artist, title, youtubeUrl, comment, participationId, entryId, showId) == 1;
     }
 
     boolean updateAssessment(long entryId, long showId, Integer assessment, Integer assessmentConfidence) {
@@ -125,6 +142,56 @@ class ContestEntryRepository {
                 "SELECT id FROM contest_entry WHERE motto_show_id = ? AND ranking_position IS NOT NULL ORDER BY ranking_position",
                 (resultSet, rowNumber) -> resultSet.getLong(1), showId
         );
+    }
+
+    Optional<ShowContext> findShowContext(long showId) {
+        return jdbcTemplate.query("""
+                SELECT motto_show.id, motto_show.contest_id, contest.is_current, motto_show.entry_list_complete
+                FROM motto_show JOIN contest ON contest.id = motto_show.contest_id
+                WHERE motto_show.id = ?
+                """, (resultSet, rowNumber) -> new ShowContext(
+                resultSet.getLong(1), resultSet.getLong(2), resultSet.getBoolean(3), resultSet.getBoolean(4)
+        ), showId).stream().findFirst();
+    }
+
+    List<HistoricalImportParticipant> findHistoricalImportParticipants(long showId) {
+        return jdbcTemplate.query("""
+                SELECT participation.id, participation.participant_id, participant.display_name, participation.country_code,
+                       COALESCE(group_concat(participant_alias.alias, char(31)), '')
+                FROM motto_show
+                JOIN contest_participation participation ON participation.contest_id = motto_show.contest_id
+                JOIN participant ON participant.id = participation.participant_id
+                LEFT JOIN participant_alias ON participant_alias.participant_id = participant.id
+                WHERE motto_show.id = ?
+                GROUP BY participation.id
+                ORDER BY participant.display_name COLLATE NOCASE, participant.id
+                """, (resultSet, rowNumber) -> new HistoricalImportParticipant(
+                resultSet.getLong(1), resultSet.getLong(2), resultSet.getString(3), resultSet.getString(4),
+                splitAliases(resultSet.getString(5))
+        ), showId);
+    }
+
+    int historicalEntryCount(long showId) {
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM contest_entry WHERE motto_show_id = ?", Integer.class, showId
+        );
+        return count == null ? 0 : count;
+    }
+
+    int unassignedHistoricalEntryCount(long showId) {
+        Integer count = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM contest_entry entry
+                LEFT JOIN contest_participation participation ON participation.id = entry.contest_participation_id
+                  AND participation.contest_id = entry.contest_id
+                WHERE entry.motto_show_id = ? AND participation.id IS NULL
+                """, Integer.class, showId);
+        return count == null ? 0 : count;
+    }
+
+    boolean setEntryListComplete(long showId, boolean complete) {
+        return jdbcTemplate.update("""
+                UPDATE motto_show SET entry_list_complete = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
+                """, complete, showId) == 1;
     }
 
     List<Long> findPoolEntryIds(long showId) {
@@ -221,5 +288,10 @@ class ContestEntryRepository {
     private static Integer nullableInt(ResultSet resultSet, String columnName) throws SQLException {
         int value = resultSet.getInt(columnName);
         return resultSet.wasNull() ? null : value;
+    }
+
+    private static List<String> splitAliases(String aliases) {
+        if (aliases == null || aliases.isBlank()) return List.of();
+        return List.of(aliases.split(String.valueOf((char) 31)));
     }
 }
