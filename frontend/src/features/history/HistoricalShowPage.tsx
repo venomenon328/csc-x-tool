@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { ApiErrorNotice } from '../../components/ApiErrorNotice'
 import { ClipboardImportArea } from '../entries/ClipboardImportArea'
-import { completeHistoricalEntryList, createEntry, deleteEntry, fetchEntries, importHistoricalEntries, previewHistoricalImport, reopenHistoricalEntryList, updateEntry, type ContestEntry, type ContestEntryInput, type EntryApiError, EntryApiError as EntryError, type HistoricalImportPreviewLine } from '../entries/api'
+import { completeHistoricalEntryList, createEntry, deleteEntry, fetchEntries, importHistoricalEntries, previewHistoricalImport, reopenHistoricalEntryList, updateHistoricalEntry, type ContestEntry, type ContestEntryInput, type EntryApiError, EntryApiError as EntryError, type HistoricalImportPreviewLine } from '../entries/api'
 import { fetchParticipants, type Participant } from '../participants/api'
 import { fetchShow, type MottoShow } from '../shows/api'
 
@@ -57,7 +57,7 @@ export function HistoricalShowPage() {
   async function saveEntry(draft: EntryDraft) {
     try {
       if (editor === null) await createEntry(showId, draft)
-      else if (editor !== undefined) await updateEntry(showId, { ...editor, ...draft, participantId: draft.participantId })
+      else if (editor !== undefined) await updateHistoricalEntry(showId, { ...editor, ...draft, participantId: draft.participantId })
       setEditor(undefined); await load()
     } catch (caught) { setError(asEntryError(caught)) }
   }
