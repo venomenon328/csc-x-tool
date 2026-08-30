@@ -1,12 +1,13 @@
 package de.venomenon.cscxtool.entry;
 
-import de.venomenon.cscxtool.shared.ApiBadRequestException;
-import de.venomenon.cscxtool.shared.ApiConflictException;
 import de.venomenon.cscxtool.contest.ContestRepository;
 import de.venomenon.cscxtool.participant.ParticipantNotFoundException;
+import de.venomenon.cscxtool.shared.ApiBadRequestException;
+import de.venomenon.cscxtool.shared.ApiConflictException;
 import de.venomenon.cscxtool.show.ShowContext;
 import de.venomenon.cscxtool.show.ShowNotFoundException;
 import de.venomenon.cscxtool.song.YoutubeUrlNormalizer;
+import java.net.URI;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -14,10 +15,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.net.URI;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.dao.DataIntegrityViolationException;
 
 @Service
 class ContestEntryService {
@@ -54,7 +54,8 @@ class ContestEntryService {
             throw poolReorderConflict();
         }
         List<Long> submittedIds = request.entryIds();
-        Set<Long> currentIds = repository.findAllByShowId(showId).stream().map(ContestEntry::id).collect(java.util.stream.Collectors.toSet());
+        Set<Long> currentIds = repository.findAllByShowId(showId).stream().map(ContestEntry::id)
+                .collect(java.util.stream.Collectors.toSet());
         Set<Long> uniqueSubmittedIds = new HashSet<>(submittedIds);
         if (currentIds.size() != submittedIds.size() || uniqueSubmittedIds.size() != submittedIds.size()
                 || !currentIds.equals(uniqueSubmittedIds)) {
@@ -71,11 +72,15 @@ class ContestEntryService {
         String title = requiredText(request.title(), "Der Titel darf nicht leer sein.");
         if (context.currentContest()) {
             if (request.participantId() != null) throw currentEntryParticipantAssignmentForbidden();
-            return repository.create(showId, artist, title, requiredYoutubeUrl(request.youtubeUrl()), optionalText(request.comment()));
+            return repository.create(
+                    showId, artist, title, requiredYoutubeUrl(request.youtubeUrl()), optionalText(request.comment())
+            );
         }
         requireHistoricalListOpen(context);
         long participationId = requiredParticipationForShow(showId, request.participantId());
-        return repository.create(showId, artist, title, optionalHistoricalUrl(request.youtubeUrl()), optionalText(request.comment()), participationId);
+        return createHistoricalEntry(
+                showId, artist, title, optionalHistoricalUrl(request.youtubeUrl()), optionalText(request.comment()), participationId
+        );
     }
 
     @Transactional
@@ -86,11 +91,15 @@ class ContestEntryService {
         boolean updated;
         if (context.currentContest()) {
             if (request.participantId() != null) throw currentEntryParticipantAssignmentForbidden();
-            updated = repository.update(entryId, showId, artist, title, requiredYoutubeUrl(request.youtubeUrl()), optionalText(request.comment()));
+            updated = repository.update(
+                    entryId, showId, artist, title, requiredYoutubeUrl(request.youtubeUrl()), optionalText(request.comment())
+            );
         } else {
             requireHistoricalListOpen(context);
-            updated = repository.updateHistorical(entryId, showId, artist, title, optionalHistoricalUrl(request.youtubeUrl()),
-                    optionalText(request.comment()), requiredParticipationForShow(showId, request.participantId()));
+            updated = updateHistoricalEntry(
+                    entryId, showId, artist, title, optionalHistoricalUrl(request.youtubeUrl()), optionalText(request.comment()),
+                    requiredParticipationForShow(showId, request.participantId())
+            );
         }
         if (!updated) {
             throw new ContestEntryNotFoundException(entryId, showId);
@@ -159,7 +168,8 @@ class ContestEntryService {
             }
             throw exception;
         }
-        return repository.findByIdAndShowId(entryId, showId).orElseThrow(() -> new ContestEntryNotFoundException(entryId, showId));
+        return repository.findByIdAndShowId(entryId, showId)
+                .orElseThrow(() -> new ContestEntryNotFoundException(entryId, showId));
     }
 
     @Transactional
@@ -171,7 +181,7 @@ class ContestEntryService {
         if (entry.rankingPosition() != null && repository.isBallotClosed(showId)) {
             throw new ApiConflictException(
                     "BALLOT_REOPEN_REQUIRED",
-                    "Die abgeschlossene Abstimmung muss vor einer Rang\u00e4nderung bewusst wieder ge\u00f6ffnet werden."
+                    "Die abgeschlossene Abstimmung muss vor einer Rangänderung bewusst wieder geöffnet werden."
             );
         }
         if (!repository.delete(entryId, showId)) {
@@ -197,7 +207,9 @@ class ContestEntryService {
     List<ContestEntry> importEntries(long showId, ImportContestEntriesRequest request) {
         requireCurrentShow(showId);
         if (request == null || request.entries() == null || request.entries().isEmpty()) {
-            throw new ApiBadRequestException("EMPTY_IMPORT", "W\u00e4hle mindestens einen vollst\u00e4ndigen Beitrag f\u00fcr den Import aus.");
+            throw new ApiBadRequestException(
+                    "EMPTY_IMPORT", "Wähle mindestens einen vollständigen Beitrag für den Import aus."
+            );
         }
 
         List<ValidatedImportEntry> validatedEntries = request.entries().stream().map(this::validateImportEntry).toList();
@@ -226,7 +238,9 @@ class ContestEntryService {
         ShowContext context = requireShowContext(showId);
         requireHistoricalListOpen(context);
         if (request == null || request.entries() == null || request.entries().isEmpty()) {
-            throw new ApiBadRequestException("EMPTY_IMPORT", "Wähle mindestens einen vollständigen Beitrag für den Import aus.");
+            throw new ApiBadRequestException(
+                    "EMPTY_IMPORT", "Wähle mindestens einen vollständigen Beitrag für den Import aus."
+            );
         }
         List<ValidatedHistoricalImportEntry> entries = request.entries().stream()
                 .map(entry -> validateHistoricalImportEntry(showId, entry)).toList();
@@ -245,10 +259,16 @@ class ContestEntryService {
         }
         for (ValidatedHistoricalImportEntry entry : entries) {
             if (entry.replaceEntryId() == null) {
-                repository.create(showId, entry.artist(), entry.title(), entry.youtubeUrl(), entry.comment(), entry.participationId());
-            } else if (!repository.updateHistorical(entry.replaceEntryId(), showId, entry.artist(), entry.title(), entry.youtubeUrl(),
-                    entry.comment(), entry.participationId())) {
-                throw new ApiConflictException("HISTORICAL_IMPORT_REPLACEMENT_CONFLICT", "Der zu ersetzende Beitrag wurde nicht gefunden.");
+                createHistoricalEntry(
+                        showId, entry.artist(), entry.title(), entry.youtubeUrl(), entry.comment(), entry.participationId()
+                );
+            } else if (!updateHistoricalEntry(
+                    entry.replaceEntryId(), showId, entry.artist(), entry.title(), entry.youtubeUrl(), entry.comment(),
+                    entry.participationId()
+            )) {
+                throw new ApiConflictException(
+                        "HISTORICAL_IMPORT_REPLACEMENT_CONFLICT", "Der zu ersetzende Beitrag wurde nicht gefunden."
+                );
             }
         }
         return repository.findAllByShowId(showId);
@@ -259,10 +279,14 @@ class ContestEntryService {
         ShowContext context = requireShowContext(showId);
         requireHistorical(context);
         if (repository.historicalEntryCount(showId) == 0) {
-            throw new ApiConflictException("ENTRY_LIST_EMPTY", "Eine vollständige Songliste muss mindestens einen Beitrag enthalten.");
+            throw new ApiConflictException(
+                    "ENTRY_LIST_EMPTY", "Eine vollständige Songliste muss mindestens einen Beitrag enthalten."
+            );
         }
         if (repository.unassignedHistoricalEntryCount(showId) > 0) {
-            throw new ApiConflictException("ENTRY_LIST_HAS_UNASSIGNED_ENTRIES", "Alle Beiträge der Songliste benötigen eine gültige Contest-Teilnahme.");
+            throw new ApiConflictException(
+                    "ENTRY_LIST_HAS_UNASSIGNED_ENTRIES", "Alle Beiträge der Songliste benötigen eine gültige Contest-Teilnahme."
+            );
         }
         repository.setEntryListComplete(showId, true);
     }
@@ -280,7 +304,8 @@ class ContestEntryService {
         Map<Long, ContestEntry> entriesByParticipant = existingEntries.stream()
                 .filter(entry -> entry.participantId() != null)
                 .collect(java.util.stream.Collectors.toMap(ContestEntry::participantId, entry -> entry));
-        Set<String> existingArtistTitle = existingEntries.stream().map(entry -> artistTitleKey(entry.artist(), entry.title()))
+        Set<String> existingArtistTitle = existingEntries.stream()
+                .map(entry -> artistTitleKey(entry.artist(), entry.title()))
                 .collect(java.util.stream.Collectors.toSet());
         Set<Long> seenParticipants = new HashSet<>();
         return lines.stream().map(line -> {
@@ -289,7 +314,9 @@ class ContestEntryService {
             boolean duplicate = !seenParticipants.add(line.participantId()) || existingParticipantEntry != null
                     || (line.artist() != null && line.title() != null
                     && existingArtistTitle.contains(artistTitleKey(line.artist(), line.title())));
-            return duplicate ? line.withPossibleDuplicate(existingParticipantEntry == null ? null : existingParticipantEntry.id()) : line;
+            return duplicate
+                    ? line.withPossibleDuplicate(existingParticipantEntry == null ? null : existingParticipantEntry.id())
+                    : line;
         }).toList();
     }
 
@@ -336,7 +363,7 @@ class ContestEntryService {
 
     private ValidatedImportEntry validateImportEntry(ImportContestEntryRequest entry) {
         if (entry == null) {
-            throw new ApiBadRequestException("INVALID_IMPORT_ENTRY", "Ein ausgew\u00e4hlter Importbeitrag ist ung\u00fcltig.");
+            throw new ApiBadRequestException("INVALID_IMPORT_ENTRY", "Ein ausgewählter Importbeitrag ist ungültig.");
         }
         return new ValidatedImportEntry(
                 requiredText(entry.artist(), "Der Interpret eines Importbeitrags darf nicht leer sein."),
@@ -352,26 +379,37 @@ class ContestEntryService {
 
     private void requireCurrentShow(long showId) {
         if (!requireShowContext(showId).currentContest()) {
-            throw new ApiConflictException("CURRENT_SHOW_REQUIRED", "Diese Funktion gehört zum aktuellen CSC-X-Workflow und ist für Archivshows nicht verfügbar.");
+            throw new ApiConflictException(
+                    "CURRENT_SHOW_REQUIRED",
+                    "Diese Funktion gehört zum aktuellen CSC-X-Workflow und ist für Archivshows nicht verfügbar."
+            );
         }
     }
 
     private static void requireHistorical(ShowContext context) {
         if (context.currentContest()) {
-            throw new ApiConflictException("HISTORICAL_SHOW_REQUIRED", "Diese Funktion ist ausschließlich für historische CSC-Ausgaben verfügbar.");
+            throw new ApiConflictException(
+                    "HISTORICAL_SHOW_REQUIRED", "Diese Funktion ist ausschließlich für historische CSC-Ausgaben verfügbar."
+            );
         }
     }
 
     private static void requireHistoricalListOpen(ShowContext context) {
         requireHistorical(context);
         if (context.entryListComplete()) {
-            throw new ApiConflictException("ENTRY_LIST_REOPEN_REQUIRED", "Die vollständige Songliste muss vor einer Korrektur bewusst wieder geöffnet werden.");
+            throw new ApiConflictException(
+                    "ENTRY_LIST_REOPEN_REQUIRED",
+                    "Die vollständige Songliste muss vor einer Korrektur bewusst wieder geöffnet werden."
+            );
         }
     }
 
     private long requiredParticipationForShow(long showId, Long participantId) {
         if (participantId == null) {
-            throw new ApiBadRequestException("HISTORICAL_ENTRY_PARTICIPANT_REQUIRED", "Historische Beiträge benötigen einen Einreichenden aus dem Teilnehmerfeld.");
+            throw new ApiBadRequestException(
+                    "HISTORICAL_ENTRY_PARTICIPANT_REQUIRED",
+                    "Historische Beiträge benötigen einen Einreichenden aus dem Teilnehmerfeld."
+            );
         }
         if (!repository.participantExists(participantId)) throw new ParticipantNotFoundException(participantId);
         return contests.findParticipationForShow(showId, participantId).orElseThrow(() -> new ApiConflictException(
@@ -380,14 +418,53 @@ class ContestEntryService {
     }
 
     private ValidatedHistoricalImportEntry validateHistoricalImportEntry(long showId, HistoricalImportEntryRequest entry) {
-        if (entry == null) throw new ApiBadRequestException("INVALID_IMPORT_ENTRY", "Ein ausgewählter Importbeitrag ist ungültig.");
+        if (entry == null) {
+            throw new ApiBadRequestException("INVALID_IMPORT_ENTRY", "Ein ausgewählter Importbeitrag ist ungültig.");
+        }
         long participantId = entry.participantId() == null ? -1 : entry.participantId();
         long participationId = requiredParticipationForShow(showId, entry.participantId());
         return new ValidatedHistoricalImportEntry(
                 requiredText(entry.artist(), "Der Interpret eines Importbeitrags darf nicht leer sein."),
-                requiredText(entry.title(), "Der Titel eines Importbeitrags darf nicht leer sein."), optionalHistoricalUrl(entry.youtubeUrl()),
-                optionalText(entry.comment()), participantId, participationId, entry.replaceEntryId()
+                requiredText(entry.title(), "Der Titel eines Importbeitrags darf nicht leer sein."),
+                optionalHistoricalUrl(entry.youtubeUrl()), optionalText(entry.comment()), participantId, participationId,
+                entry.replaceEntryId()
         );
+    }
+
+    private ContestEntry createHistoricalEntry(
+            long showId, String artist, String title, String youtubeUrl, String comment, long participationId
+    ) {
+        repository.findEntryIdByParticipation(showId, participationId).ifPresent(existing -> {
+            throw duplicateParticipantAssignment();
+        });
+        try {
+            return repository.create(showId, artist, title, youtubeUrl, comment, participationId);
+        } catch (DataIntegrityViolationException exception) {
+            if (isParticipantAssignmentUniqueConstraint(exception)) {
+                throw duplicateParticipantAssignment();
+            }
+            throw exception;
+        }
+    }
+
+    private boolean updateHistoricalEntry(
+            long entryId, long showId, String artist, String title, String youtubeUrl, String comment, long participationId
+    ) {
+        repository.findEntryIdByParticipation(showId, participationId)
+                .filter(existingEntryId -> existingEntryId != entryId)
+                .ifPresent(existing -> {
+                    throw duplicateParticipantAssignment();
+                });
+        try {
+            return repository.updateHistorical(
+                    entryId, showId, artist, title, youtubeUrl, comment, participationId
+            );
+        } catch (DataIntegrityViolationException exception) {
+            if (isParticipantAssignmentUniqueConstraint(exception)) {
+                throw duplicateParticipantAssignment();
+            }
+            throw exception;
+        }
     }
 
     private String requiredYoutubeUrl(String value) {
@@ -399,10 +476,14 @@ class ContestEntryService {
         if (normalized == null) return null;
         try {
             URI uri = URI.create(normalized);
-            if (!"http".equalsIgnoreCase(uri.getScheme()) && !"https".equalsIgnoreCase(uri.getScheme())) throw new IllegalArgumentException();
+            if (!"http".equalsIgnoreCase(uri.getScheme()) && !"https".equalsIgnoreCase(uri.getScheme())) {
+                throw new IllegalArgumentException();
+            }
             return normalized;
         } catch (IllegalArgumentException exception) {
-            throw new ApiBadRequestException("INVALID_HISTORICAL_SOURCE_URL", "Der optionale Quelllink muss eine HTTP- oder HTTPS-Adresse sein.");
+            throw new ApiBadRequestException(
+                    "INVALID_HISTORICAL_SOURCE_URL", "Der optionale Quelllink muss eine HTTP- oder HTTPS-Adresse sein."
+            );
         }
     }
 
@@ -430,7 +511,9 @@ class ContestEntryService {
     private static boolean isParticipantAssignmentUniqueConstraint(Throwable exception) {
         for (Throwable current = exception; current != null; current = current.getCause()) {
             String message = current.getMessage();
-            if (message != null && message.contains("contest_entry.motto_show_id, contest_entry.contest_participation_id")) {
+            if (message != null && message.contains(
+                    "contest_entry.motto_show_id, contest_entry.contest_participation_id"
+            )) {
                 return true;
             }
         }
@@ -470,6 +553,8 @@ class ContestEntryService {
     }
 
     private record ValidatedHistoricalImportEntry(
-            String artist, String title, String youtubeUrl, String comment, long participantId, long participationId, Long replaceEntryId
-    ) { }
+            String artist, String title, String youtubeUrl, String comment, long participantId, long participationId,
+            Long replaceEntryId
+    ) {
+    }
 }
