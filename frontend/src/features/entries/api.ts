@@ -17,6 +17,15 @@ export type ContestEntry = PlayableSong & {
 
 export type ContestEntryInput = Pick<ContestEntry, 'artist' | 'title' | 'youtubeUrl' | 'comment'> & { participantId?: number | null }
 
+export type HistoricalContestEntryUpdate = {
+  id: number
+  artist: string
+  title: string
+  youtubeUrl: string | null
+  comment: string | null
+  participantId: number | null
+}
+
 export type ImportPreviewStatus = 'READY' | 'WARNING' | 'INCOMPLETE'
 
 export type ImportWarning = { code: string, message: string }
@@ -98,7 +107,7 @@ export function updateEntry(showId: number, entry: ContestEntry): Promise<Contes
   }))
 }
 
-export function updateHistoricalEntry(showId: number, entry: ContestEntry): Promise<ContestEntry> {
+export function updateHistoricalEntry(showId: number, entry: HistoricalContestEntryUpdate): Promise<ContestEntry> {
   return request(`/api/shows/${showId}/entries/${entry.id}`, json('PATCH', {
     artist: entry.artist,
     title: entry.title,
