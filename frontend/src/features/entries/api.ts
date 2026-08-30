@@ -95,6 +95,15 @@ export function updateEntry(showId: number, entry: ContestEntry): Promise<Contes
     title: entry.title,
     youtubeUrl: entry.youtubeUrl,
     comment: entry.comment,
+  }))
+}
+
+export function updateHistoricalEntry(showId: number, entry: ContestEntry): Promise<ContestEntry> {
+  return request(`/api/shows/${showId}/entries/${entry.id}`, json('PATCH', {
+    artist: entry.artist,
+    title: entry.title,
+    youtubeUrl: entry.youtubeUrl,
+    comment: entry.comment,
     participantId: entry.participantId,
   }))
 }
