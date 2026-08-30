@@ -78,14 +78,36 @@ class AnalysisExportServiceIntegrationTest {
             assertThat(manifest).contains("\"format\":\"csc-x-tool-analysis\"", "\"formatVersion\":1", "assessment-matrix.csv");
             assertThat(analysis).contains("\"outsideTop15EntryIds\":[1016]", "\"ownEntryId\":1000", "\"status\":\"NICHT_ABGESTIMMT\"",
                     "\"status\":\"UNERFASST\"", "\"predictionCandidates\"");
+            assertThat(analysis).contains("\"predictionContext\":{\"contest\":{\"id\":82,\"name\":\"CSC Current\",\"current\":true},"
+                    + "\"show\":{\"id\":502,\"contestId\":82,\"showNumber\":1,\"name\":\"Current candidates\"}}");
+            String archiveContests = analysis.substring(analysis.indexOf("\"contests\""), analysis.indexOf("\"participations\""));
+            assertThat(archiveContests).doesNotContain("\"id\":82", "CSC Current");
             assertThat(analysis.substring(analysis.indexOf("\"entries\""), analysis.indexOf("\"publishedBallots\"")))
-                    .doesNotContain("Prediction Artist", "Other Contest Song");
+                    .doesNotContain("Prediction Artist", "Other Contest Song", "Current Entry Artist");
             assertThat(markdown).contains("Outside Top 15 (unordered set; no rank is known)", "Own non-votable entry",
-                    "Status: **NO_BALLOT**", "Status: **UNKNOWN**", "Prediction candidates (separate from historic entries)");
+                    "Status: **NO_BALLOT**", "Status: **UNKNOWN**", "Prediction candidates (separate from historic entries)",
+                    "CSC Current, show 1: Current candidates");
             assertThat(ballots).startsWith("\uFEFF").contains("RANKED", "NO_BALLOT", "UNKNOWN").contains("\r\n");
             assertThat(matrix).contains("RANKED", "OUTSIDE_TOP_15", "OWN_ENTRY", "NO_BALLOT", "UNKNOWN")
                     .contains(";0;");
             assertThat(candidates).contains("Prediction Artist", "Prediction Title").doesNotContain("Own Song");
+        }
+    }
+
+    @Test
+    void exportsCanonicalP12ReadinessForARevealedCurrentShow() throws Exception {
+        fixture();
+        assertThat(jdbc.queryForObject("SELECT entry_list_complete FROM motto_show WHERE id=502", Boolean.class)).isFalse();
+
+        AnalysisExportService.AnalysisExportResult result = exports.create(
+                new AnalysisExportService.AnalysisExportRequest(List.of(), List.of(502L), null)
+        );
+
+        try (ZipFile zip = new ZipFile(exports.resolveKnownArtifact(result.filename()).toFile())) {
+            String analysis = text(zip, "analysis.json");
+            String markdown = text(zip, "analysis.md");
+            assertThat(analysis).contains("\"id\":502,\"contestId\":82,\"showNumber\":1,\"name\":\"Current candidates\",\"entryListComplete\":true");
+            assertThat(markdown).contains("## Show 1: Current candidates", "Song list complete: **yes**.", "Current Entry Artist - Current Entry");
         }
     }
 
@@ -102,6 +124,7 @@ class AnalysisExportServiceIntegrationTest {
         participation(202, 80, 102, "FR");
         participation(203, 80, 103, "SE");
         participation(300, 81, 101, "RO");
+        participation(400, 82, 101, "PH");
         jdbc.update("INSERT INTO motto_show (id,contest_id,show_number,name,entry_list_complete,created_at,updated_at) VALUES (500,80,3,'Historical; show',1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)");
         jdbc.update("INSERT INTO motto_show (id,contest_id,show_number,name,entry_list_complete,created_at,updated_at) VALUES (501,81,1,'Other contest',1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)");
         jdbc.update("INSERT INTO motto_show (id,contest_id,show_number,name,entry_list_complete,created_at,updated_at) VALUES (502,82,1,'Current candidates',0,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)");
@@ -115,6 +138,7 @@ class AnalysisExportServiceIntegrationTest {
         }
         entry(1016, 500, 80, "Outside Artist", "Outside; title", 202, 17);
         entry(1100, 501, 81, "Other Artist", "Other Contest Song", 300, 1);
+        entry(1200, 502, 82, "Current Entry Artist", "Current Entry", 400, 1);
         jdbc.update("INSERT INTO published_ballot (id,motto_show_id,contest_id,contest_participation_id,status,created_at,updated_at) VALUES (700,500,80,201,'ABGESTIMMT',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)");
         for (int rank = 1; rank <= 15; rank++) jdbc.update("INSERT INTO published_ballot_position (published_ballot_id,contest_entry_id,rank) VALUES (700,?,?)", 1000 + rank, rank);
         jdbc.update("INSERT INTO published_ballot (id,motto_show_id,contest_id,contest_participation_id,status,created_at,updated_at) VALUES (701,500,80,202,'NICHT_ABGESTIMMT',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)");
