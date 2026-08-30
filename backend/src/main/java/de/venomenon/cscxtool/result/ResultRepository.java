@@ -1,5 +1,6 @@
 package de.venomenon.cscxtool.result;
 
+import de.venomenon.cscxtool.shared.EntryListReadiness;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
@@ -16,12 +17,12 @@ class ResultRepository {
     Optional<ShowFacts> findShow(long showId) {
         return jdbc.query("""
                 SELECT show.id, show.contest_id, contest.own_participation_id, contest.is_current,
-                       show.entry_list_complete, show.ballot_closed_at IS NOT NULL,
+                       show.entry_list_complete,
                        EXISTS(SELECT 1 FROM contest_entry WHERE motto_show_id = show.id),
                        NOT EXISTS(SELECT 1 FROM contest_entry WHERE motto_show_id = show.id AND contest_participation_id IS NULL)
                 FROM motto_show show JOIN contest ON contest.id = show.contest_id WHERE show.id = ?
                 """, (r, n) -> new ShowFacts(r.getLong(1), r.getLong(2), nullableLong(r, 3), r.getBoolean(4),
-                r.getBoolean(5), r.getBoolean(6), r.getBoolean(7), r.getBoolean(8)), showId).stream().findFirst();
+                r.getBoolean(5), r.getBoolean(6), r.getBoolean(7)), showId).stream().findFirst();
     }
 
     Optional<OwnParticipation> findOwnParticipation(long contestId, long participationId) {
@@ -91,10 +92,10 @@ class ResultRepository {
 
     record ShowFacts(
             long showId, long contestId, Long ownParticipationId, boolean currentContest, boolean entryListComplete,
-            boolean ownBallotClosed, boolean hasEntries, boolean allEntriesAssigned
+            boolean hasEntries, boolean allEntriesAssigned
     ) {
         boolean entryListReady() {
-            return entryListComplete || (currentContest && ownBallotClosed && hasEntries && allEntriesAssigned);
+            return EntryListReadiness.isReady(entryListComplete, currentContest, hasEntries, allEntriesAssigned);
         }
     }
     record OwnParticipation(long id, long participantId, String displayName, String countryCode) { }
