@@ -2,11 +2,11 @@ package de.venomenon.cscxtool.data;
 
 import de.venomenon.cscxtool.shared.ApiBadRequestException;
 import de.venomenon.cscxtool.shared.CscPoints;
+import de.venomenon.cscxtool.shared.EntryListReadiness;
 import de.venomenon.cscxtool.system.ApplicationStorage;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -27,8 +27,9 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 import javax.sql.DataSource;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.ObjectMapper;
 
 /**
@@ -46,11 +47,14 @@ public class AnalysisExportService {
     private final JdbcTemplate jdbc;
     private final ObjectMapper objectMapper;
     private final ApplicationStorage storage;
+    private final TransactionTemplate snapshotTransaction;
 
     public AnalysisExportService(DataSource dataSource, ObjectMapper objectMapper, ApplicationStorage storage) {
         this.jdbc = new JdbcTemplate(dataSource);
         this.objectMapper = objectMapper;
         this.storage = storage;
+        this.snapshotTransaction = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
+        this.snapshotTransaction.setReadOnly(true);
     }
 
     public AnalysisExportPreview preview(AnalysisExportRequest request) {
@@ -90,9 +94,12 @@ public class AnalysisExportService {
         return candidate;
     }
 
-    /** All SQL reads happen in one read transaction before a package is written. */
-    @Transactional(readOnly = true)
+    /** All SQL reads happen on one transaction-bound connection before a package is written. */
     Snapshot snapshot(AnalysisExportRequest rawRequest) {
+        return Objects.requireNonNull(snapshotTransaction.execute(status -> loadSnapshot(rawRequest)));
+    }
+
+    private Snapshot loadSnapshot(AnalysisExportRequest rawRequest) {
         AnalysisExportRequest request = AnalysisExportRequest.normalized(rawRequest);
         List<DbContest> allContests = jdbc.query("""
                 SELECT id,name,display_order,is_current,own_participation_id
@@ -102,10 +109,13 @@ public class AnalysisExportService {
         validateKnown("contest", request.contestIds(), contestsById.keySet());
 
         List<DbShow> allShows = jdbc.query("""
-                SELECT show.id,show.contest_id,show.show_number,show.name,show.entry_list_complete,contest.is_current
+                SELECT show.id,show.contest_id,show.show_number,show.name,show.entry_list_complete,contest.is_current,
+                       EXISTS(SELECT 1 FROM contest_entry entry WHERE entry.motto_show_id=show.id),
+                       NOT EXISTS(SELECT 1 FROM contest_entry entry WHERE entry.motto_show_id=show.id AND entry.contest_participation_id IS NULL)
                 FROM motto_show show JOIN contest ON contest.id=show.contest_id
                 ORDER BY contest.display_order,show.show_number,show.id
-                """, (r, n) -> new DbShow(r.getLong(1), r.getLong(2), r.getInt(3), r.getString(4), r.getBoolean(5), r.getBoolean(6)));
+                """, (r, n) -> new DbShow(r.getLong(1), r.getLong(2), r.getInt(3), r.getString(4), r.getBoolean(5), r.getBoolean(6),
+                r.getBoolean(7), r.getBoolean(8)));
         Map<Long, DbShow> showsById = byId(allShows, DbShow::id);
         validateKnown("Mottoshow", request.showIds(), showsById.keySet());
 
@@ -123,12 +133,14 @@ public class AnalysisExportService {
         List<DbShow> shows = allShows.stream().filter(show -> selectedShowIds.contains(show.id())).toList();
 
         DbShow candidateShow = null;
+        DbContest candidateContest = null;
         if (request.candidateShowId() != null) {
             candidateShow = showsById.get(request.candidateShowId());
             if (candidateShow == null || !candidateShow.currentContest()) {
                 throw new ApiBadRequestException("ANALYSIS_CANDIDATE_SHOW_INVALID",
                         "Kandidaten duerfen nur aus einer aktuellen Mottoshow exportiert werden.");
             }
+            candidateContest = Objects.requireNonNull(contestsById.get(candidateShow.contestId()));
         }
 
         Set<Long> includedContestIds = Set.copyOf(selectedContestIds);
@@ -204,7 +216,8 @@ public class AnalysisExportService {
                 request.contestIds().isEmpty() && request.showIds().isEmpty() ? "FULL_ARCHIVE" : "SELECTED",
                 List.copyOf(request.contestIds()), List.copyOf(request.showIds()), request.candidateShowId()
         );
-        return new Snapshot(scope, contests, shows, participants, participations, entries, ballots, candidates, selectedCandidateShow, participationsById);
+        return new Snapshot(scope, contests, shows, participants, participations, entries, ballots, candidates, candidateContest,
+                selectedCandidateShow, participationsById);
     }
 
     private LinkedHashMap<String, byte[]> render(Snapshot snapshot, Instant generatedAt) throws IOException {
@@ -252,13 +265,19 @@ public class AnalysisExportService {
                 .map(position -> new BallotPositionDocument(position.rank(), position.entryId(), CscPoints.pointsForRank(position.rank()))).toList(),
                 value.ownEntryId(), value.outsideTop15EntryIds()
         )).toList();
+        PredictionContextDocument predictionContext = snapshot.candidateShow() == null ? null : new PredictionContextDocument(
+                new PredictionContestDocument(snapshot.candidateContest().id(), snapshot.candidateContest().name(), snapshot.candidateContest().current()),
+                new PredictionShowDocument(snapshot.candidateShow().id(), snapshot.candidateShow().contestId(), snapshot.candidateShow().showNumber(),
+                        snapshot.candidateShow().name())
+        );
         List<CandidateDocument> candidates = snapshot.candidates().stream().map(value -> new CandidateDocument(
                 value.id(), value.showId(), snapshot.candidateShow().contestId(), snapshot.candidateShow().showNumber(), snapshot.candidateShow().name(),
                 value.artist(), value.title(), value.youtubeUrl(), value.comment(), value.status(), value.manualPosition(), value.selectedAsOwnSubmission()
         )).toList();
         List<AssessmentDocument> assessments = assessments(snapshot);
         return new AnalysisDocument(FORMAT, FORMAT_VERSION, generatedAt, snapshot.scope(), Semantics.contract(),
-                new AnalysisData(participants, contests, participations, shows, entries, ballots, candidates), new AnalysisDerived(assessments));
+                new AnalysisData(participants, contests, participations, shows, entries, ballots, predictionContext, candidates),
+                new AnalysisDerived(assessments));
     }
 
     private byte[] entriesCsv(Snapshot snapshot) {
@@ -436,8 +455,9 @@ public class AnalysisExportService {
 
     private void appendCandidates(StringBuilder value, Snapshot snapshot) {
         value.append("# Prediction candidates (separate from historic entries)\n\n");
-        value.append("These are current candidates for ").append(markdownText(snapshot.candidateShow().name())).append(" (show ")
-                .append(snapshot.candidateShow().showNumber()).append("). They are not historical contest entries and contain no prediction.\n\n");
+        value.append("These are current candidates for ").append(markdownText(snapshot.candidateContest().name())).append(", show ")
+                .append(snapshot.candidateShow().showNumber()).append(": ").append(markdownText(snapshot.candidateShow().name()))
+                .append(". They are not historical contest entries and contain no prediction.\n\n");
         for (DbCandidate candidate : snapshot.candidates()) {
             value.append("- `").append(candidate.id()).append("`: ").append(markdownText(candidate.artist())).append(" — ").append(markdownText(candidate.title()))
                     .append("; status: ").append(markdownText(candidate.status())).append("; own submission: ").append(candidate.selectedAsOwnSubmission() ? "yes" : "no");
@@ -535,12 +555,8 @@ public class AnalysisExportService {
         }
     }
 
-    private static void publish(Path part, Path target) throws IOException {
-        try {
-            Files.move(part, target, StandardCopyOption.ATOMIC_MOVE);
-        } catch (AtomicMoveNotSupportedException exception) {
-            Files.move(part, target);
-        }
+    static void publish(Path part, Path target) throws IOException {
+        Files.move(part, target, StandardCopyOption.ATOMIC_MOVE);
     }
 
     private static void cleanupPartialArtifacts(Path directory) {
@@ -629,7 +645,7 @@ public class AnalysisExportService {
     }
     record AnalysisData(List<ParticipantDocument> participants, List<ContestDocument> contests, List<ParticipationDocument> participations,
                         List<ShowDocument> shows, List<EntryDocument> entries, List<PublishedBallotDocument> publishedBallots,
-                        List<CandidateDocument> predictionCandidates) { }
+                        PredictionContextDocument predictionContext, List<CandidateDocument> predictionCandidates) { }
     record AnalysisDerived(List<AssessmentDocument> assessmentMatrix) { }
     record ParticipantDocument(long id, String displayName, List<String> aliases) { }
     record ContestDocument(long id, String name, int displayOrder, boolean current, Long ownParticipationId) { }
@@ -639,15 +655,23 @@ public class AnalysisExportService {
     record PublishedBallotDocument(long showId, long voterParticipationId, String status, List<BallotPositionDocument> positions,
                                    Long ownEntryId, List<Long> outsideTop15EntryIds) { }
     record BallotPositionDocument(int rank, long entryId, int derivedPoints) { }
+    record PredictionContextDocument(PredictionContestDocument contest, PredictionShowDocument show) { }
+    record PredictionContestDocument(long id, String name, boolean current) { }
+    record PredictionShowDocument(long id, long contestId, int showNumber, String name) { }
     record CandidateDocument(long id, long showId, long contestId, int showNumber, String showName, String artist, String title,
                              String youtubeUrl, String comment, String status, int manualPosition, boolean selectedAsOwnSubmission) { }
     record AssessmentDocument(long showId, long voterParticipationId, long entryId, String state, Integer rank, Integer derivedPoints) { }
 
     record Snapshot(AnalysisScope scope, List<DbContest> contests, List<DbShow> shows, List<DbParticipant> participants,
                     List<DbParticipation> participations, List<DbEntry> entries, List<DbBallotView> ballots, List<DbCandidate> candidates,
-                    DbShow candidateShow, Map<Long, DbParticipation> participationsById) { }
+                    DbContest candidateContest, DbShow candidateShow, Map<Long, DbParticipation> participationsById) { }
     record DbContest(long id, String name, int displayOrder, boolean current, Long ownParticipationId) { }
-    record DbShow(long id, long contestId, int showNumber, String name, boolean entryListComplete, boolean currentContest) { }
+    record DbShow(long id, long contestId, int showNumber, String name, boolean explicitEntryListComplete, boolean currentContest,
+                  boolean hasEntries, boolean allEntriesAssigned) {
+        boolean entryListComplete() {
+            return EntryListReadiness.isReady(explicitEntryListComplete, currentContest, hasEntries, allEntriesAssigned);
+        }
+    }
     record DbParticipant(long id, String displayName, List<String> aliases) { }
     record DbParticipation(long id, long contestId, long participantId, String countryCode, String displayName, boolean ownParticipation) { }
     record DbEntry(long id, long contestId, long showId, String artist, String title, String youtubeUrl, Long submitterParticipationId, int poolPosition) { }
