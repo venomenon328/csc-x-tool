@@ -87,15 +87,21 @@ class ResultApiIntegrationTest {
     }
 
     @Test
-    void requiresACompleteSongMappingBeforeDerivingOwnResults() throws Exception {
+    void requiresEveryRevealedCurrentEntryToBeAssignedBeforeDerivingOwnResults() throws Exception {
         insertParticipant(1, "Ich", "DE");
         jdbc.update("UPDATE contest SET own_participation_id = 1 WHERE id = 1");
         jdbc.update("""
                 INSERT INTO contest_entry (id,motto_show_id,contest_id,artist,title,youtube_url,pool_position,contest_participation_id,created_at,updated_at)
-                VALUES (100,1,1,'Band','Song','https://example.test/100',1,1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+                VALUES (100,1,1,'Band','Song','https://example.test/100',1,1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP),
+                       (101,1,1,'Other Band','Other Song','https://example.test/101',2,NULL,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
                 """);
 
         assertThat(get("/api/shows/1/results").body()).contains("\"prerequisite\":\"ENTRY_LIST_INCOMPLETE\"");
+
+        insertParticipant(2, "Andere", "AT");
+        jdbc.update("UPDATE contest_entry SET contest_participation_id = 2 WHERE id = 101");
+
+        assertThat(get("/api/shows/1/results").body()).contains("\"prerequisite\":\"READY\"");
     }
 
     @Test
