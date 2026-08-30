@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Participant } from '../participants/api'
-import { voterSelectionPatch } from './PublishedBallotsPanel'
+import { voterSelectionPatch } from './voterSelection'
 
 const participants: Participant[] = [
   {
