@@ -32,3 +32,6 @@ databaseChangeLog:
   - include:
       file: 011-historical-contest-entries.yaml
       relativeToChangelogFile: true
+  - include:
+      file: 012-published-ballots.yaml
+      relativeToChangelogFile: true

@@ -145,7 +145,8 @@ public class ContestRepository {
                   SELECT 1 FROM contest_participation participation
                   WHERE participation.contest_id = ? AND participation.participant_id = ?
                     AND (EXISTS (SELECT 1 FROM contest_entry entry WHERE entry.contest_participation_id = participation.id)
-                      OR EXISTS (SELECT 1 FROM received_score score WHERE score.contest_participation_id = participation.id))
+                      OR EXISTS (SELECT 1 FROM received_score score WHERE score.contest_participation_id = participation.id)
+                      OR EXISTS (SELECT 1 FROM published_ballot ballot WHERE ballot.contest_participation_id = participation.id))
                 )
                 """, Boolean.class, contestId, participantId));
     }

@@ -238,7 +238,7 @@ function ShowCard({ show, onRename }: { show: MottoShow, onRename: () => void })
         <Box
           aria-label={`Arbeitsbereiche für Show ${show.showNumber}`}
           component="nav"
-          sx={{ display: 'grid', gap: 0.5, gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', width: '100%' }}
+          sx={{ display: 'grid', gap: 0.5, gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', width: '100%' }}
         >
           <Button
             component={RouterLink}
@@ -269,6 +269,15 @@ function ShowCard({ show, onRename }: { show: MottoShow, onRename: () => void })
             variant="outlined"
           >
             Ergebnis
+          </Button>
+          <Button
+            component={RouterLink}
+            size="small"
+            sx={showNavigationButtonSx}
+            to={`/shows/${show.id}/published-ballots`}
+            variant="outlined"
+          >
+            Einzelwertungen
           </Button>
         </Box>
       </CardActions>
