@@ -6,11 +6,10 @@ import java.net.URI;
 import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.jsoup.Jsoup;
@@ -44,14 +43,25 @@ class HistoricalEntryImportParser {
     }
 
     List<HistoricalImportPreviewLine> parse(String html, String text, List<HistoricalImportParticipant> participants) {
-        List<SourceLine> sourceLines = new ArrayList<>();
-        appendHtml(html, sourceLines);
-        appendText(text, sourceLines);
+        List<SourceLine> extracted = new ArrayList<>();
+        appendHtml(html, extracted);
+        appendText(text, extracted);
+
+        // A real paste event normally carries HTML and plaintext for the same source lines.  Treat the visible
+        // source text as the identity and prefer the variant that retains a rich-link target.  Otherwise every
+        // linked line would appear twice merely because one clipboard representation has an href and the other
+        // does not.
+        Map<String, SourceLine> sourceLinesByText = new LinkedHashMap<>();
+        for (SourceLine source : extracted) {
+            String identity = normalized(source.text());
+            SourceLine existing = sourceLinesByText.get(identity);
+            if (existing == null || (blank(existing.url()) && !blank(source.url()))) {
+                sourceLinesByText.put(identity, source);
+            }
+        }
+
         List<HistoricalImportPreviewLine> lines = new ArrayList<>();
-        Set<String> seen = new HashSet<>();
-        for (SourceLine source : sourceLines) {
-            String identity = normalized(source.text()) + "|" + normalized(source.url());
-            if (!seen.add(identity)) continue;
+        for (SourceLine source : sourceLinesByText.values()) {
             lines.add(toPreviewLine(lines.size() + 1, source, participants));
         }
         return List.copyOf(lines);
@@ -188,6 +198,7 @@ class HistoricalEntryImportParser {
         return Normalizer.normalize(compact(value), Normalizer.Form.NFKC).toLowerCase(Locale.ROOT);
     }
 
+    private static boolean blank(String value) { return value == null || value.isBlank(); }
     private static String emptyToNull(String value) { return value.isEmpty() ? null : value; }
     private static String trimUrl(String value) { return value.replaceAll("[),.;]+$", ""); }
     private record SourceLine(String text, String url) { }
