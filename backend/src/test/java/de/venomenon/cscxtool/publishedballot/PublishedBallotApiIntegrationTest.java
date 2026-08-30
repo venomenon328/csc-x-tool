@@ -85,8 +85,8 @@ class PublishedBallotApiIntegrationTest {
     @Test
     void parsesTheFrolloFixtureFromMarkdownPlainTextHtmlAndConsecutiveBlocks() throws Exception {
         Fixture fixture = fixture();
-        String markdown = FROLLO_FIXTURE.replaceFirst("\\[\\#3] Malta - -Frollo-", "**[#3] Malta - -Frollo-**")
-                .replaceFirst("1 punt", "**1 punt").replaceFirst("Layla", "Layla**");
+        String markdown = FROLLO_FIXTURE.replaceFirst("\\[\\#3] Malta - -Frollo-", "**[#3] Malta \u2013 -Frollo-**")
+                .replaceFirst("1 punt   ", "**1 punt\u00a0\u00a0\u00a0").replaceFirst("Layla", "Layla**");
         List<PublishedBallotPreviewBlock> plain = parser.parse("", markdown,
                 ballotRepository.findParticipants(fixture.showId), ballotRepository.findEntries(fixture.showId), java.util.Set.of());
         assertThat(plain).hasSize(1);
