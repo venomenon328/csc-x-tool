@@ -14,9 +14,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.springframework.test.annotation.DirtiesContext;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
@@ -42,7 +42,7 @@ class ResultApiIntegrationTest {
         jdbc.update("DELETE FROM ballot_snapshot WHERE motto_show_id = 1");
         jdbc.update("DELETE FROM contest_entry WHERE motto_show_id = 1");
         jdbc.update("DELETE FROM contest_participation WHERE contest_id = 1");
-        jdbc.update("DELETE FROM participant WHERE id BETWEEN 1 AND 5");
+        jdbc.update("DELETE FROM participant WHERE id BETWEEN 1 AND 20");
         jdbc.update("UPDATE motto_show SET entry_list_complete = 0, ballot_closed_at = NULL WHERE id = 1");
     }
 
@@ -98,6 +98,30 @@ class ResultApiIntegrationTest {
         assertThat(get("/api/shows/1/results").body()).contains("\"prerequisite\":\"ENTRY_LIST_INCOMPLETE\"");
     }
 
+    @Test
+    void keepsRevealedCurrentSongListReadyAfterOwnBallotIsReopened() throws Exception {
+        insertCurrentRevealedFixture();
+
+        assertThat(get("/api/shows/1/results").body()).contains("\"prerequisite\":\"READY\"", "\"state\":\"RANKED\"");
+        assertThat(get("/api/shows/1/published-ballots").body()).contains("\"entryListReady\":true");
+
+        HttpResponse<String> reopened = post("/api/shows/1/ballot/reopen", null);
+        assertThat(reopened.statusCode()).isEqualTo(200);
+        assertThat(jdbc.queryForObject("SELECT ballot_closed_at FROM motto_show WHERE id=1", String.class)).isNull();
+
+        assertThat(get("/api/shows/1/results").body()).contains("\"prerequisite\":\"READY\"", "\"state\":\"RANKED\"");
+        assertThat(get("/api/shows/1/published-ballots").body()).contains("\"entryListReady\":true");
+        assertThat(get("/api/data/export/results.csv").body()).contains("Band 100 – Song 100", "RANG_1_BIS_15", ";1;25");
+
+        HttpResponse<String> statusUpdate = put("/api/shows/1/published-ballots/2/status", "{\"status\":\"NICHT_ABGESTIMMT\"}");
+        assertThat(statusUpdate.statusCode()).isEqualTo(204);
+        assertThat(get("/api/shows/1/results").body()).contains("\"prerequisite\":\"READY\"", "\"state\":\"NO_BALLOT\"");
+
+        HttpResponse<String> changeOwnParticipation = put("/api/contests/1/own-participation", "{\"participationId\":2}");
+        assertThat(changeOwnParticipation.statusCode()).isEqualTo(409);
+        assertThat(changeOwnParticipation.body()).contains("OWN_PARTICIPATION_CHANGE_CONFIRMATION_REQUIRED");
+    }
+
     private void insertContestFixture() {
         insertParticipant(1, "Ich", "DE");
         insertParticipant(2, "Rang", "AT");
@@ -125,13 +149,41 @@ class ResultApiIntegrationTest {
         }
     }
 
+    private void insertCurrentRevealedFixture() {
+        for (int id = 1; id <= 16; id++) insertParticipant(id, id == 1 ? "Ich" : "Teilnehmer " + id, "DE");
+        jdbc.update("UPDATE contest SET own_participation_id = 1 WHERE id = 1");
+        for (int id = 100; id <= 115; id++) {
+            int participationId = id - 99;
+            jdbc.update("""
+                    INSERT INTO contest_entry (id,motto_show_id,contest_id,artist,title,youtube_url,pool_position,contest_participation_id,created_at,updated_at)
+                    VALUES (?,1,1,?,?,?, ?, ?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+                    """, id, "Band " + id, "Song " + id, "https://example.test/" + id, id - 99, participationId);
+        }
+        jdbc.update("UPDATE motto_show SET entry_list_complete=0,ballot_closed_at=CURRENT_TIMESTAMP WHERE id=1");
+        jdbc.update("INSERT INTO ballot_snapshot (id,motto_show_id,snapshot_number,created_at,is_current) VALUES (500,1,1,CURRENT_TIMESTAMP,1)");
+        jdbc.update("""
+                INSERT INTO published_ballot (id,motto_show_id,contest_id,contest_participation_id,status,created_at,updated_at)
+                VALUES (600,1,1,2,'ABGESTIMMT',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+                """);
+        for (int rank = 1; rank <= 15; rank++) {
+            long entryId = rank == 1 ? 100 : 100 + rank;
+            jdbc.update("INSERT INTO published_ballot_position (published_ballot_id,contest_entry_id,rank) VALUES (600,?,?)", entryId, rank);
+        }
+    }
+
     private void insertParticipant(long id, String name, String country) {
         jdbc.update("INSERT INTO participant (id,display_name,active,created_at,updated_at) VALUES (?,?,1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", id, name);
         jdbc.update("INSERT INTO contest_participation (id,contest_id,participant_id,country_code,active,created_at,updated_at) VALUES (?,1,?,?,1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", id, id, country);
     }
 
-    private HttpResponse<String> get(String path) throws Exception {
-        return client.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + path)).GET().build(), HttpResponse.BodyHandlers.ofString());
+    private HttpResponse<String> get(String path) throws Exception { return request("GET", path, null); }
+    private HttpResponse<String> post(String path, String body) throws Exception { return request("POST", path, body); }
+    private HttpResponse<String> put(String path, String body) throws Exception { return request("PUT", path, body); }
+    private HttpResponse<String> request(String method, String path, String body) throws Exception {
+        HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + path));
+        if (body == null) builder.method(method, HttpRequest.BodyPublishers.noBody());
+        else builder.header("Content-Type", "application/json").method(method, HttpRequest.BodyPublishers.ofString(body));
+        return client.send(builder.build(), HttpResponse.BodyHandlers.ofString());
     }
 
     private static Path temporaryStorageRoot() {
