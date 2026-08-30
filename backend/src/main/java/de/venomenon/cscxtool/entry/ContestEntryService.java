@@ -2,6 +2,7 @@ package de.venomenon.cscxtool.entry;
 
 import de.venomenon.cscxtool.contest.ContestRepository;
 import de.venomenon.cscxtool.participant.ParticipantNotFoundException;
+import de.venomenon.cscxtool.publishedballot.PublishedBallotService;
 import de.venomenon.cscxtool.shared.ApiBadRequestException;
 import de.venomenon.cscxtool.shared.ApiConflictException;
 import de.venomenon.cscxtool.show.ShowContext;
@@ -27,19 +28,22 @@ class ContestEntryService {
     private final YoutubeUrlNormalizer youtubeUrlNormalizer;
     private final ContestRepository contests;
     private final HistoricalEntryImportParser historicalEntryImportParser;
+    private final PublishedBallotService publishedBallots;
 
     ContestEntryService(
             ContestEntryRepository repository,
             ClipboardEntryParser clipboardEntryParser,
             YoutubeUrlNormalizer youtubeUrlNormalizer,
             ContestRepository contests,
-            HistoricalEntryImportParser historicalEntryImportParser
+            HistoricalEntryImportParser historicalEntryImportParser,
+            PublishedBallotService publishedBallots
     ) {
         this.repository = repository;
         this.clipboardEntryParser = clipboardEntryParser;
         this.youtubeUrlNormalizer = youtubeUrlNormalizer;
         this.contests = contests;
         this.historicalEntryImportParser = historicalEntryImportParser;
+        this.publishedBallots = publishedBallots;
     }
 
     List<ContestEntry> findAll(long showId) {
@@ -157,6 +161,12 @@ class ContestEntryService {
                         throw duplicateParticipantAssignment();
                     });
             participationId = participation.id();
+            if (publishedBallots.assignmentWouldMakeOwnEntry(entryId, participationId)) {
+                throw new ApiConflictException(
+                        "PUBLISHED_BALLOT_OWN_ENTRY_CONFLICT",
+                        "Die Teilnehmerzuordnung würde einen bestehenden veröffentlichten Stimmzettel fachlich ungültig machen."
+                );
+            }
         }
         try {
             if (!repository.updateParticipantAssignment(entryId, showId, participationId)) {
@@ -182,6 +192,12 @@ class ContestEntryService {
             throw new ApiConflictException(
                     "BALLOT_REOPEN_REQUIRED",
                     "Die abgeschlossene Abstimmung muss vor einer Rangänderung bewusst wieder geöffnet werden."
+            );
+        }
+        if (publishedBallots.hasReferencesForEntry(entryId)) {
+            throw new ApiConflictException(
+                    "PUBLISHED_BALLOT_ENTRY_REFERENCE",
+                    "Ein in veröffentlichten Stimmzetteln verwendeter Beitrag darf nicht gelöscht werden."
             );
         }
         if (!repository.delete(entryId, showId)) {
@@ -295,6 +311,12 @@ class ContestEntryService {
     void reopenHistoricalEntryList(long showId) {
         ShowContext context = requireShowContext(showId);
         requireHistorical(context);
+        if (publishedBallots.hasBallotsForShow(showId)) {
+            throw new ApiConflictException(
+                    "PUBLISHED_BALLOTS_EXIST",
+                    "Eine Songliste mit veröffentlichten Stimmzetteln kann nicht wieder geöffnet werden."
+            );
+        }
         repository.setEntryListComplete(showId, false);
     }
 
@@ -450,6 +472,12 @@ class ContestEntryService {
     private boolean updateHistoricalEntry(
             long entryId, long showId, String artist, String title, String youtubeUrl, String comment, long participationId
     ) {
+        if (publishedBallots.assignmentWouldMakeOwnEntry(entryId, participationId)) {
+            throw new ApiConflictException(
+                    "PUBLISHED_BALLOT_OWN_ENTRY_CONFLICT",
+                    "Die Teilnehmerzuordnung würde einen bestehenden veröffentlichten Stimmzettel fachlich ungültig machen."
+            );
+        }
         repository.findEntryIdByParticipation(showId, participationId)
                 .filter(existingEntryId -> existingEntryId != entryId)
                 .ifPresent(existing -> {

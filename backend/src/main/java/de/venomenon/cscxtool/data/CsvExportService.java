@@ -2,6 +2,7 @@ package de.venomenon.cscxtool.data;
 
 import de.venomenon.cscxtool.participant.Country;
 import de.venomenon.cscxtool.participant.CountryCatalog;
+import de.venomenon.cscxtool.shared.CscPoints;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
@@ -77,6 +78,35 @@ public class CsvExportService {
                         ORDER BY contest.display_order,motto_show.show_number,participant.display_name COLLATE NOCASE,participant.id
                         """, (r,n) -> List.of(r.getString(1),show(r.getInt(2),r.getString(3)),r.getString(4),r.getString(5),nullableNumber(r,6),
                         Integer.toString(r.getInt(7)),nullableNumber(r,8),nullableNumber(r,9),yesNo(r.getBoolean(10)))));
+    }
+
+    /** Long format keeps an absent ballot distinct from a ranked song and never invents ranks below the Top 15. */
+    public byte[] publishedBallots() {
+        return csv(List.of("CSC-Ausgabe", "Show", "Abstimmender", "Land", "Stimmzettelstatus", "Bewertungszustand", "Rang", "Abgeleitete Punkte", "Interpret", "Titel", "Quell- oder YouTube-URL", "Einreichender", "Land Einreichender"),
+                jdbc.query("""
+                        SELECT contest.name,motto_show.show_number,motto_show.name,voter.display_name,voter_participation.country_code,
+                               COALESCE(ballot.status, 'UNERFASST'),position.rank,entry.artist,entry.title,entry.youtube_url,
+                               submitter.display_name,submitter_participation.country_code
+                        FROM motto_show
+                        JOIN contest ON contest.id=motto_show.contest_id
+                        JOIN contest_participation voter_participation ON voter_participation.contest_id=contest.id
+                        JOIN participant voter ON voter.id=voter_participation.participant_id
+                        LEFT JOIN published_ballot ballot ON ballot.motto_show_id=motto_show.id
+                          AND ballot.contest_participation_id=voter_participation.id
+                        LEFT JOIN published_ballot_position position ON position.published_ballot_id=ballot.id
+                        LEFT JOIN contest_entry entry ON entry.id=position.contest_entry_id
+                        LEFT JOIN contest_participation submitter_participation ON submitter_participation.id=entry.contest_participation_id
+                        LEFT JOIN participant submitter ON submitter.id=submitter_participation.participant_id
+                        ORDER BY contest.display_order,motto_show.show_number,voter.display_name COLLATE NOCASE,voter.id,position.rank
+                        """, (r,n) -> {
+                    int rank = r.getInt(7);
+                    boolean ranked = !r.wasNull();
+                    String ballotStatus = r.getString(6);
+                    String state = ranked ? "RANKED" : "NICHT_ABGESTIMMT".equals(ballotStatus) ? "NO_BALLOT" : "UNKNOWN";
+                    return List.of(r.getString(1),show(r.getInt(2),r.getString(3)),r.getString(4),r.getString(5),ballotStatus,state,
+                            ranked ? Integer.toString(rank) : "", ranked ? Integer.toString(CscPoints.pointsForRank(rank)) : "",
+                            nullable(r,8),nullable(r,9),nullable(r,10),nullable(r,11),nullable(r,12));
+                }));
     }
 
     private static byte[] csv(List<String> header, List<List<String>> rows) {

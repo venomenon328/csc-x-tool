@@ -75,6 +75,8 @@ class DataManagementController {
     ResponseEntity<byte[]> participants() { return csv("teilnehmer.csv", this.csv.participants()); }
     @GetMapping("/export/results.csv")
     ResponseEntity<byte[]> results() { return csv("ergebnisse.csv", this.csv.results()); }
+    @GetMapping("/export/published-ballots.csv")
+    ResponseEntity<byte[]> publishedBallots() { return csv("veroeffentlichte-einzelwertungen.csv", this.csv.publishedBallots()); }
 
     private static ResponseEntity<byte[]> csv(String name, byte[] data) {
         return download(name, new MediaType("text", "csv", StandardCharsets.UTF_8), data);

@@ -83,7 +83,8 @@ public class ExportService {
                         schemaVersion(connection), new ExportFormat.Data(
                                 contests(connection), shows, candidates(connection), participants(connection),
                                 contestParticipations(connection), participantAliases(connection), contestEntries(connection),
-                                ballotSnapshots(connection), ballotSnapshotItems(connection), receivedScores(connection)
+                                ballotSnapshots(connection), ballotSnapshotItems(connection), receivedScores(connection),
+                                publishedBallots(connection), publishedBallotPositions(connection)
                         )
                 );
             } finally {
@@ -115,6 +116,7 @@ public class ExportService {
                 case ExportFormat.VERSION_2 -> upgradeV3(upgradeV2(strictMapper.readValue(input, ExportFormat.FullExportV2.class)));
                 case ExportFormat.VERSION_3 -> upgradeV3(strictMapper.readValue(input, ExportFormat.FullExportV3.class));
                 case ExportFormat.VERSION_4 -> upgradeV4(strictMapper.readValue(input, ExportFormat.FullExportV4.class));
+                case ExportFormat.VERSION_5 -> upgradeV5(strictMapper.readValue(input, ExportFormat.FullExportV5.class));
                 case ExportFormat.VERSION -> strictMapper.readValue(input, ExportFormat.FullExport.class);
                 default -> throw invalid("Das JSON-Format wird von dieser Anwendung nicht unterstützt.");
             };
@@ -138,6 +140,8 @@ public class ExportService {
         JdbcTemplate stage = new JdbcTemplate(SqliteDataSourceFactory.create(databaseFile));
         ExportFormat.Data data = export.data();
         try {
+            stage.update("DELETE FROM published_ballot_position");
+            stage.update("DELETE FROM published_ballot");
             stage.update("DELETE FROM received_score");
             stage.update("DELETE FROM ballot_snapshot_item");
             stage.update("DELETE FROM ballot_snapshot");
@@ -211,6 +215,19 @@ public class ExportService {
                         """, row.id(), row.mottoShowId(), row.contestId(), row.contestParticipationId(), row.status(), row.points(),
                         row.createdAt(), row.updatedAt());
             }
+            for (ExportFormat.PublishedBallot row : data.publishedBallots()) {
+                stage.update("""
+                        INSERT INTO published_ballot (id,motto_show_id,contest_id,contest_participation_id,status,created_at,updated_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """, row.id(), row.mottoShowId(), row.contestId(), row.contestParticipationId(), row.status(),
+                        row.createdAt(), row.updatedAt());
+            }
+            for (ExportFormat.PublishedBallotPosition row : data.publishedBallotPositions()) {
+                stage.update("""
+                        INSERT INTO published_ballot_position (id,published_ballot_id,contest_entry_id,rank)
+                        VALUES (?, ?, ?, ?)
+                        """, row.id(), row.publishedBallotId(), row.contestEntryId(), row.rank());
+            }
             for (ExportFormat.MottoShow row : data.mottoShows()) {
                 stage.update("UPDATE motto_show SET selected_candidate_id = ? WHERE id = ?", row.selectedCandidateId(), row.id());
             }
@@ -237,7 +254,8 @@ public class ExportService {
         ExportFormat.Data data = export.data();
         if (data.contests() == null || data.mottoShows() == null || data.candidates() == null || data.participants() == null
                 || data.contestParticipations() == null || data.participantAliases() == null || data.contestEntries() == null
-                || data.ballotSnapshots() == null || data.ballotSnapshotItems() == null || data.receivedScores() == null) {
+                || data.ballotSnapshots() == null || data.ballotSnapshotItems() == null || data.receivedScores() == null
+                || data.publishedBallots() == null || data.publishedBallotPositions() == null) {
             throw invalid("Der JSON-Export enthält keine vollständigen fachlichen Daten.");
         }
         Set<Long> contestIds = uniquePositive(data.contests(), ExportFormat.Contest::id, "CSC-Ausgabe");
@@ -428,6 +446,46 @@ public class ExportService {
             }
         }
 
+        Set<Long> publishedBallotIds = uniquePositive(data.publishedBallots(), ExportFormat.PublishedBallot::id, "Veröffentlichter Stimmzettel");
+        Map<Long, ExportFormat.PublishedBallot> publishedBallots = new HashMap<>();
+        Set<String> publishedBallotKeys = new HashSet<>();
+        for (ExportFormat.PublishedBallot ballot : data.publishedBallots()) {
+            ExportFormat.MottoShow show = shows.get(ballot.mottoShowId());
+            ExportFormat.ContestParticipation participation = participations.get(ballot.contestParticipationId());
+            if (show == null || participation == null || ballot.contestId() != show.contestId()
+                    || ballot.contestId() != participation.contestId()
+                    || !("ABGESTIMMT".equals(ballot.status()) || "NICHT_ABGESTIMMT".equals(ballot.status()))
+                    || !publishedBallotKeys.add(key(ballot.mottoShowId(), ballot.contestParticipationId()))) {
+                throw invalid("Ein veröffentlichter Stimmzettel ist contestfremd oder besitzt keinen gültigen Status.");
+            }
+            requireText(ballot.createdAt(), "Ein veröffentlichter Stimmzettel ohne Erstellungszeitpunkt ist nicht gültig.");
+            requireText(ballot.updatedAt(), "Ein veröffentlichter Stimmzettel ohne Änderungszeitpunkt ist nicht gültig.");
+            publishedBallots.put(ballot.id(), ballot);
+        }
+        uniquePositive(data.publishedBallotPositions(), ExportFormat.PublishedBallotPosition::id, "Stimmzettelposition");
+        Map<Long, List<ExportFormat.PublishedBallotPosition>> positionsByPublishedBallot = new HashMap<>();
+        Set<String> publishedRanks = new HashSet<>();
+        Set<String> publishedEntries = new HashSet<>();
+        for (ExportFormat.PublishedBallotPosition position : data.publishedBallotPositions()) {
+            ExportFormat.PublishedBallot ballot = publishedBallots.get(position.publishedBallotId());
+            ExportFormat.ContestEntry entry = entries.get(position.contestEntryId());
+            if (ballot == null || entry == null || entry.mottoShowId() != ballot.mottoShowId()
+                    || position.rank() < 1 || position.rank() > 15
+                    || !publishedRanks.add(key(position.publishedBallotId(), position.rank()))
+                    || !publishedEntries.add(key(position.publishedBallotId(), position.contestEntryId()))
+                    || (entry.contestParticipationId() != null && ballot.contestParticipationId() == entry.contestParticipationId())) {
+                throw invalid("Eine veröffentlichte Stimmzettelposition ist nicht eindeutig oder nicht wählbar.");
+            }
+            positionsByPublishedBallot.computeIfAbsent(position.publishedBallotId(), ignored -> new ArrayList<>()).add(position);
+        }
+        for (ExportFormat.PublishedBallot ballot : data.publishedBallots()) {
+            List<ExportFormat.PublishedBallotPosition> positions = positionsByPublishedBallot.getOrDefault(ballot.id(), List.of());
+            if (("ABGESTIMMT".equals(ballot.status()) && positions.size() != 15)
+                    || ("NICHT_ABGESTIMMT".equals(ballot.status()) && !positions.isEmpty())) {
+                throw invalid("Ein abgegebener Stimmzettel benötigt genau 15 Positionen; nicht abgestimmt besitzt keine Position.");
+            }
+        }
+
         for (ExportFormat.MottoShow show : data.mottoShows()) {
             List<ExportFormat.BallotSnapshot> currentSnapshots = data.ballotSnapshots().stream()
                     .filter(snapshot -> snapshot.mottoShowId() == show.id() && snapshot.current()).toList();
@@ -536,6 +594,17 @@ public class ExportService {
                         data.ballotSnapshotItems(), data.receivedScores()));
     }
 
+    private static ExportFormat.FullExport upgradeV5(ExportFormat.FullExportV5 legacy) {
+        if (legacy == null || legacy.data() == null) return new ExportFormat.FullExport(
+                legacy == null ? null : legacy.format(), ExportFormat.VERSION, legacy == null ? null : legacy.exportedAt(),
+                legacy == null ? null : legacy.applicationVersion(), legacy == null ? 0 : legacy.schemaVersion(), null);
+        ExportFormat.DataV5 data = legacy.data();
+        return new ExportFormat.FullExport(legacy.format(), ExportFormat.VERSION, legacy.exportedAt(), legacy.applicationVersion(),
+                legacy.schemaVersion(), new ExportFormat.Data(data.contests(), data.mottoShows(), data.candidates(), data.participants(),
+                        data.contestParticipations(), data.participantAliases(), data.contestEntries(), data.ballotSnapshots(),
+                        data.ballotSnapshotItems(), data.receivedScores(), List.of(), List.of()));
+    }
+
     private static boolean validAssessmentPair(Integer assessment, Integer confidence) {
         return (assessment == null && confidence == null)
                 || (assessment != null && confidence != null && assessment >= 1 && assessment <= 5 && confidence >= 1 && confidence <= 5);
@@ -606,6 +675,14 @@ public class ExportService {
     private static List<ExportFormat.ReceivedScore> receivedScores(Connection connection) throws SQLException {
         return query(connection, "SELECT id,motto_show_id,contest_id,contest_participation_id,status,points,created_at,updated_at FROM received_score ORDER BY id",
                 r -> new ExportFormat.ReceivedScore(r.getLong(1), r.getLong(2), r.getLong(3), r.getLong(4), r.getString(5), nullableInt(r, 6), r.getString(7), r.getString(8)));
+    }
+    private static List<ExportFormat.PublishedBallot> publishedBallots(Connection connection) throws SQLException {
+        return query(connection, "SELECT id,motto_show_id,contest_id,contest_participation_id,status,created_at,updated_at FROM published_ballot ORDER BY id",
+                r -> new ExportFormat.PublishedBallot(r.getLong(1), r.getLong(2), r.getLong(3), r.getLong(4), r.getString(5), r.getString(6), r.getString(7)));
+    }
+    private static List<ExportFormat.PublishedBallotPosition> publishedBallotPositions(Connection connection) throws SQLException {
+        return query(connection, "SELECT id,published_ballot_id,contest_entry_id,rank FROM published_ballot_position ORDER BY id",
+                r -> new ExportFormat.PublishedBallotPosition(r.getLong(1), r.getLong(2), r.getLong(3), r.getInt(4)));
     }
     private static <T> List<T> query(Connection connection, String sql, SqlRowMapper<T> mapper) throws SQLException {
         List<T> rows = new ArrayList<>();

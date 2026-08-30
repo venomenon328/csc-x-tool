@@ -92,6 +92,7 @@ export function DataManagementPage() {
           <ExportCard title="Wettbewerbsbeiträge" detail="CSV mit Einschätzung, Sicherheit, Rang und Zuordnung." href="/api/data/export/contest-entries.csv" />
           <ExportCard title="Teilnehmer" detail="CSV mit Land, Aktivstatus und Aliasnamen." href="/api/data/export/participants.csv" />
           <ExportCard title="Ergebnisse" detail="CSV mit Abstimmungsstatus, Punkten und Abschlussdaten." href="/api/data/export/results.csv" />
+          <ExportCard title="Einzelwertungen" detail="CSV im Long-Format mit Stimmzettelstatus, Rang und abgeleiteten Punkten." href="/api/data/export/published-ballots.csv" />
         </Stack>
         <Card><CardContent><Typography variant="h6">Wiederherstellung vorbereiten</Typography><Typography color="text.secondary" sx={{ mt: 1 }}>Wählen Sie eine vorhandene Sicherung oder eine kompatible .cscbackup- beziehungsweise JSON-Exportdatei. Die aktuelle Datenbank bleibt bis zur Bestätigung unverändert.</Typography></CardContent>
           <CardActions><Button disabled={preparing} onClick={() => fileInput.current?.click()}>{preparing ? 'Datei wird geprüft …' : 'Datei prüfen'}</Button><input accept=".cscbackup,.json,application/json" aria-label="Wiederherstellungsdatei" hidden onChange={(event) => void onUpload(event)} ref={fileInput} type="file" /></CardActions></Card>

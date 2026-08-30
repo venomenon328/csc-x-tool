@@ -32,6 +32,10 @@ describe('HistoricalShowPage', () => {
         id: 7, participationId: 17, displayName: 'Cortez', countryCode: 'FI', countryName: 'Finnland', active: true,
         aliases: [], createdAt: '2026-08-30T00:00:00Z', updatedAt: '2026-08-30T00:00:00Z',
       }])
+      if (path === '/api/shows/1/published-ballots') return jsonResponse({
+        mottoShowId: 1, entryListReady: true, votedCount: 0, notVotedCount: 0, unrecordedCount: 1,
+        participants: [{ participationId: 17, participantId: 7, displayName: 'Cortez', countryCode: 'FI', countryName: 'Finnland', status: 'UNERFASST', ballotExists: false, updatedAt: null }],
+      })
       if (path === '/api/contests') return jsonResponse([])
       return new Response(null, { status: 204 })
     })

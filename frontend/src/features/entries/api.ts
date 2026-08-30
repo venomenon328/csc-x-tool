@@ -10,6 +10,7 @@ export type ContestEntry = PlayableSong & {
   assessmentConfidence: number | null
   poolPosition: number
   rankingPosition: number | null
+  contestParticipationId?: number | null
   participantId: number | null
   createdAt: string
   updatedAt: string

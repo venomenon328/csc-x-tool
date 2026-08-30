@@ -1,0 +1,84 @@
+databaseChangeLog:
+  - changeSet:
+      id: 012-published-ballots
+      author: venomenon328
+      runInTransaction: false
+      changes:
+        - sql:
+            sql: |-
+              -- UNERFASST is deliberately represented by an absent row. A persisted row is
+              -- therefore always an explicit, reviewed status and cannot be confused with an
+              -- unfinished import preview.
+              CREATE TABLE published_ballot (
+                id INTEGER PRIMARY KEY,
+                motto_show_id INTEGER NOT NULL,
+                contest_id INTEGER NOT NULL,
+                contest_participation_id INTEGER NOT NULL,
+                status TEXT NOT NULL CONSTRAINT ck_published_ballot_status
+                  CHECK (status IN ('NICHT_ABGESTIMMT', 'ABGESTIMMT')),
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                CONSTRAINT fk_published_ballot_show_contest
+                  FOREIGN KEY (motto_show_id, contest_id) REFERENCES motto_show (id, contest_id) ON DELETE RESTRICT,
+                CONSTRAINT fk_published_ballot_participation_contest
+                  FOREIGN KEY (contest_participation_id, contest_id)
+                  REFERENCES contest_participation (id, contest_id) ON DELETE RESTRICT,
+                CONSTRAINT uq_published_ballot_show_participation UNIQUE (motto_show_id, contest_participation_id)
+              );
+              CREATE INDEX ix_published_ballot_show ON published_ballot (motto_show_id);
+              CREATE INDEX ix_published_ballot_participation ON published_ballot (contest_participation_id);
+
+              CREATE TABLE published_ballot_position (
+                id INTEGER PRIMARY KEY,
+                published_ballot_id INTEGER NOT NULL,
+                contest_entry_id INTEGER NOT NULL,
+                rank INTEGER NOT NULL CONSTRAINT ck_published_ballot_position_rank CHECK (rank BETWEEN 1 AND 15),
+                CONSTRAINT fk_published_ballot_position_ballot
+                  FOREIGN KEY (published_ballot_id) REFERENCES published_ballot (id) ON DELETE RESTRICT,
+                CONSTRAINT fk_published_ballot_position_entry
+                  FOREIGN KEY (contest_entry_id) REFERENCES contest_entry (id) ON DELETE RESTRICT,
+                CONSTRAINT uq_published_ballot_position_rank UNIQUE (published_ballot_id, rank),
+                CONSTRAINT uq_published_ballot_position_entry UNIQUE (published_ballot_id, contest_entry_id)
+              );
+              CREATE INDEX ix_published_ballot_position_entry ON published_ballot_position (contest_entry_id);
+
+              -- SQLite cannot express these cross-table invariants with a foreign key. Keep
+              -- them in the database as well as in the atomic service command, so direct SQL
+              -- cannot attach a foreign-show entry or a voter's own entry to a ballot.
+              CREATE TRIGGER trg_published_ballot_position_entry_matches_ballot
+              BEFORE INSERT ON published_ballot_position
+              WHEN NOT EXISTS (
+                SELECT 1
+                FROM published_ballot ballot
+                JOIN contest_entry entry ON entry.id = NEW.contest_entry_id
+                WHERE ballot.id = NEW.published_ballot_id
+                  AND ballot.status = 'ABGESTIMMT'
+                  AND entry.motto_show_id = ballot.motto_show_id
+                  AND (entry.contest_participation_id IS NULL
+                    OR entry.contest_participation_id <> ballot.contest_participation_id)
+              )
+              BEGIN
+                SELECT RAISE(ABORT, 'A published ballot position must reference a selectable entry from the same show.');
+              END;
+
+              CREATE TRIGGER trg_published_ballot_not_voted_has_no_positions
+              BEFORE UPDATE OF status ON published_ballot
+              WHEN NEW.status = 'NICHT_ABGESTIMMT'
+                AND EXISTS (SELECT 1 FROM published_ballot_position WHERE published_ballot_id = NEW.id)
+              BEGIN
+                SELECT RAISE(ABORT, 'A not-voted published ballot cannot have positions.');
+              END;
+
+              CREATE TRIGGER trg_published_ballot_entry_assignment_stays_selectable
+              BEFORE UPDATE OF contest_participation_id ON contest_entry
+              WHEN NEW.contest_participation_id IS NOT NULL
+                AND EXISTS (
+                  SELECT 1
+                  FROM published_ballot_position position
+                  JOIN published_ballot ballot ON ballot.id = position.published_ballot_id
+                  WHERE position.contest_entry_id = NEW.id
+                    AND ballot.contest_participation_id = NEW.contest_participation_id
+                )
+              BEGIN
+                SELECT RAISE(ABORT, 'A referenced ballot entry cannot become the voter''s own submission.');
+              END;
