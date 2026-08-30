@@ -13,6 +13,21 @@ export type RestorePreview = {
   counts: { mottoShows: number, candidates: number, participants: number, contestEntries: number, ballotSnapshots: number, legacyReceivedScores: number }
 }
 export type RestoreResult = { message: string, safetyBackup: BackupSummary }
+export type AnalysisExportRequest = { contestIds: number[], showIds: number[], candidateShowId: number | null }
+export type AnalysisExportScope = { mode: 'FULL_ARCHIVE' | 'SELECTED', contestIds: number[], showIds: number[], candidateShowId: number | null }
+export type AnalysisExportPreview = {
+  scope: AnalysisExportScope
+  participants: number
+  participations: number
+  shows: number
+  entries: number
+  votedBallots: number
+  noBallots: number
+  unknownBallots: number
+  candidates: number
+  assessments: number
+}
+export type AnalysisExportResult = { filename: string, generatedAt: string, downloadUrl: string, preview: AnalysisExportPreview }
 
 export class DataApiError extends Error {
   constructor(readonly apiError: ApiError) { super(apiError.message) }
@@ -34,4 +49,14 @@ export function previewUpload(file: File): Promise<RestorePreview> {
   const body = new FormData()
   body.append('file', file)
   return request('/api/data/restore/preview/upload', { method: 'POST', body })
+}
+export function previewAnalysisExport(scope: AnalysisExportRequest): Promise<AnalysisExportPreview> {
+  return request('/api/data/analysis-export/preview', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(scope),
+  })
+}
+export function createAnalysisExport(scope: AnalysisExportRequest): Promise<AnalysisExportResult> {
+  return request('/api/data/analysis-export', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(scope),
+  })
 }

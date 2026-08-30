@@ -24,12 +24,17 @@ class DataManagementController {
     private final RestoreService restores;
     private final ExportService exports;
     private final CsvExportService csv;
+    private final AnalysisExportService analysisExports;
 
-    DataManagementController(BackupService backups, RestoreService restores, ExportService exports, CsvExportService csv) {
+    DataManagementController(
+            BackupService backups, RestoreService restores, ExportService exports, CsvExportService csv,
+            AnalysisExportService analysisExports
+    ) {
         this.backups = backups;
         this.restores = restores;
         this.exports = exports;
         this.csv = csv;
+        this.analysisExports = analysisExports;
     }
 
     @GetMapping
@@ -80,6 +85,30 @@ class DataManagementController {
     @GetMapping("/export/published-ballots.csv")
     ResponseEntity<byte[]> publishedBallots() { return csv("veroeffentlichte-einzelwertungen.csv", this.csv.publishedBallots()); }
 
+    @PostMapping("/analysis-export/preview")
+    AnalysisExportService.AnalysisExportPreview analysisExportPreview(
+            @RequestBody(required = false) AnalysisExportService.AnalysisExportRequest request
+    ) {
+        return analysisExports.preview(request);
+    }
+
+    @PostMapping("/analysis-export")
+    AnalysisExportResponse createAnalysisExport(
+            @RequestBody(required = false) AnalysisExportService.AnalysisExportRequest request
+    ) {
+        AnalysisExportService.AnalysisExportResult result = analysisExports.create(request);
+        return new AnalysisExportResponse(result.filename(), result.generatedAt(),
+                "/api/data/analysis-export/download/" + result.filename(), result.preview());
+    }
+
+    @GetMapping("/analysis-export/download/{filename}")
+    ResponseEntity<org.springframework.core.io.Resource> downloadAnalysisExport(@PathVariable String filename) {
+        java.nio.file.Path file = analysisExports.resolveKnownArtifact(filename);
+        org.springframework.core.io.Resource resource = new org.springframework.core.io.FileSystemResource(file);
+        return ResponseEntity.ok().contentType(MediaType.parseMediaType("application/zip"))
+                .header(HttpHeaders.CONTENT_DISPOSITION, attachment(file.getFileName().toString())).body(resource);
+    }
+
     private static ResponseEntity<byte[]> csv(String name, byte[] data) {
         return download(name, new MediaType("text", "csv", StandardCharsets.UTF_8), data);
     }
@@ -89,4 +118,8 @@ class DataManagementController {
     private static String attachment(String name) {
         return ContentDisposition.attachment().filename(name, StandardCharsets.UTF_8).build().toString();
     }
+
+    record AnalysisExportResponse(
+            String filename, java.time.Instant generatedAt, String downloadUrl, AnalysisExportService.AnalysisExportPreview preview
+    ) { }
 }
