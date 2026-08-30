@@ -4,7 +4,8 @@ import { ApiErrorNotice } from '../../components/ApiErrorNotice'
 import { ClipboardImportArea } from '../entries/ClipboardImportArea'
 import type { ContestEntry } from '../entries/api'
 import type { Participant } from '../participants/api'
-import { fetchPublishedBallotDetail, fetchPublishedBallotOverview, importPublishedBallots, previewPublishedBallots, setPublishedBallotStatus, PublishedBallotApiError, type BallotPreviewBlock, type BallotWarning, type PublishedBallotDetail, type PublishedBallotOverview } from './api'
+import { fetchPublishedBallotDetail, fetchPublishedBallotOverview, importPublishedBallots, previewPublishedBallots, setPublishedBallotStatus, PublishedBallotApiError, type BallotPreviewBlock, type PublishedBallotDetail, type PublishedBallotOverview } from './api'
+import { voterSelectionPatch } from './voterSelection'
 
 type EditableBlock = BallotPreviewBlock & { included: boolean, replaceExisting: boolean }
 
@@ -77,24 +78,6 @@ function ImportPreview({ blocks, entries, existingBallotParticipationIds, partic
   const selected = blocks.filter((block) => block.included)
   const invalid = selected.filter((block) => !validBlock(block, entries))
   return <Paper component="section" sx={{ p: 2 }}><Stack spacing={2}><Box><Typography component="h3" variant="h6">Importvorschau Einzelwertungen</Typography><Typography color="text.secondary" variant="body2">Die Vorschau wird nicht gespeichert. Die erste Songzeile erhält Rang 15, die letzte Rang 1; das Punktewort wird nicht ausgewertet.</Typography></Box>{blocks.map((block) => <Paper key={block.sourcePosition} sx={{ p: 2 }} variant="outlined"><Stack spacing={1}><FormControlLabel control={<Checkbox checked={block.included} onChange={(event) => onChangeBlock(block.sourcePosition, { included: event.target.checked })} />} label={`Block ${block.sourcePosition} importieren`} /><Select displayEmpty value={block.participationId ?? ''} onChange={(event) => { const participationId = String(event.target.value) === '' ? null : Number(event.target.value); onChangeBlock(block.sourcePosition, voterSelectionPatch(participationId, participants, existingBallotParticipationIds, block.warnings)) }}><MenuItem value="">Abstimmenden manuell wählen</MenuItem>{participants.map((participant) => <MenuItem key={participant.participationId} value={participant.participationId}>{participant.displayName} · {participant.countryName}</MenuItem>)}</Select>{block.existingBallot && <FormControlLabel control={<Checkbox checked={block.replaceExisting} onChange={(event) => onChangeBlock(block.sourcePosition, { replaceExisting: event.target.checked })} />} label="Vorhandenen Stimmzettel bewusst ersetzen" />}{block.warnings.map((warning, index) => <Alert key={`${warning.code}-${index}`} severity="warning">{warning.message}</Alert>)}<Table size="small"><TableHead><TableRow><TableCell>Rang</TableCell><TableCell>Quellzeile</TableCell><TableCell>Beitrag</TableCell></TableRow></TableHead><TableBody>{block.positions.slice().sort((left, right) => right.rank - left.rank).map((position) => <TableRow key={position.rank}><TableCell>{position.rank}</TableCell><TableCell>{position.sourceText}</TableCell><TableCell><Select displayEmpty fullWidth value={position.entryId ?? ''} onChange={(event) => onChangePosition(block.sourcePosition, position.rank, String(event.target.value) === '' ? null : Number(event.target.value))}><MenuItem value="">Beitrag manuell wählen</MenuItem>{entries.map((entry) => <MenuItem key={entry.id} value={entry.id}>{entry.artist} – {entry.title}</MenuItem>)}</Select>{position.warnings.map((warning, index) => <Alert key={`${warning.code}-${index}`} severity="warning">{warning.message}</Alert>)}</TableCell></TableRow>)}</TableBody></Table></Stack></Paper>)}{invalid.length > 0 && <Alert severity="warning">Ausgewählte Blöcke benötigen einen eindeutigen Abstimmenden, genau 15 unterschiedliche wählbare Beiträge und gegebenenfalls eine Ersatzbestätigung.</Alert>}<Stack direction="row" spacing={1} sx={{ justifyContent: 'flex-end' }}><Button disabled={saving} onClick={onCancel}>Vorschau verwerfen</Button><Button disabled={saving || selected.length === 0 || invalid.length > 0} onClick={onImport} variant="contained">{saving ? 'Importiert …' : `${selected.length} Stimmzettel atomar importieren`}</Button></Stack></Stack></Paper>
-}
-
-export function voterSelectionPatch(participationId: number | null, participants: Participant[], existingBallotParticipationIds: ReadonlySet<number>, warnings: BallotWarning[]) {
-  const participant = participants.find((item) => item.participationId === participationId)
-  const existingBallot = participationId !== null && existingBallotParticipationIds.has(participationId)
-  const retainedWarnings = warnings.filter((warning) => !['EXISTING_BALLOT', 'UNRESOLVED_VOTER', 'AMBIGUOUS_VOTER', 'COUNTRY_CONFLICT'].includes(warning.code))
-  const nextWarnings = existingBallot
-    ? [...retainedWarnings, { code: 'EXISTING_BALLOT', message: 'Für diesen Teilnehmer ist bereits ein Stimmzettelstatus gespeichert. Ein Ersatz muss bewusst bestätigt werden.' }]
-    : retainedWarnings
-  return {
-    participationId,
-    participantId: participant?.id ?? null,
-    displayName: participant?.displayName ?? null,
-    countryCode: participant?.countryCode ?? null,
-    existingBallot,
-    replaceExisting: false,
-    warnings: nextWarnings,
-  }
 }
 
 function Detail({ detail, onClose }: { detail: PublishedBallotDetail, onClose: () => void }) {
