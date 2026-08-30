@@ -1,16 +1,23 @@
 # Resource-safe local development
 
-Local agent work on Windows must keep the workstation responsive.
+The Windows workstation must remain responsive during agent work.
 
-- Use `./scripts/mvn-safe.cmd` for Maven commands.
-- Use `./scripts/npm-safe.cmd` for standalone npm commands.
-- The `.cmd` launchers call the PowerShell guards with a process-local execution-policy bypass, so no global PowerShell policy change is required.
-- The guards lower process priority, restrict descendants to at most two logical CPUs, and apply the repository memory limits.
-- The repository additionally caps Maven/Node heaps and keeps Vitest fully serial.
-- Do not increase these limits without an explicit decision based on a reproducible failing build.
-- Never overlap Maven, npm install, frontend tests/build/lint/typecheck, browser automation, dev servers, or other heavy processes.
-- Automated verification must not launch a hardware-accelerated browser or GUI unless the task explicitly requires it. A previous workstation lock-up had no proven root cause; possible GPU/VRAM pressure is therefore treated as a risk alongside CPU/RAM pressure.
-- Before a heavy check, terminate agent-started watchers, dev servers, stale Node/Java processes and agent-started browsers from earlier steps.
-- Prefer narrow targeted checks while implementing. Attempt the full Windows root build at most once, only after targeted checks pass.
-- If responsiveness degrades materially or CPU/RAM/GPU/VRAM pressure becomes visible, abort the heavy command immediately and do not retry it in the same task.
-- After such an abort, keep local verification targeted and require the GitHub Actions root build (`./mvnw clean verify`) to succeed before treating the implementation as fully verified. Document that the local Windows full run was aborted or skipped.
+## Agent rule
+
+Agents do not run builds, tests, dependency installs, linting, typechecking, dev servers or automated browser/GUI verification locally on Windows.
+
+That includes Maven, `npm ci` / `npm install`, Vitest, Vite builds, ESLint, TypeScript checks, Playwright/Cypress/Electron and the repository safe wrappers when used for ordinary verification.
+
+The safe wrappers remain in the repository only for a future explicitly user-requested diagnostic. They are not part of the default agent development cycle.
+
+Local work is limited to low-load source and Git operations: inspect/edit files, diff/status/log, commit and push.
+
+## Verification
+
+Push the implementation and let GitHub Actions perform automated verification. The authoritative full-suite gate is the remote root build:
+
+`./mvnw clean verify`
+
+If CI fails, inspect the remote logs, patch locally without executing the failing workload, push, and rerun CI.
+
+The root cause of previous workstation lock-ups is not proven. RAM/commit/page-file pressure and GPU/VRAM pressure are plausible contributors, so no deliberate local stress testing should be used to distinguish them.
