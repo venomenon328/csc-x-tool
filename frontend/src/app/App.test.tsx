@@ -21,6 +21,8 @@ const shows = [
   },
 ]
 
+const currentContest = { id: 1, name: 'CSC X', displayOrder: 1, current: true, participantCount: 0, showCount: 12, createdAt: '', updatedAt: '' }
+
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -142,9 +144,13 @@ describe('App', () => {
 
   it('persists a renamed show and updates the overview from the direct edit action', async () => {
     const user = userEvent.setup()
-    fetchMock
-      .mockResolvedValueOnce(jsonResponse(shows))
-      .mockResolvedValueOnce(jsonResponse({ id: 9, showNumber: 9, name: 'Neues Motto' }))
+    fetchMock.mockImplementation(async (input, init) => {
+      const path = String(input)
+      if (path === '/api/contests') return jsonResponse([currentContest])
+      if (path === '/api/shows' || path === '/api/shows?contestId=1') return jsonResponse(shows)
+      if (path === '/api/shows/9' && init?.method === 'PATCH') return jsonResponse({ ...shows[1], name: 'Neues Motto' })
+      throw new Error(`Unexpected request ${path}`)
+    })
     render(<App />)
 
     await screen.findByRole('heading', { name: 'TBA' })
@@ -166,15 +172,19 @@ describe('App', () => {
 
   it('keeps the rename dialog open and displays structured API errors', async () => {
     const user = userEvent.setup()
-    fetchMock
-      .mockResolvedValueOnce(jsonResponse(shows))
-      .mockResolvedValueOnce(jsonResponse({
+    fetchMock.mockImplementation(async (input, init) => {
+      const path = String(input)
+      if (path === '/api/contests') return jsonResponse([currentContest])
+      if (path === '/api/shows' || path === '/api/shows?contestId=1') return jsonResponse(shows)
+      if (path === '/api/shows/9' && init?.method === 'PATCH') return jsonResponse({
         timestamp: '2026-08-27T00:00:00Z',
         status: 400,
         code: 'VALIDATION_ERROR',
         message: 'Der Show-Name darf nicht leer sein.',
         path: '/api/shows/9',
-      }, 400))
+      }, 400)
+      throw new Error(`Unexpected request ${path}`)
+    })
     render(<App />)
 
     await screen.findByRole('heading', { name: 'TBA' })
@@ -189,8 +199,9 @@ describe('App', () => {
   it('finds mixed global search results and navigates to their matching work area', async () => {
     const user = userEvent.setup()
     fetchMock.mockImplementation(async (input) => {
-      if (input === '/api/shows') return jsonResponse(shows)
-      if (input === '/api/search?q=Artist') return jsonResponse([{
+      if (input === '/api/contests') return jsonResponse([currentContest])
+      if (input === '/api/shows' || input === '/api/shows?contestId=1') return jsonResponse(shows)
+      if (input === '/api/search?q=Artist&contestId=1') return jsonResponse([{
         type: 'ENTRY', id: 42, showId: 3, showNumber: 3, showName: 'ESC in the CSC', artist: 'Artist', title: 'Titel',
       }])
       return jsonResponse([])
@@ -206,9 +217,13 @@ describe('App', () => {
 
   it('shows a static completion message after the CSRF-protected shutdown command is accepted', async () => {
     const user = userEvent.setup()
-    fetchMock
-      .mockResolvedValueOnce(jsonResponse(shows))
-      .mockResolvedValueOnce(jsonResponse({ status: 'SHUTTING_DOWN' }, 202))
+    fetchMock.mockImplementation(async (input, init) => {
+      const path = String(input)
+      if (path === '/api/contests') return jsonResponse([currentContest])
+      if (path === '/api/shows' || path === '/api/shows?contestId=1') return jsonResponse(shows)
+      if (path === '/api/system/shutdown' && init?.method === 'POST') return jsonResponse({ status: 'SHUTTING_DOWN' }, 202)
+      throw new Error(`Unexpected request ${path}`)
+    })
     render(<App />)
 
     await screen.findByRole('heading', { name: 'Super Men' })

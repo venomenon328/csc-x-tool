@@ -5,6 +5,7 @@ import java.time.Instant;
 record ContestEntryResponse(
         long id,
         long mottoShowId,
+        long contestId,
         String artist,
         String title,
         String youtubeUrl,
@@ -13,6 +14,7 @@ record ContestEntryResponse(
         Integer assessmentConfidence,
         int poolPosition,
         Integer rankingPosition,
+        Long contestParticipationId,
         Long participantId,
         Instant createdAt,
         Instant updatedAt
@@ -22,6 +24,7 @@ record ContestEntryResponse(
         return new ContestEntryResponse(
                 entry.id(),
                 entry.mottoShowId(),
+                entry.contestId(),
                 entry.artist(),
                 entry.title(),
                 entry.youtubeUrl(),
@@ -30,6 +33,7 @@ record ContestEntryResponse(
                 entry.assessmentConfidence(),
                 entry.poolPosition(),
                 entry.rankingPosition(),
+                entry.contestParticipationId(),
                 entry.participantId(),
                 entry.createdAt(),
                 entry.updatedAt()

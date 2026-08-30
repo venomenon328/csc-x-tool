@@ -17,7 +17,7 @@ import org.springframework.jdbc.support.KeyHolder;
 import org.springframework.stereotype.Repository;
 
 @Repository
-class ParticipantRepository {
+public class ParticipantRepository {
 
     private final JdbcTemplate jdbcTemplate;
 
@@ -27,7 +27,7 @@ class ParticipantRepository {
 
     List<Participant> findAll(boolean includeInactive) {
         List<ParticipantRow> rows = jdbcTemplate.query("""
-                SELECT id, display_name, country_code, active, created_at, updated_at
+                SELECT id, display_name, active, created_at, updated_at
                 FROM participant
                 WHERE ? OR active = 1
                 ORDER BY display_name COLLATE NOCASE, id
@@ -37,23 +37,22 @@ class ParticipantRepository {
 
     Optional<Participant> findById(long participantId) {
         List<ParticipantRow> rows = jdbcTemplate.query("""
-                SELECT id, display_name, country_code, active, created_at, updated_at
+                SELECT id, display_name, active, created_at, updated_at
                 FROM participant
                 WHERE id = ?
                 """, ParticipantRepository::mapRow, participantId);
         return attachAliases(rows).stream().findFirst();
     }
 
-    Participant create(String displayName, String countryCode, boolean active, List<String> aliases) {
+    Participant create(String displayName, boolean active, List<String> aliases) {
         KeyHolder keyHolder = new GeneratedKeyHolder();
         jdbcTemplate.update(connection -> {
             PreparedStatement statement = connection.prepareStatement("""
-                    INSERT INTO participant (display_name, country_code, active, created_at, updated_at)
-                    VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                    INSERT INTO participant (display_name, active, created_at, updated_at)
+                    VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                     """, Statement.RETURN_GENERATED_KEYS);
             statement.setString(1, displayName);
-            statement.setString(2, countryCode);
-            statement.setBoolean(3, active);
+            statement.setBoolean(2, active);
             return statement;
         }, keyHolder);
         Number generatedId = keyHolder.getKey();
@@ -64,12 +63,12 @@ class ParticipantRepository {
         return findById(generatedId.longValue()).orElseThrow();
     }
 
-    boolean update(long participantId, String displayName, String countryCode, boolean active) {
+    boolean update(long participantId, String displayName, boolean active) {
         return jdbcTemplate.update("""
                 UPDATE participant
-                SET display_name = ?, country_code = ?, active = ?, updated_at = CURRENT_TIMESTAMP
+                SET display_name = ?, active = ?, updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
-                """, displayName, countryCode, active, participantId) == 1;
+                """, displayName, active, participantId) == 1;
     }
 
     void replaceAliases(long participantId, List<String> aliases) {
@@ -83,16 +82,30 @@ class ParticipantRepository {
         return jdbcTemplate.update("DELETE FROM participant WHERE id = ?", participantId) == 1;
     }
 
-    boolean isReferencedByContestEntry(long participantId) {
+    boolean isReferencedByContestParticipation(long participantId) {
         return Boolean.TRUE.equals(jdbcTemplate.queryForObject(
-                "SELECT EXISTS(SELECT 1 FROM contest_entry WHERE participant_id = ?)", Boolean.class, participantId
+                "SELECT EXISTS(SELECT 1 FROM contest_participation WHERE participant_id = ?)", Boolean.class, participantId
         ));
     }
 
-    boolean isReferencedByReceivedScore(long participantId) {
-        return Boolean.TRUE.equals(jdbcTemplate.queryForObject(
-                "SELECT EXISTS(SELECT 1 FROM received_score WHERE participant_id = ?)", Boolean.class, participantId
-        ));
+    List<ContestParticipant> findAllByContest(long contestId, boolean includeInactive) {
+        List<ContestParticipantRow> rows = jdbcTemplate.query("""
+                SELECT participation.id AS participation_id, participant.id, participant.display_name,
+                       participant.active AS identity_active, participation.country_code, participation.active,
+                       participation.created_at, participation.updated_at
+                FROM contest_participation participation
+                JOIN participant ON participant.id = participation.participant_id
+                WHERE participation.contest_id = ? AND (? OR participation.active = 1)
+                ORDER BY participation.active DESC, participant.display_name COLLATE NOCASE, participant.id
+                """, ParticipantRepository::mapContestParticipantRow, contestId, includeInactive);
+        if (rows.isEmpty()) {
+            return List.of();
+        }
+        Map<Long, List<String>> aliasesByParticipant = aliasesByParticipant(rows.stream().map(ContestParticipantRow::participantId).toList());
+        return rows.stream().map(row -> new ContestParticipant(
+                row.participationId(), row.participantId(), row.displayName(), row.identityActive(), row.countryCode(), row.active(),
+                List.copyOf(aliasesByParticipant.getOrDefault(row.participantId(), List.of())), row.createdAt(), row.updatedAt()
+        )).toList();
     }
 
     private List<Participant> attachAliases(List<ParticipantRow> rows) {
@@ -101,7 +114,7 @@ class ParticipantRepository {
         }
         Map<Long, List<String>> aliasesByParticipant = aliasesByParticipant(rows.stream().map(ParticipantRow::id).toList());
         return rows.stream().map(row -> new Participant(
-                row.id(), row.displayName(), row.countryCode(), row.active(),
+                row.id(), row.displayName(), row.active(),
                 List.copyOf(aliasesByParticipant.getOrDefault(row.id(), List.of())), row.createdAt(), row.updatedAt()
         )).toList();
     }
@@ -123,7 +136,6 @@ class ParticipantRepository {
         return new ParticipantRow(
                 resultSet.getLong("id"),
                 resultSet.getString("display_name"),
-                resultSet.getString("country_code"),
                 resultSet.getBoolean("active"),
                 resultSet.getTimestamp("created_at").toInstant(),
                 resultSet.getTimestamp("updated_at").toInstant()
@@ -133,10 +145,23 @@ class ParticipantRepository {
     private record ParticipantRow(
             long id,
             String displayName,
-            String countryCode,
             boolean active,
             Instant createdAt,
             Instant updatedAt
+    ) {
+    }
+
+    private static ContestParticipantRow mapContestParticipantRow(ResultSet resultSet, int rowNumber) throws SQLException {
+        return new ContestParticipantRow(
+                resultSet.getLong("participation_id"), resultSet.getLong("id"), resultSet.getString("display_name"),
+                resultSet.getBoolean("identity_active"), resultSet.getString("country_code"), resultSet.getBoolean("active"),
+                resultSet.getTimestamp("created_at").toInstant(), resultSet.getTimestamp("updated_at").toInstant()
+        );
+    }
+
+    private record ContestParticipantRow(
+            long participationId, long participantId, String displayName, boolean identityActive, String countryCode,
+            boolean active, Instant createdAt, Instant updatedAt
     ) {
     }
 }

@@ -11,6 +11,8 @@ import {
   ThemeProvider,
   Toolbar,
   Typography,
+  Autocomplete,
+  TextField,
 } from '@mui/material'
 import { BrowserRouter, Link as RouterLink, Route, Routes, useLocation } from 'react-router-dom'
 import { useEffect, useState } from 'react'
@@ -20,6 +22,8 @@ import { EntryPage } from '../features/entries/EntryPage'
 import { ParticipantPage } from '../features/participants/ParticipantPage'
 import { ResultPage } from '../features/results/ResultPage'
 import { DataManagementPage } from '../features/data/DataManagementPage'
+import { ContestPage } from '../features/contests/ContestPage'
+import { ContestProvider, useContest } from '../features/contests/ContestContext'
 import { ErrorBoundary } from './ErrorBoundary'
 import { theme } from './theme'
 import { initializeCsrfProtection, apiFetch } from '../api/request'
@@ -27,6 +31,7 @@ import { GlobalSearch } from '../features/search/GlobalSearch'
 import appLogo from '../assets/csc-x-tool-logo.png'
 
 const navigation = [
+  { label: 'CSC-Ausgaben', to: '/contests' },
   { label: 'Übersicht', to: '/' },
   { label: 'Teilnehmer', to: '/participants' },
   { label: 'Daten und Sicherungen', to: '/data' },
@@ -47,6 +52,7 @@ function AppShell() {
   const location = useLocation()
   const [shuttingDown, setShuttingDown] = useState(false)
   const [shutdownError, setShutdownError] = useState<string | null>(null)
+  const { contests, selectedContest, selectContest } = useContest()
 
   useEffect(() => {
     void initializeCsrfProtection()
@@ -113,6 +119,17 @@ function AppShell() {
             </ListItemButton>
           ))}
         </List>
+        <Box sx={{ px: 2, pt: 1 }}>
+          <Autocomplete
+            getOptionKey={(contest) => contest.id}
+            getOptionLabel={(contest) => contest.name + (contest.current ? ' · aktuell' : '')}
+            isOptionEqualToValue={(left, right) => left.id === right.id}
+            onChange={(_, contest) => { if (contest) selectContest(contest.id) }}
+            options={contests}
+            renderInput={(params) => <TextField {...params} label="CSC-Ausgabe" size="small" />}
+            value={selectedContest}
+          />
+        </Box>
         <Box sx={{ mt: 'auto', p: 2 }}>
           {shutdownError !== null && <Alert severity="error" sx={{ mb: 1 }}>{shutdownError}</Alert>}
           <Button color="inherit" fullWidth onClick={() => void shutdown()} variant="outlined">
@@ -125,6 +142,7 @@ function AppShell() {
         <Routes>
           <Route element={<ShowOverview />} path="/" />
           <Route element={<ParticipantPage />} path="/participants" />
+          <Route element={<ContestPage />} path="/contests" />
           <Route element={<DataManagementPage />} path="/data" />
           <Route element={<CandidatePage />} path="/shows/:showId/candidates" />
           <Route element={<EntryPage />} path="/shows/:showId/voting" />
@@ -141,9 +159,7 @@ export function App() {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <ErrorBoundary>
-        <BrowserRouter>
-          <AppShell />
-        </BrowserRouter>
+        <BrowserRouter><ContestProvider><AppShell /></ContestProvider></BrowserRouter>
       </ErrorBoundary>
     </ThemeProvider>
   )

@@ -20,20 +20,21 @@ class MottoShowRepository {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    List<MottoShow> findAll() {
+    List<MottoShow> findAll(long contestId) {
         return jdbcTemplate.query("""
-                SELECT motto_show.id, motto_show.show_number, motto_show.name,
+                SELECT motto_show.id, motto_show.contest_id, motto_show.show_number, motto_show.name,
                        (SELECT COUNT(*) FROM candidate WHERE candidate.motto_show_id = motto_show.id) AS candidate_count,
                        (SELECT COUNT(*) FROM contest_entry WHERE contest_entry.motto_show_id = motto_show.id) AS contest_entry_count,
                        (SELECT COUNT(*) FROM contest_entry WHERE contest_entry.motto_show_id = motto_show.id AND contest_entry.assessment IS NOT NULL) AS assessed_entry_count,
                        (SELECT COUNT(*) FROM contest_entry WHERE contest_entry.motto_show_id = motto_show.id AND contest_entry.ranking_position IS NOT NULL) AS ranked_entry_count,
-                       (SELECT COUNT(*) FROM contest_entry WHERE contest_entry.motto_show_id = motto_show.id AND contest_entry.participant_id IS NOT NULL) AS assigned_entry_count,
-                       (SELECT COUNT(*) FROM participant WHERE participant.active = 1) AS active_participant_count,
-                       (SELECT COUNT(*) FROM participant
-                        WHERE participant.active = 1 AND EXISTS (
+                       (SELECT COUNT(*) FROM contest_entry WHERE contest_entry.motto_show_id = motto_show.id AND contest_entry.contest_participation_id IS NOT NULL) AS assigned_entry_count,
+                       (SELECT COUNT(*) FROM contest_participation participation
+                        WHERE participation.contest_id = motto_show.contest_id AND participation.active = 1) AS active_participant_count,
+                       (SELECT COUNT(*) FROM contest_participation participation
+                        WHERE participation.contest_id = motto_show.contest_id AND participation.active = 1 AND EXISTS (
                           SELECT 1 FROM received_score
                           WHERE received_score.motto_show_id = motto_show.id
-                            AND received_score.participant_id = participant.id
+                            AND received_score.contest_participation_id = participation.id
                             AND received_score.status <> 'UNBEKANNT'
                         )) AS known_active_result_count,
                        motto_show.ballot_closed_at,
@@ -48,24 +49,26 @@ class MottoShowRepository {
                        motto_show.created_at, motto_show.updated_at
                 FROM motto_show
                 LEFT JOIN candidate AS selected_candidate ON selected_candidate.id = motto_show.selected_candidate_id
+                WHERE motto_show.contest_id = ?
                 ORDER BY motto_show.show_number
-                """, ROW_MAPPER);
+                """, ROW_MAPPER, contestId);
     }
 
     Optional<MottoShow> findById(long id) {
         return jdbcTemplate.query("""
-                SELECT motto_show.id, motto_show.show_number, motto_show.name,
+                SELECT motto_show.id, motto_show.contest_id, motto_show.show_number, motto_show.name,
                        (SELECT COUNT(*) FROM candidate WHERE candidate.motto_show_id = motto_show.id) AS candidate_count,
                        (SELECT COUNT(*) FROM contest_entry WHERE contest_entry.motto_show_id = motto_show.id) AS contest_entry_count,
                        (SELECT COUNT(*) FROM contest_entry WHERE contest_entry.motto_show_id = motto_show.id AND contest_entry.assessment IS NOT NULL) AS assessed_entry_count,
                        (SELECT COUNT(*) FROM contest_entry WHERE contest_entry.motto_show_id = motto_show.id AND contest_entry.ranking_position IS NOT NULL) AS ranked_entry_count,
-                       (SELECT COUNT(*) FROM contest_entry WHERE contest_entry.motto_show_id = motto_show.id AND contest_entry.participant_id IS NOT NULL) AS assigned_entry_count,
-                       (SELECT COUNT(*) FROM participant WHERE participant.active = 1) AS active_participant_count,
-                       (SELECT COUNT(*) FROM participant
-                        WHERE participant.active = 1 AND EXISTS (
+                       (SELECT COUNT(*) FROM contest_entry WHERE contest_entry.motto_show_id = motto_show.id AND contest_entry.contest_participation_id IS NOT NULL) AS assigned_entry_count,
+                       (SELECT COUNT(*) FROM contest_participation participation
+                        WHERE participation.contest_id = motto_show.contest_id AND participation.active = 1) AS active_participant_count,
+                       (SELECT COUNT(*) FROM contest_participation participation
+                        WHERE participation.contest_id = motto_show.contest_id AND participation.active = 1 AND EXISTS (
                           SELECT 1 FROM received_score
                           WHERE received_score.motto_show_id = motto_show.id
-                            AND received_score.participant_id = participant.id
+                            AND received_score.contest_participation_id = participation.id
                             AND received_score.status <> 'UNBEKANNT'
                         )) AS known_active_result_count,
                        motto_show.ballot_closed_at,
@@ -95,6 +98,7 @@ class MottoShowRepository {
     private static MottoShow mapRow(ResultSet resultSet, int rowNumber) throws SQLException {
         return new MottoShow(
                 resultSet.getLong("id"),
+                resultSet.getLong("contest_id"),
                 resultSet.getInt("show_number"),
                 resultSet.getString("name"),
                 resultSet.getInt("candidate_count"),

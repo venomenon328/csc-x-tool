@@ -51,13 +51,15 @@ class ResultRepository {
 
     List<ReceivedScoreLine> findLines(long showId) {
         return jdbcTemplate.query("""
-                SELECT participant.id AS participant_id, participant.display_name, participant.country_code, participant.active,
+                SELECT participant.id AS participant_id, participant.display_name, participation.country_code, participation.active,
                        received_score.id AS received_score_id, received_score.status, received_score.points
-                FROM participant
+                FROM motto_show show
+                JOIN contest_participation participation ON participation.contest_id = show.contest_id
+                JOIN participant ON participant.id = participation.participant_id
                 LEFT JOIN received_score
-                  ON received_score.participant_id = participant.id AND received_score.motto_show_id = ?
-                WHERE participant.active = 1 OR received_score.id IS NOT NULL
-                ORDER BY participant.active DESC, participant.display_name COLLATE NOCASE, participant.id
+                  ON received_score.contest_participation_id = participation.id AND received_score.motto_show_id = show.id
+                WHERE show.id = ? AND (participation.active = 1 OR received_score.id IS NOT NULL)
+                ORDER BY participation.active DESC, participant.display_name COLLATE NOCASE, participant.id
                 """, (resultSet, rowNumber) -> new ReceivedScoreLine(
                 resultSet.getLong("participant_id"),
                 resultSet.getString("display_name"),
@@ -75,26 +77,28 @@ class ResultRepository {
         ));
     }
 
-    boolean mayReceiveScore(long showId, long participantId) {
+    boolean mayReceiveScore(long showId, long participationId) {
         return Boolean.TRUE.equals(jdbcTemplate.queryForObject("""
                 SELECT EXISTS(
-                  SELECT 1 FROM participant
-                  WHERE id = ? AND (active = 1 OR EXISTS(
-                    SELECT 1 FROM received_score WHERE motto_show_id = ? AND participant_id = participant.id
+                  SELECT 1 FROM contest_participation participation
+                  JOIN motto_show show ON show.contest_id = participation.contest_id
+                  WHERE show.id = ? AND participation.id = ? AND (participation.active = 1 OR EXISTS(
+                    SELECT 1 FROM received_score WHERE motto_show_id = ? AND contest_participation_id = participation.id
                   ))
                 )
-                """, Boolean.class, participantId, showId));
+                """, Boolean.class, showId, participationId, showId));
     }
 
-    void saveScore(long showId, long participantId, ReceivedScoreStatus status, Integer points) {
+    void saveScore(long showId, long participationId, ReceivedScoreStatus status, Integer points) {
         jdbcTemplate.update("""
-                INSERT INTO received_score (motto_show_id, participant_id, status, points, created_at, updated_at)
-                VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                ON CONFLICT (motto_show_id, participant_id) DO UPDATE SET
+                INSERT INTO received_score (
+                  motto_show_id, contest_id, contest_participation_id, status, points, created_at, updated_at
+                ) VALUES (?, (SELECT contest_id FROM motto_show WHERE id = ?), ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                ON CONFLICT (motto_show_id, contest_participation_id) DO UPDATE SET
                   status = excluded.status,
                   points = excluded.points,
                   updated_at = CURRENT_TIMESTAMP
-                """, showId, participantId, status.name(), points);
+                """, showId, showId, participationId, status.name(), points);
     }
 
     void updateDetails(long showId, Integer officialTotalPoints, Integer finalPlace, boolean finalPlaceTied) {
@@ -119,10 +123,12 @@ class ResultRepository {
     boolean hasUnknownActiveParticipant(long showId) {
         return Boolean.TRUE.equals(jdbcTemplate.queryForObject("""
                 SELECT EXISTS(
-                  SELECT 1 FROM participant
+                  SELECT 1 FROM contest_participation participation
+                  JOIN motto_show show ON show.contest_id = participation.contest_id
                   LEFT JOIN received_score
-                    ON received_score.participant_id = participant.id AND received_score.motto_show_id = ?
-                  WHERE participant.active = 1 AND (received_score.id IS NULL OR received_score.status = 'UNBEKANNT')
+                    ON received_score.contest_participation_id = participation.id AND received_score.motto_show_id = show.id
+                  WHERE show.id = ? AND participation.active = 1
+                    AND (received_score.id IS NULL OR received_score.status = 'UNBEKANNT')
                 )
                 """, Boolean.class, showId));
     }

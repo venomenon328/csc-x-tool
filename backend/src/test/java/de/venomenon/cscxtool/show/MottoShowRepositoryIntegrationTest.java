@@ -28,7 +28,7 @@ class MottoShowRepositoryIntegrationTest {
 
     @Test
     void readsAllSeededShowsInNumberOrderAndPersistsARenameAcrossAReopenedDataSource() {
-        var shows = repository.findAll();
+        var shows = repository.findAll(1);
         assertThat(shows)
                 .hasSize(12)
                 .extracting(MottoShow::showNumber)

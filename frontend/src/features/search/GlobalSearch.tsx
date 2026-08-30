@@ -2,12 +2,14 @@ import { Autocomplete, TextField } from '@mui/material'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { searchSongs, type SearchResult } from './api'
+import { useContest } from '../contests/ContestContext'
 
 export function GlobalSearch() {
   const navigate = useNavigate()
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SearchResult[]>([])
   const [loading, setLoading] = useState(false)
+  const { selectedContestId } = useContest()
 
   useEffect(() => {
     const normalized = query.trim()
@@ -15,7 +17,7 @@ export function GlobalSearch() {
     let active = true
     const timer = window.setTimeout(() => {
       setLoading(true)
-      void searchSongs(normalized)
+      void searchSongs(normalized, selectedContestId)
         .then((response) => { if (active) setResults(response) })
         .catch(() => { if (active) setResults([]) })
         .finally(() => { if (active) setLoading(false) })
@@ -24,7 +26,7 @@ export function GlobalSearch() {
       active = false
       window.clearTimeout(timer)
     }
-  }, [query])
+  }, [query, selectedContestId])
 
   return (
     <Autocomplete

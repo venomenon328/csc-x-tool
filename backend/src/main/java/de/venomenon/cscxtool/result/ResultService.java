@@ -5,6 +5,7 @@ import de.venomenon.cscxtool.participant.ParticipantNotFoundException;
 import de.venomenon.cscxtool.shared.ApiBadRequestException;
 import de.venomenon.cscxtool.shared.ApiConflictException;
 import de.venomenon.cscxtool.shared.CscPoints;
+import de.venomenon.cscxtool.contest.ContestRepository;
 import de.venomenon.cscxtool.show.ShowNotFoundException;
 import java.util.List;
 import org.springframework.stereotype.Service;
@@ -15,10 +16,12 @@ class ResultService {
 
     private final ResultRepository repository;
     private final CountryCatalog countryCatalog;
+    private final ContestRepository contests;
 
-    ResultService(ResultRepository repository, CountryCatalog countryCatalog) {
+    ResultService(ResultRepository repository, CountryCatalog countryCatalog, ContestRepository contests) {
         this.repository = repository;
         this.countryCatalog = countryCatalog;
+        this.contests = contests;
     }
 
     ResultResponse find(long showId) {
@@ -33,14 +36,18 @@ class ResultService {
         if (!repository.participantExists(participantId)) {
             throw new ParticipantNotFoundException(participantId);
         }
-        if (!repository.mayReceiveScore(showId, participantId)) {
+        var participation = contests.findParticipationForShow(showId, participantId).orElseThrow(() -> new ApiConflictException(
+                "PARTICIPANT_NOT_IN_CONTEST",
+                "Der Teilnehmer nimmt nicht an der CSC-Ausgabe dieser Mottoshow teil."
+        ));
+        if (!repository.mayReceiveScore(showId, participation.id())) {
             throw new ApiConflictException(
                     "INACTIVE_PARTICIPANT_WITHOUT_RESULT",
                     "Für einen inaktiven Teilnehmer ohne vorhandenen Ergebniseintrag kann kein neues Ergebnis angelegt werden."
             );
         }
         Integer points = validatedPoints(request.status(), request.points());
-        repository.saveScore(showId, participantId, request.status(), points);
+        repository.saveScore(showId, participation.id(), request.status(), points);
         return response(showId);
     }
 

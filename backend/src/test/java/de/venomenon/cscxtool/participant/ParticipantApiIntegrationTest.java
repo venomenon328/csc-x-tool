@@ -38,135 +38,87 @@ class ParticipantApiIntegrationTest {
     }
 
     @Test
-    void exposesTheCompleteSortedLocalCountryCatalogWithoutCreatingParticipants() throws Exception {
-        HttpResponse<String> countries = get("/api/countries");
+    void keepsIdentityAliasesAndContestParticipationCountriesSeparated() throws Exception {
+        long participantId = firstId(post("/api/participants", """
+                {"displayName":"  Alex  ","active":true,"aliases":["  Alex Alt  ","Lex"]}
+                """).body());
+        long archiveId = firstId(post("/api/contests", "{" + "\"name\":\"Archiv " + participantId + "\"}" ).body());
 
-        assertThat(countries.statusCode()).isEqualTo(200);
-        assertThat(countries.body()).contains(
-                "\"code\":\"DE\",\"name\":\"Deutschland\"",
-                "\"code\":\"AT\",\"name\":\"Österreich\"",
-                "\"code\":\"XS\",\"name\":\"Schottland\"",
-                "\"code\":\"CG\",\"name\":\"Kongo\"",
-                "\"code\":\"CV\",\"name\":\"Kap Verde\""
+        assertThat(post("/api/contests/1/participants", """
+                {"participantId":%d,"countryCode":"de","active":true}
+                """.formatted(participantId)).statusCode()).isEqualTo(201);
+        assertThat(post("/api/contests/" + archiveId + "/participants", """
+                {"participantId":%d,"countryCode":"at","active":false}
+                """.formatted(participantId)).statusCode()).isEqualTo(201);
+
+        assertThat(get("/api/contests/1/participants").body()).contains(
+                "\"id\":" + participantId, "\"displayName\":\"Alex\"", "\"countryCode\":\"DE\"", "\"aliases\":[\"Alex Alt\",\"Lex\"]"
         );
-        assertThat(occurrences(countries.body(), "\"code\":" )).isEqualTo(250);
-        assertThat(countries.body().indexOf("\"name\":\"Afghanistan\""))
-                .isLessThan(countries.body().indexOf("\"name\":\"Deutschland\""));
-        assertThat(get("/api/participants").body()).isEqualTo("[]");
-        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM participant", Integer.class)).isZero();
+        assertThat(get("/api/contests/" + archiveId + "/participants").body()).isEqualTo("[]");
+        assertThat(get("/api/contests/" + archiveId + "/participants?includeInactive=true").body()).contains("\"countryCode\":\"AT\"", "\"active\":false");
+
+        assertThat(patch("/api/participants/" + participantId, """
+                {"displayName":"Alex Bearbeitet","active":true,"aliases":["Neu"]}
+                """).statusCode()).isEqualTo(200);
+        HttpResponse<String> updatedParticipation = patch("/api/contests/" + archiveId + "/participants/" + participantId,
+                "{" + "\"countryCode\":\"ch\",\"active\":true}");
+        assertThat(updatedParticipation.statusCode()).isEqualTo(200);
+        assertThat(updatedParticipation.body()).contains("\"displayName\":\"Alex Bearbeitet\"", "\"countryCode\":\"CH\"", "\"aliases\":[\"Neu\"]");
+        assertThat(get("/api/contests/1/participants").body()).contains("\"countryCode\":\"DE\"", "\"aliases\":[\"Neu\"]");
+
+        assertThat(delete("/api/contests/" + archiveId + "/participants/" + participantId).statusCode()).isEqualTo(204);
+        assertThat(delete("/api/participants/" + participantId).statusCode()).isEqualTo(409);
+        assertThat(delete("/api/contests/1/participants/" + participantId).statusCode()).isEqualTo(204);
+        assertThat(delete("/api/participants/" + participantId).statusCode()).isEqualTo(204);
+        assertThat(get("/api/participants/" + participantId).statusCode()).isEqualTo(404);
+
+        DataSource reopened = SqliteDataSourceFactory.create(STORAGE_ROOT.resolve("data/csc-x-tool.db"));
+        assertThat(new JdbcTemplate(reopened).queryForObject("SELECT COUNT(*) FROM pragma_table_info('participant') WHERE name = 'country_code'", Integer.class))
+                .isZero();
     }
 
     @Test
-    void managesParticipantAggregatesAliasesSearchAndActiveFilteringPersistently() throws Exception {
-        long activeParticipantId = create("""
-                {"displayName":"  Alex  ","countryCode":" de ","aliases":["  Alex Alt  ","Lex"],"active":true}
-                """);
-        long inactiveParticipantId = create("""
-                {"displayName":"Mira","countryCode":"AT","aliases":["Maus"],"active":false}
+    void createsANewIdentityAndItsFirstParticipationAtomically() throws Exception {
+        HttpResponse<String> created = post("/api/contests/1/participants", """
+                {"displayName":"  Neu  ","aliases":[" Alias "],"countryCode":"de","active":false}
                 """);
 
-        HttpResponse<String> defaults = get("/api/participants");
-        assertThat(defaults.body()).contains("\"id\":" + activeParticipantId, "\"displayName\":\"Alex\"", "\"countryCode\":\"DE\"", "\"countryName\":\"Deutschland\"", "\"aliases\":[\"Alex Alt\",\"Lex\"]");
-        assertThat(defaults.body()).doesNotContain("\"id\":" + inactiveParticipantId);
-        assertThat(get("/api/participants?includeInactive=true").body()).contains("\"id\":" + inactiveParticipantId, "\"active\":false");
-        assertThat(get("/api/participants?q=maus&includeInactive=true").body()).contains("\"id\":" + inactiveParticipantId);
-        assertThat(get("/api/participants/" + inactiveParticipantId).body()).contains("\"displayName\":\"Mira\"", "\"active\":false");
+        assertThat(created.statusCode()).isEqualTo(201);
+        long participantId = firstId(created.body());
+        assertThat(created.body()).contains("\"displayName\":\"Neu\"", "\"countryCode\":\"DE\"", "\"active\":false", "\"aliases\":[\"Alias\"]");
+        assertThat(jdbcTemplate.queryForObject("SELECT active FROM participant WHERE id = ?", Boolean.class, participantId)).isTrue();
+        assertThat(jdbcTemplate.queryForObject("SELECT active FROM contest_participation WHERE contest_id = 1 AND participant_id = ?", Boolean.class, participantId)).isFalse();
 
-        HttpResponse<String> unchangedAliases = patch(activeParticipantId, """
-                {"displayName":"Alex Bearbeitet","countryCode":"DE","active":true}
-                """);
-        assertThat(unchangedAliases.statusCode()).isEqualTo(200);
-        assertThat(unchangedAliases.body()).contains("\"aliases\":[\"Alex Alt\",\"Lex\"]");
-
-        HttpResponse<String> renamedAliases = patch(activeParticipantId, """
-                {"displayName":"Alex Bearbeitet","countryCode":"ch","active":false,"aliases":["Neu","Umbenannt"]}
-                """);
-        assertThat(renamedAliases.statusCode()).isEqualTo(200);
-        assertThat(renamedAliases.body()).contains("\"countryCode\":\"CH\"", "\"countryName\":\"Schweiz\"", "\"active\":false", "\"aliases\":[\"Neu\",\"Umbenannt\"]");
-
-        HttpResponse<String> addedAlias = patch(activeParticipantId, """
-                {"displayName":"Alex Bearbeitet","countryCode":"CH","active":false,"aliases":["Neu","Umbenannt","Zusatz"]}
-                """);
-        assertThat(addedAlias.statusCode()).isEqualTo(200);
-        assertThat(addedAlias.body()).contains("\"aliases\":[\"Neu\",\"Umbenannt\",\"Zusatz\"]");
-
-        HttpResponse<String> removedAliases = patch(activeParticipantId, """
-                {"displayName":"Alex Bearbeitet","countryCode":"CH","active":false,"aliases":["Umbenannt"]}
-                """);
-        assertThat(removedAliases.statusCode()).isEqualTo(200);
-        assertThat(removedAliases.body()).contains("\"aliases\":[\"Umbenannt\"]");
-        assertThat(removedAliases.body()).doesNotContain("\"Neu\"", "\"Zusatz\"");
-
-        HttpResponse<String> duplicateAlias = patch(activeParticipantId, """
-                {"displayName":"Darf nicht persistieren","countryCode":"DE","active":true,"aliases":["gleich","GLEICH"]}
-                """);
-        assertThat(duplicateAlias.statusCode()).isEqualTo(400);
-        assertThat(duplicateAlias.body()).contains("\"code\":\"DUPLICATE_PARTICIPANT_ALIAS\"");
-        assertThat(get("/api/participants/" + activeParticipantId).body()).contains("\"displayName\":\"Alex Bearbeitet\"", "\"aliases\":[\"Umbenannt\"]");
-
-        HttpResponse<String> invalidCountry = post("""
-                {"displayName":"Ungültig","countryCode":"ZZ","active":true,"aliases":[]}
-                """);
-        assertThat(invalidCountry.statusCode()).isEqualTo(400);
-        assertThat(invalidCountry.body()).contains("\"code\":\"INVALID_COUNTRY_CODE\"");
-        assertThat(post("{\"displayName\":\" \",\"countryCode\":\"DE\",\"active\":true,\"aliases\":[]}").body())
-                .contains("\"code\":\"VALIDATION_ERROR\"");
-
-        assertThat(delete(activeParticipantId).statusCode()).isEqualTo(204);
-        assertThat(get("/api/participants/" + activeParticipantId).statusCode()).isEqualTo(404);
-        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM participant_alias WHERE participant_id = ?", Integer.class, activeParticipantId)).isZero();
-
-        DataSource reopenedDataSource = SqliteDataSourceFactory.create(STORAGE_ROOT.resolve("data/csc-x-tool.db"));
-        JdbcTemplate reopenedJdbcTemplate = new JdbcTemplate(reopenedDataSource);
-        assertThat(reopenedJdbcTemplate.queryForObject("SELECT display_name FROM participant WHERE id = ?", String.class, inactiveParticipantId))
-                .isEqualTo("Mira");
-        assertThat(reopenedJdbcTemplate.queryForObject("SELECT alias FROM participant_alias WHERE participant_id = ?", String.class, inactiveParticipantId))
-                .isEqualTo("Maus");
+        int identitiesBeforeInvalidRequest = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM participant", Integer.class);
+        assertThat(post("/api/contests/1/participants", """
+                {"displayName":"Darf nicht bleiben","aliases":[],"countryCode":"XX","active":true}
+                """).statusCode()).isEqualTo(400);
+        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM participant", Integer.class)).isEqualTo(identitiesBeforeInvalidRequest);
     }
 
     @Test
-    void validatesParticipantInputsAndKeepsDatabaseRulesActive() throws Exception {
-        assertThat(post("{\"displayName\":\"Alex\",\"countryCode\":\"DE\",\"aliases\":[\" \"]}").body())
-                .contains("\"code\":\"VALIDATION_ERROR\"");
-        assertThat(post("{\"displayName\":\"Alex\",\"countryCode\":\"DE\",\"aliases\":[\"Alias\",\"alias\"]}").body())
-                .contains("\"code\":\"DUPLICATE_PARTICIPANT_ALIAS\"");
-        assertThat(get("/api/participants?includeInactive=maybe").body()).contains("\"code\":\"INVALID_INCLUDE_INACTIVE\"");
-
+    void exposesCountryCatalogAndValidatesParticipationAndIdentityInputs() throws Exception {
+        HttpResponse<String> countries = get("/api/countries");
+        assertThat(countries.statusCode()).isEqualTo(200);
+        assertThat(countries.body()).contains("\"code\":\"DE\",\"name\":\"Deutschland\"");
+        assertThat(post("/api/participants", "{\"displayName\":\" \",\"aliases\":[]}").body()).contains("VALIDATION_ERROR");
+        assertThat(post("/api/contests/1/participants", "{\"participantId\":99999,\"countryCode\":\"DE\"}").body())
+                .contains("PARTICIPANT_NOT_FOUND");
         assertThatThrownBy(() -> jdbcTemplate.update("""
-                INSERT INTO participant (display_name, country_code, active, created_at, updated_at)
-                VALUES ('Direkt', 'DE', 4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                INSERT INTO participant (display_name, active, created_at, updated_at)
+                VALUES ('Direkt', 4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                 """)).isInstanceOf(DataAccessException.class);
     }
 
-    private long create(String body) throws Exception {
-        HttpResponse<String> response = post(body);
-        assertThat(response.statusCode()).isEqualTo(201);
-        return firstId(response.body());
-    }
-
-    private HttpResponse<String> get(String path) throws Exception {
-        return request("GET", path, null);
-    }
-
-    private HttpResponse<String> post(String body) throws Exception {
-        return request("POST", "/api/participants", body);
-    }
-
-    private HttpResponse<String> patch(long participantId, String body) throws Exception {
-        return request("PATCH", "/api/participants/" + participantId, body);
-    }
-
-    private HttpResponse<String> delete(long participantId) throws Exception {
-        return request("DELETE", "/api/participants/" + participantId, null);
-    }
+    private HttpResponse<String> get(String path) throws Exception { return request("GET", path, null); }
+    private HttpResponse<String> post(String path, String body) throws Exception { return request("POST", path, body); }
+    private HttpResponse<String> patch(String path, String body) throws Exception { return request("PATCH", path, body); }
+    private HttpResponse<String> delete(String path) throws Exception { return request("DELETE", path, null); }
 
     private HttpResponse<String> request(String method, String path, String body) throws Exception {
         HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + path));
-        if (body == null) {
-            builder.method(method, HttpRequest.BodyPublishers.noBody());
-        } else {
-            builder.header("Content-Type", "application/json").method(method, HttpRequest.BodyPublishers.ofString(body));
-        }
+        if (body == null) builder.method(method, HttpRequest.BodyPublishers.noBody());
+        else builder.header("Content-Type", "application/json").method(method, HttpRequest.BodyPublishers.ofString(body));
         return client.send(builder.build(), HttpResponse.BodyHandlers.ofString());
     }
 
@@ -176,21 +128,8 @@ class ParticipantApiIntegrationTest {
         return Long.parseLong(body.substring(start, end));
     }
 
-    private static int occurrences(String text, String needle) {
-        int count = 0;
-        int start = 0;
-        while ((start = text.indexOf(needle, start)) >= 0) {
-            count += 1;
-            start += needle.length();
-        }
-        return count;
-    }
-
     private static Path temporaryStorageRoot() {
-        try {
-            return Files.createTempDirectory("csc-x-tool-participant-api-");
-        } catch (Exception exception) {
-            throw new IllegalStateException("Temporäres SQLite-Testverzeichnis konnte nicht angelegt werden.", exception);
-        }
+        try { return Files.createTempDirectory("csc-x-tool-participant-api-"); }
+        catch (Exception exception) { throw new IllegalStateException("Temporäres SQLite-Testverzeichnis konnte nicht angelegt werden.", exception); }
     }
 }

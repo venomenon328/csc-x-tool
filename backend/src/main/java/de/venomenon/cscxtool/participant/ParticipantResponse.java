@@ -6,19 +6,15 @@ import java.util.List;
 record ParticipantResponse(
         long id,
         String displayName,
-        String countryCode,
-        String countryName,
         boolean active,
         List<String> aliases,
         Instant createdAt,
         Instant updatedAt
 ) {
-    static ParticipantResponse from(Participant participant, Country country) {
+    static ParticipantResponse from(Participant participant) {
         return new ParticipantResponse(
                 participant.id(),
                 participant.displayName(),
-                participant.countryCode(),
-                country.name(),
                 participant.active(),
                 participant.aliases(),
                 participant.createdAt(),

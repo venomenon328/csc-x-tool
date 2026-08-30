@@ -31,11 +31,11 @@ class ContestEntryRepository {
     }
 
     List<ContestEntry> findAllByShowId(long showId) {
-        return jdbcTemplate.query(selectSql("WHERE motto_show_id = ? ORDER BY pool_position"), ROW_MAPPER, showId);
+        return jdbcTemplate.query(selectSql("WHERE contest_entry.motto_show_id = ? ORDER BY contest_entry.pool_position"), ROW_MAPPER, showId);
     }
 
     Optional<ContestEntry> findByIdAndShowId(long entryId, long showId) {
-        return jdbcTemplate.query(selectSql("WHERE id = ? AND motto_show_id = ?"), ROW_MAPPER, entryId, showId)
+        return jdbcTemplate.query(selectSql("WHERE contest_entry.id = ? AND contest_entry.motto_show_id = ?"), ROW_MAPPER, entryId, showId)
                 .stream().findFirst();
     }
 
@@ -44,18 +44,19 @@ class ContestEntryRepository {
         jdbcTemplate.update(connection -> {
             PreparedStatement statement = connection.prepareStatement("""
                     INSERT INTO contest_entry (
-                      motto_show_id, artist, title, youtube_url, comment, assessment, assessment_confidence,
-                      pool_position, ranking_position, participant_id, created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, NULL, NULL,
+                      motto_show_id, contest_id, artist, title, youtube_url, comment, assessment, assessment_confidence,
+                      pool_position, ranking_position, contest_participation_id, created_at, updated_at
+                    ) VALUES (?, (SELECT contest_id FROM motto_show WHERE id = ?), ?, ?, ?, ?, NULL, NULL,
                       (SELECT COALESCE(MAX(pool_position), 0) + 1 FROM contest_entry WHERE motto_show_id = ?),
                       NULL, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                     """, Statement.RETURN_GENERATED_KEYS);
             statement.setLong(1, showId);
-            statement.setString(2, artist);
-            statement.setString(3, title);
-            statement.setString(4, youtubeUrl);
-            statement.setString(5, comment);
-            statement.setLong(6, showId);
+            statement.setLong(2, showId);
+            statement.setString(3, artist);
+            statement.setString(4, title);
+            statement.setString(5, youtubeUrl);
+            statement.setString(6, comment);
+            statement.setLong(7, showId);
             return statement;
         }, keyHolder);
         Number generatedId = keyHolder.getKey();
@@ -104,25 +105,19 @@ class ContestEntryRepository {
         ));
     }
 
-    boolean participantIsActive(long participantId) {
-        return Boolean.TRUE.equals(jdbcTemplate.queryForObject(
-                "SELECT active FROM participant WHERE id = ?", Boolean.class, participantId
-        ));
-    }
-
-    Optional<Long> findEntryIdByParticipant(long showId, long participantId) {
+    Optional<Long> findEntryIdByParticipation(long showId, long participationId) {
         return jdbcTemplate.query(
-                "SELECT id FROM contest_entry WHERE motto_show_id = ? AND participant_id = ?",
-                (resultSet, rowNumber) -> resultSet.getLong("id"), showId, participantId
+                "SELECT id FROM contest_entry WHERE motto_show_id = ? AND contest_participation_id = ?",
+                (resultSet, rowNumber) -> resultSet.getLong("id"), showId, participationId
         ).stream().findFirst();
     }
 
-    boolean updateParticipantAssignment(long entryId, long showId, Long participantId) {
+    boolean updateParticipantAssignment(long entryId, long showId, Long participationId) {
         return jdbcTemplate.update("""
                 UPDATE contest_entry
-                SET participant_id = ?, updated_at = CURRENT_TIMESTAMP
+                SET contest_participation_id = ?, updated_at = CURRENT_TIMESTAMP
                 WHERE id = ? AND motto_show_id = ?
-                """, participantId, entryId, showId) == 1;
+                """, participationId, entryId, showId) == 1;
     }
 
     List<Long> findRankedEntryIds(long showId) {
@@ -187,20 +182,27 @@ class ContestEntryRepository {
 
     private static String selectSql(String whereClause) {
         return """
-                SELECT id, motto_show_id, artist, title, youtube_url, comment, assessment, assessment_confidence,
-                       pool_position, ranking_position, participant_id, created_at, updated_at
+                SELECT contest_entry.id, contest_entry.motto_show_id, contest_entry.contest_id,
+                       contest_entry.artist, contest_entry.title, contest_entry.youtube_url, contest_entry.comment,
+                       contest_entry.assessment, contest_entry.assessment_confidence, contest_entry.pool_position,
+                       contest_entry.ranking_position, contest_entry.contest_participation_id,
+                       participation.participant_id, contest_entry.created_at, contest_entry.updated_at
                 FROM contest_entry
+                LEFT JOIN contest_participation participation ON participation.id = contest_entry.contest_participation_id
                 """ + whereClause;
     }
 
     private static ContestEntry mapRow(ResultSet resultSet, int rowNumber) throws SQLException {
         int rankingPosition = resultSet.getInt("ranking_position");
         Integer nullableRankingPosition = resultSet.wasNull() ? null : rankingPosition;
+        long participationId = resultSet.getLong("contest_participation_id");
+        Long nullableParticipationId = resultSet.wasNull() ? null : participationId;
         long participantId = resultSet.getLong("participant_id");
         Long nullableParticipantId = resultSet.wasNull() ? null : participantId;
         return new ContestEntry(
                 resultSet.getLong("id"),
                 resultSet.getLong("motto_show_id"),
+                resultSet.getLong("contest_id"),
                 resultSet.getString("artist"),
                 resultSet.getString("title"),
                 resultSet.getString("youtube_url"),
@@ -209,6 +211,7 @@ class ContestEntryRepository {
                 nullableInt(resultSet, "assessment_confidence"),
                 resultSet.getInt("pool_position"),
                 nullableRankingPosition,
+                nullableParticipationId,
                 nullableParticipantId,
                 resultSet.getTimestamp("created_at").toInstant(),
                 resultSet.getTimestamp("updated_at").toInstant()

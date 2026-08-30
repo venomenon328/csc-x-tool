@@ -9,9 +9,6 @@ class UpdateParticipantRequest {
     @NotBlank(message = "Der Anzeigename darf nicht leer sein.")
     private String displayName;
 
-    @NotBlank(message = "Das Land darf nicht leer sein.")
-    private String countryCode;
-
     private Boolean active;
     private List<String> aliases;
     private boolean aliasesProvided;
@@ -22,14 +19,6 @@ class UpdateParticipantRequest {
 
     public void setDisplayName(String displayName) {
         this.displayName = displayName;
-    }
-
-    String countryCode() {
-        return countryCode;
-    }
-
-    public void setCountryCode(String countryCode) {
-        this.countryCode = countryCode;
     }
 
     Boolean active() {

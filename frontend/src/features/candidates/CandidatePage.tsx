@@ -44,7 +44,7 @@ import {
   SubmissionIcon,
 } from '../../components/AppIcons'
 import { ApiErrorNotice } from '../../components/ApiErrorNotice'
-import { fetchShows, type MottoShow } from '../shows/api'
+import { fetchShow, fetchShows, type MottoShow } from '../shows/api'
 import { YoutubePlayerPanel } from '../songs/YoutubePlayerPanel'
 import {
   CandidateApiError,
@@ -110,7 +110,8 @@ export function CandidatePage() {
     if (showId === null) return
     setError(null)
     try {
-      const [loadedShows, loadedCandidates] = await Promise.all([fetchShows(), fetchCandidates(showId)])
+      const [loadedShow, loadedCandidates] = await Promise.all([fetchShow(showId), fetchCandidates(showId)])
+      const loadedShows = await fetchShows(loadedShow.contestId)
       setShows(loadedShows)
       if (quickEntryInitializedForShow.current !== showId) {
         quickEntryInitializedForShow.current = showId
@@ -131,8 +132,10 @@ export function CandidatePage() {
   }, [load])
 
   async function reloadShows() {
+    const currentShow = shows?.find((item) => item.id === showId)
+    if (currentShow === undefined) return
     try {
-      setShows(await fetchShows())
+      setShows(await fetchShows(currentShow.contestId))
     } catch (caught) {
       setError(asCandidateApiError(caught, '/api/shows'))
     }

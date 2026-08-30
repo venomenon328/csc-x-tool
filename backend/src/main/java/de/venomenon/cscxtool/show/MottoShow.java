@@ -4,6 +4,7 @@ import java.time.Instant;
 
 record MottoShow(
         long id,
+        long contestId,
         int showNumber,
         String name,
         int candidateCount,

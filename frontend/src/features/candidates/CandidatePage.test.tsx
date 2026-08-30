@@ -13,6 +13,13 @@ function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
 }
 
+function contestShowResponse(path: string, shows: Array<{ id: number } & Record<string, unknown>>) {
+  const contestShows = shows.map((show) => ({ ...show, contestId: 1 }))
+  if (path === '/api/shows/1') return contestShows.find((show) => show.id === 1)
+  if (path === '/api/shows?contestId=1') return contestShows
+  return undefined
+}
+
 describe('CandidatePage', () => {
   const fetchMock = vi.fn<typeof fetch>()
 
@@ -29,7 +36,8 @@ describe('CandidatePage', () => {
     let postAttempts = 0
     fetchMock.mockImplementation(async (input, init) => {
       const path = String(input)
-      if (path === '/api/shows') return jsonResponse([{ id: 1, showNumber: 1, name: 'Show Eins', candidateCount: 0, selectedCandidate: null }])
+      const showResponse = contestShowResponse(path, [{ id: 1, showNumber: 1, name: 'Show Eins', candidateCount: 0, selectedCandidate: null }])
+      if (showResponse !== undefined) return jsonResponse(showResponse)
       if (path === '/api/shows/1/candidates' && init?.method === 'POST') {
         postAttempts += 1
         return postAttempts === 1
@@ -66,7 +74,8 @@ describe('CandidatePage', () => {
     const user = userEvent.setup()
     fetchMock.mockImplementation(async (input) => {
       const path = String(input)
-      if (path === '/api/shows') return jsonResponse([{ id: 1, showNumber: 1, name: 'Show Eins', candidateCount: 1, selectedCandidate: null }])
+      const showResponse = contestShowResponse(path, [{ id: 1, showNumber: 1, name: 'Show Eins', candidateCount: 1, selectedCandidate: null }])
+      if (showResponse !== undefined) return jsonResponse(showResponse)
       if (path === '/api/shows/1/candidates') return jsonResponse([candidate])
       throw new Error(`Unexpected request ${path}`)
     })
@@ -96,7 +105,8 @@ describe('CandidatePage', () => {
     ]
     fetchMock.mockImplementation(async (input, init) => {
       const path = String(input)
-      if (path === '/api/shows') return jsonResponse(shows)
+      const showResponse = contestShowResponse(path, shows)
+      if (showResponse !== undefined) return jsonResponse(showResponse)
       if (path === '/api/shows/1/candidates') return jsonResponse([candidate])
       if (path === '/api/shows/1/candidates/1/copy') return jsonResponse([], 201)
       if (path === '/api/shows/1/submission' && init?.method === 'PUT') return jsonResponse(candidate)
@@ -142,7 +152,8 @@ describe('CandidatePage', () => {
     const shows = [{ id: 1, showNumber: 1, name: 'Show Eins', candidateCount: 1, selectedCandidate: null }]
     fetchMock.mockImplementation(async (input, init) => {
       const path = String(input)
-      if (path === '/api/shows') return jsonResponse(shows)
+      const showResponse = contestShowResponse(path, shows)
+      if (showResponse !== undefined) return jsonResponse(showResponse)
       if (path === '/api/shows/1/candidates') return jsonResponse([candidate])
       if (path === '/api/shows/1/submission' && init?.method === 'PUT') return jsonResponse(candidate)
       throw new Error(`Unexpected request ${path}`)
@@ -164,7 +175,8 @@ describe('CandidatePage', () => {
     const rejectedCandidate = { ...candidate, id: 2, artist: 'Verworfen', title: 'Verworfen Song', status: 'VERWORFEN' as const, manualPosition: 2 }
     fetchMock.mockImplementation(async (input) => {
       const path = String(input)
-      if (path === '/api/shows') return jsonResponse([{ id: 1, showNumber: 1, name: 'Show Eins', candidateCount: 2, selectedCandidate: null }])
+      const showResponse = contestShowResponse(path, [{ id: 1, showNumber: 1, name: 'Show Eins', candidateCount: 2, selectedCandidate: null }])
+      if (showResponse !== undefined) return jsonResponse(showResponse)
       if (path === '/api/shows/1/candidates') return jsonResponse([candidate, rejectedCandidate])
       throw new Error(`Unexpected request ${path}`)
     })
@@ -189,7 +201,8 @@ describe('CandidatePage', () => {
   it('keeps drag-and-drop enabled for a fresh manual list without rejected candidates', async () => {
     fetchMock.mockImplementation(async (input) => {
       const path = String(input)
-      if (path === '/api/shows') return jsonResponse([{ id: 1, showNumber: 1, name: 'Show Eins', candidateCount: 1, selectedCandidate: null }])
+      const showResponse = contestShowResponse(path, [{ id: 1, showNumber: 1, name: 'Show Eins', candidateCount: 1, selectedCandidate: null }])
+      if (showResponse !== undefined) return jsonResponse(showResponse)
       if (path === '/api/shows/1/candidates') return jsonResponse([candidate])
       throw new Error(`Unexpected request ${path}`)
     })
@@ -204,7 +217,8 @@ describe('CandidatePage', () => {
     const user = userEvent.setup()
     fetchMock.mockImplementation(async (input) => {
       const path = String(input)
-      if (path === '/api/shows') return jsonResponse([{ id: 1, showNumber: 1, name: 'Show Eins', candidateCount: 1, selectedCandidate: null }])
+      const showResponse = contestShowResponse(path, [{ id: 1, showNumber: 1, name: 'Show Eins', candidateCount: 1, selectedCandidate: null }])
+      if (showResponse !== undefined) return jsonResponse(showResponse)
       if (path === '/api/shows/1/candidates') return jsonResponse([candidate])
       throw new Error(`Unexpected request ${path}`)
     })
@@ -222,7 +236,8 @@ describe('CandidatePage', () => {
     let deletionAllowed = false
     fetchMock.mockImplementation(async (input, init) => {
       const path = String(input)
-      if (path === '/api/shows') return jsonResponse([{ id: 1, showNumber: 1, name: 'Show Eins', candidateCount: 1, selectedCandidate: deletionAllowed ? null : selectedCandidate }])
+      const showResponse = contestShowResponse(path, [{ id: 1, showNumber: 1, name: 'Show Eins', candidateCount: 1, selectedCandidate: deletionAllowed ? null : selectedCandidate }])
+      if (showResponse !== undefined) return jsonResponse(showResponse)
       if (path === '/api/shows/1/candidates') return jsonResponse([candidate])
       if (path === '/api/shows/1/submission' && init?.method === 'DELETE') {
         deletionAllowed = true
@@ -252,7 +267,8 @@ describe('CandidatePage', () => {
     const user = userEvent.setup()
     fetchMock.mockImplementation(async (input, init) => {
       const path = String(input)
-      if (path === '/api/shows') return jsonResponse([{ id: 1, showNumber: 1, name: 'Show Eins', candidateCount: 1, selectedCandidate: null }])
+      const showResponse = contestShowResponse(path, [{ id: 1, showNumber: 1, name: 'Show Eins', candidateCount: 1, selectedCandidate: null }])
+      if (showResponse !== undefined) return jsonResponse(showResponse)
       if (path === '/api/shows/1/candidates') return jsonResponse([candidate])
       if (path === '/api/shows/1/candidates/1' && init?.method === 'DELETE') return new Response(null, { status: 204 })
       throw new Error(`Unexpected request ${path}`)
