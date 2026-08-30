@@ -151,11 +151,15 @@ class BallotApiIntegrationTest {
             long entryId = entryIds.get(index);
             long participantId = 1_000_000L + entryId;
             jdbcTemplate.update("""
-                    INSERT INTO participant (id, display_name, country_code, active, created_at, updated_at)
-                    VALUES (?, ?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                    """, participantId, "Participant " + (index + 1), countryCodes.get(index));
+                    INSERT INTO participant (id, display_name, active, created_at, updated_at)
+                    VALUES (?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                    """, participantId, "Participant " + (index + 1));
+            jdbcTemplate.update("""
+                    INSERT INTO contest_participation (id, contest_id, participant_id, country_code, active, created_at, updated_at)
+                    VALUES (?, 1, ?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                    """, participantId, participantId, countryCodes.get(index));
             assertThat(jdbcTemplate.update(
-                    "UPDATE contest_entry SET participant_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                    "UPDATE contest_entry SET contest_participation_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
                     participantId,
                     entryId
             )).isEqualTo(1);

@@ -52,6 +52,15 @@ class ResultApiIntegrationTest {
         put("/api/shows/1/ballot/reorder", reorderJson(entries, List.of()));
         assertThat(post("/api/shows/1/ballot/close", null).statusCode()).isEqualTo(200);
 
+        long contestForeign = createIdentity("Nur Archiv", true);
+        long archiveContestId = firstId(post("/api/contests", "{\"name\":\"Archiv " + contestForeign + "\"}").body());
+        assertThat(post("/api/contests/" + archiveContestId + "/participants",
+                "{\"participantId\":" + contestForeign + ",\"countryCode\":\"AT\",\"active\":true}").statusCode()).isEqualTo(201);
+        assertThat(put("/api/shows/1/entries/" + entries.getFirst() + "/participant", "{\"participantId\":" + contestForeign + "}").body())
+                .contains("PARTICIPANT_NOT_IN_CONTEST");
+        assertThat(put("/api/shows/1/results/scores/" + contestForeign, "{\"status\":\"ABGESTIMMT\",\"points\":0}").body())
+                .contains("PARTICIPANT_NOT_IN_CONTEST");
+
         assertThat(put("/api/shows/1/entries/" + entries.getFirst() + "/participant", "{\"participantId\":" + alpha + "}").statusCode())
                 .isEqualTo(200);
         HttpResponse<String> duplicateAssignment = put("/api/shows/1/entries/" + entries.get(1) + "/participant", "{\"participantId\":" + alpha + "}");
@@ -82,8 +91,8 @@ class ResultApiIntegrationTest {
         assertThat(put("/api/shows/1/results/scores/" + alpha, "{\"status\":\"ABGESTIMMT\",\"points\":0}").statusCode()).isEqualTo(200);
         assertThat(put("/api/shows/1/results/scores/" + beta, "{\"status\":\"NICHT_ABGESTIMMT\",\"points\":null}").statusCode()).isEqualTo(200);
         assertThat(put("/api/shows/1/results/scores/" + historic, "{\"status\":\"ABGESTIMMT\",\"points\":5}").statusCode()).isEqualTo(200);
-        jdbcTemplate.update("UPDATE participant SET active = 0 WHERE id = ?", historic);
-        jdbcTemplate.update("UPDATE participant SET active = 0 WHERE id = ?", beta);
+        jdbcTemplate.update("UPDATE contest_participation SET active = 0 WHERE contest_id = 1 AND participant_id = ?", historic);
+        jdbcTemplate.update("UPDATE contest_participation SET active = 0 WHERE contest_id = 1 AND participant_id = ?", beta);
         assertThat(get("/api/shows/1/entries").body()).contains("\"id\":" + entries.get(1), "\"participantId\":" + beta);
         assertThat(put("/api/shows/1/entries/" + entries.get(1) + "/participant", "{\"participantId\":null}").statusCode()).isEqualTo(200);
 
@@ -114,7 +123,14 @@ class ResultApiIntegrationTest {
     }
 
     private long createParticipant(String displayName, boolean active) throws Exception {
-        HttpResponse<String> response = post("/api/participants", "{\"displayName\":\"" + displayName + "\",\"countryCode\":\"DE\",\"active\":" + active + "}");
+        long participantId = createIdentity(displayName, active);
+        assertThat(post("/api/contests/1/participants", "{\"participantId\":" + participantId + ",\"countryCode\":\"DE\",\"active\":" + active + "}").statusCode())
+                .isEqualTo(201);
+        return participantId;
+    }
+
+    private long createIdentity(String displayName, boolean active) throws Exception {
+        HttpResponse<String> response = post("/api/participants", "{\"displayName\":\"" + displayName + "\",\"active\":" + active + "}");
         assertThat(response.statusCode()).isEqualTo(201);
         return firstId(response.body());
     }

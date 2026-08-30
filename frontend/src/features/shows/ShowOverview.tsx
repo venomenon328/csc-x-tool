@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import {
   Alert,
   Box,
@@ -33,8 +33,10 @@ import {
 } from '../../components/AppIcons'
 import { ApiErrorNotice } from '../../components/ApiErrorNotice'
 import { fetchShows, renameShow, ShowApiError, type MottoShow } from './api'
+import { useContest } from '../contests/ContestContext'
 
 export function ShowOverview() {
+  const { selectedContestId } = useContest()
   const [shows, setShows] = useState<MottoShow[] | null>(null)
   const [loadError, setLoadError] = useState<ShowApiError | null>(null)
   const [editedShow, setEditedShow] = useState<MottoShow | null>(null)
@@ -42,19 +44,29 @@ export function ShowOverview() {
   const [saveError, setSaveError] = useState<ShowApiError | null>(null)
   const [saving, setSaving] = useState(false)
 
-  useEffect(() => {
-    void loadShows()
-  }, [])
-
-  async function loadShows() {
+  const loadShows = useCallback(async () => {
     setLoadError(null)
     try {
-      setShows(await fetchShows())
+      setShows(await fetchShows(selectedContestId ?? undefined))
     } catch (error) {
       setLoadError(asShowApiError(error))
       setShows(null)
     }
-  }
+  }, [selectedContestId])
+
+  useEffect(() => {
+    let disposed = false
+    void fetchShows(selectedContestId ?? undefined).then((loadedShows) => {
+      if (disposed) return
+      setLoadError(null)
+      setShows(loadedShows)
+    }).catch((error: unknown) => {
+      if (disposed) return
+      setLoadError(asShowApiError(error))
+      setShows(null)
+    })
+    return () => { disposed = true }
+  }, [selectedContestId])
 
   function openRenameDialog(show: MottoShow) {
     setEditedShow(show)

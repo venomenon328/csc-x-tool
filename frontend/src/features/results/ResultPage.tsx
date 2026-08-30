@@ -25,7 +25,7 @@ import { useEffect, useState } from 'react'
 import { Link as RouterLink, useParams } from 'react-router-dom'
 import { ApiErrorNotice } from '../../components/ApiErrorNotice'
 import { CountryFlag } from '../participants/CountryFlag'
-import { fetchShows, type MottoShow } from '../shows/api'
+import { fetchShow, type MottoShow } from '../shows/api'
 import {
   closeResults,
   fetchResult,
@@ -55,10 +55,10 @@ export function ResultPage() {
     async function loadResult() {
       if (showId === null) return
       try {
-        const [shows, loadedResult] = await Promise.all([fetchShows(), fetchResult(showId)])
+        const [loadedShow, loadedResult] = await Promise.all([fetchShow(showId), fetchResult(showId)])
         if (cancelled) return
         setError(null)
-        setShow(shows.find((item) => item.id === showId) ?? null)
+        setShow(loadedShow)
         setResult(loadedResult)
       } catch (caught) {
         if (cancelled) return

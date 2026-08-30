@@ -45,15 +45,20 @@ describe('candidate alignment polish', () => {
   it('keeps submission and status actions present in a stable candidate action rail', async () => {
     fetchMock.mockImplementation(async (input) => {
       const path = String(input)
-      if (path === '/api/shows') {
-        return jsonResponse([{
+      if (path === '/api/shows/1') {
+        return jsonResponse({
           id: 1,
+          contestId: 1,
           showNumber: 1,
           name: 'Super Men',
           candidateCount: 2,
           selectedCandidate: { id: 1, artist: selectedCandidate.artist, title: selectedCandidate.title, youtubeUrl },
-        }])
+        })
       }
+      if (path === '/api/shows?contestId=1') return jsonResponse([{
+        id: 1, contestId: 1, showNumber: 1, name: 'Super Men', candidateCount: 2,
+        selectedCandidate: { id: 1, artist: selectedCandidate.artist, title: selectedCandidate.title, youtubeUrl },
+      }])
       if (path === '/api/shows/1/candidates') return jsonResponse([selectedCandidate, otherCandidate])
       throw new Error(`Unexpected request ${path}`)
     })

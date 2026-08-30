@@ -41,8 +41,8 @@ class SearchApiIntegrationTest {
                     VALUES (1, ?, ?, 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', 'OFFEN', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                     """, "Artist % " + index, "Needle_" + index, index);
             jdbcTemplate.update("""
-                    INSERT INTO contest_entry (motto_show_id, artist, title, youtube_url, assessment, assessment_confidence, pool_position, created_at, updated_at)
-                    VALUES (1, ?, ?, 'https://www.youtube.com/watch?v=9bZkp7q19f0', NULL, NULL, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                    INSERT INTO contest_entry (motto_show_id, contest_id, artist, title, youtube_url, assessment, assessment_confidence, pool_position, created_at, updated_at)
+                    VALUES (1, 1, ?, ?, 'https://www.youtube.com/watch?v=9bZkp7q19f0', NULL, NULL, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                     """, "Entry % " + index, "Needle_" + index, index);
         }
         jdbcTemplate.update("""

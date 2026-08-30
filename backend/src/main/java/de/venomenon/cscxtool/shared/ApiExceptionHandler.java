@@ -18,6 +18,7 @@ import de.venomenon.cscxtool.entry.ContestEntryNotFoundException;
 import de.venomenon.cscxtool.data.BackupFileException;
 import de.venomenon.cscxtool.data.BackupStorageException;
 import de.venomenon.cscxtool.data.RestoreRecoveryFailedException;
+import de.venomenon.cscxtool.contest.ContestNotFoundException;
 
 @RestControllerAdvice
 class ApiExceptionHandler {
@@ -60,6 +61,11 @@ class ApiExceptionHandler {
                 "Der angeforderte Teilnehmer wurde nicht gefunden.",
                 request
         );
+    }
+
+    @ExceptionHandler(ContestNotFoundException.class)
+    ResponseEntity<ApiError> contestNotFound(ContestNotFoundException exception, HttpServletRequest request) {
+        return error(HttpStatus.NOT_FOUND, "CONTEST_NOT_FOUND", "Die angeforderte CSC-Ausgabe wurde nicht gefunden.", request);
     }
 
     @ExceptionHandler(ApiBadRequestException.class)

@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { App } from '../../app/App'
 import type { ContestEntry, ImportPreviewLine } from './api'
 
-const show = { id: 1, showNumber: 1, name: 'Show Eins', candidateCount: 0, contestEntryCount: 2, assessedEntryCount: 0, selectedCandidate: null }
+const show = { id: 1, contestId: 1, showNumber: 1, name: 'Show Eins', candidateCount: 0, contestEntryCount: 2, assessedEntryCount: 0, selectedCandidate: null }
 const first: ContestEntry = {
   id: 11, mottoShowId: 1, artist: 'Imminence', title: 'Paralyzed', youtubeUrl: 'https://www.youtube.com/watch?v=2Dqu1Gh45qU',
   comment: null, assessment: null, assessmentConfidence: null, poolPosition: 1, rankingPosition: null, participantId: null,
@@ -41,7 +41,7 @@ describe('EntryPage', () => {
     ]
     fetchMock.mockImplementation(async (input, init) => {
       const path = String(input)
-      if (path === '/api/shows') return jsonResponse([show])
+      if (path === '/api/shows/1') return jsonResponse(show)
       if (path === '/api/shows/1/ballot') return jsonResponse(openBallot)
       if (path === '/api/shows/1/entries' && init?.method === 'POST') return jsonResponse([first], 200)
       if (path === '/api/shows/1/entries/import-preview') return jsonResponse(preview)
@@ -88,7 +88,7 @@ describe('EntryPage', () => {
     }]
     fetchMock.mockImplementation(async (input) => {
       const path = String(input)
-      if (path === '/api/shows') return jsonResponse([show])
+      if (path === '/api/shows/1') return jsonResponse(show)
       if (path === '/api/shows/1/ballot') return jsonResponse(openBallot)
       if (path === '/api/shows/1/entries/import-preview') return jsonResponse(preview)
       if (path === '/api/shows/1/entries') return jsonResponse([])
@@ -113,7 +113,7 @@ describe('EntryPage', () => {
     let entries = [first, second]
     fetchMock.mockImplementation(async (input, init) => {
       const path = String(input)
-      if (path === '/api/shows') return jsonResponse([show])
+      if (path === '/api/shows/1') return jsonResponse(show)
       if (path === '/api/shows/1/ballot') return jsonResponse(openBallot)
       if (path === '/api/shows/1/entries' && init?.method === 'POST') {
         const created = { ...first, id: 13, artist: 'Neu', title: 'Beitrag' }
@@ -190,7 +190,7 @@ describe('EntryPage', () => {
     let finishAssessment: ((response: Response) => void) | undefined
     fetchMock.mockImplementation(async (input, init) => {
       const path = String(input)
-      if (path === '/api/shows') return jsonResponse([show])
+      if (path === '/api/shows/1') return jsonResponse(show)
       if (path === '/api/shows/1/ballot') return jsonResponse(openBallot)
       if (path === '/api/shows/1/entries/11/assessment' && init?.method === 'PATCH') {
         return new Promise<Response>((resolve) => { finishAssessment = resolve })
@@ -221,9 +221,9 @@ describe('EntryPage', () => {
     let entries = [first, second]
     fetchMock.mockImplementation(async (input, init) => {
       const path = String(input)
-      if (path === '/api/shows') return jsonResponse([{ ...show, ballotClosedAt: closedBallot.ballotClosedAt, assignedEntryCount: 0, activeParticipantCount: 1, knownActiveResultCount: 0, resultsClosedAt: null }])
+      if (path === '/api/shows/1') return jsonResponse({ ...show, ballotClosedAt: closedBallot.ballotClosedAt, assignedEntryCount: 0, activeParticipantCount: 1, knownActiveResultCount: 0, resultsClosedAt: null })
       if (path === '/api/shows/1/ballot') return jsonResponse(closedBallot)
-      if (path === '/api/participants?includeInactive=true') return jsonResponse([participant])
+      if (path === '/api/contests/1/participants?includeInactive=true') return jsonResponse([participant])
       if (path === '/api/shows/1/entries/11/participant' && init?.method === 'PUT') {
         entries = [{ ...first, participantId: 31 }, second]
         return jsonResponse(entries[0])
@@ -234,7 +234,7 @@ describe('EntryPage', () => {
     render(<App />)
 
     await screen.findByLabelText('Ohne Teilnehmer')
-    expect(fetchMock).toHaveBeenCalledWith('/api/participants?includeInactive=true')
+    expect(fetchMock).toHaveBeenCalledWith('/api/contests/1/participants?includeInactive=true')
     await user.click(screen.getByRole('button', { name: 'Paralyzed von Imminence auswählen' }))
     await user.click(screen.getByLabelText('Teilnehmer dieses Beitrags'))
     await user.click(await screen.findByText('Mira'))
@@ -253,7 +253,7 @@ describe('EntryPage', () => {
     ]
     fetchMock.mockImplementation(async (input, init) => {
       const path = String(input)
-      if (path === '/api/shows') return jsonResponse([show])
+      if (path === '/api/shows/1') return jsonResponse(show)
       if (path === '/api/shows/1/ballot') return jsonResponse(openBallot)
       if (path === '/api/shows/1/ballot/reorder' && init?.method === 'PUT') {
         return jsonResponse({ rankedEntryIds: [12, 11], unrankedEntryIds: [] })

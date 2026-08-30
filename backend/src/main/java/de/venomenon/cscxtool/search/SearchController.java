@@ -17,7 +17,7 @@ class SearchController {
     }
 
     @GetMapping
-    List<SearchResult> search(@RequestParam(defaultValue = "") String q) {
-        return searchService.search(q);
+    List<SearchResult> search(@RequestParam(defaultValue = "") String q, @RequestParam(required = false) Long contestId) {
+        return searchService.search(q, contestId);
     }
 }

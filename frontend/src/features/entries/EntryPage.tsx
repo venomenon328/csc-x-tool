@@ -18,7 +18,7 @@ import {
 import { fetchParticipants, type Participant } from '../participants/api'
 import { ParticipantSelect } from '../participants/ParticipantSelect'
 import { YoutubePlayerPanel } from '../songs/YoutubePlayerPanel'
-import { fetchShows, type MottoShow } from '../shows/api'
+import { fetchShow, type MottoShow } from '../shows/api'
 import { ClipboardImportArea } from './ClipboardImportArea'
 import { ImportPreview, type EditableImportLine } from './ImportPreview'
 import {
@@ -78,11 +78,11 @@ export function EntryPage() {
     if (showId === null) return
     setError(null)
     try {
-      const [loadedShows, loadedEntries, loadedBallot] = await Promise.all([fetchShows(), fetchEntries(showId), fetchBallot(showId)])
-      setShows(loadedShows)
+      const [loadedShow, loadedEntries, loadedBallot] = await Promise.all([fetchShow(showId), fetchEntries(showId), fetchBallot(showId)])
+      setShows([loadedShow])
       setEntries(loadedEntries)
       setBallot(loadedBallot)
-      setParticipants(loadedBallot.ballotClosedAt === null ? null : await fetchParticipants({ includeInactive: true }))
+      setParticipants(loadedBallot.ballotClosedAt === null ? null : await fetchParticipants({ contestId: loadedShow.contestId, includeInactive: true }))
     } catch (caught) {
       setEntries(null)
       setBallot(null)
@@ -98,7 +98,8 @@ export function EntryPage() {
   }, [load])
 
   async function reloadShows() {
-    try { setShows(await fetchShows()) } catch (caught) { setError(asEntryApiError(caught, '/api/shows')) }
+    if (showId === null) return
+    try { setShows([await fetchShow(showId)]) } catch (caught) { setError(asEntryApiError(caught, '/api/shows/' + showId)) }
   }
 
   async function saveEntry(entry: ContestEntry): Promise<boolean> {
@@ -270,12 +271,12 @@ export function EntryPage() {
   }
 
   async function closeRanking() {
-    if (showId === null) return
+    if (showId === null || show === null) return
     setError(null)
     try {
       const closedBallot = await closeBallot(showId)
       setBallot(closedBallot)
-      setParticipants(await fetchParticipants({ includeInactive: true }))
+      setParticipants(await fetchParticipants({ contestId: show.contestId, includeInactive: true }))
       void reloadShows()
     } catch (caught) { setError(asEntryApiError(caught, `/api/shows/${showId}/ballot/close`)) }
   }

@@ -3,6 +3,7 @@ import { apiFetch } from '../../api/request'
 
 export type MottoShow = {
   id: number
+  contestId: number
   showNumber: number
   name: string
   candidateCount: number
@@ -35,12 +36,18 @@ export class ShowApiError extends Error {
   }
 }
 
-export async function fetchShows(): Promise<MottoShow[]> {
-  const response = await apiFetch('/api/shows')
+export async function fetchShows(contestId?: number): Promise<MottoShow[]> {
+  const response = await apiFetch(contestId === undefined ? '/api/shows' : '/api/shows?contestId=' + contestId)
   if (!response.ok) {
     throw new ShowApiError(await readApiError(response))
   }
   return response.json() as Promise<MottoShow[]>
+}
+
+export async function fetchShow(showId: number): Promise<MottoShow> {
+  const response = await apiFetch('/api/shows/' + showId)
+  if (!response.ok) throw new ShowApiError(await readApiError(response))
+  return response.json() as Promise<MottoShow>
 }
 
 export async function renameShow(showId: number, name: string): Promise<MottoShow> {

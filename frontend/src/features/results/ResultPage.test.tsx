@@ -22,12 +22,12 @@ describe('ResultPage', () => {
   it('keeps a closed result read-only while showing zero points, historical rows and a difference warning', async () => {
     fetchMock.mockImplementation(async (input) => {
       const path = String(input)
-      if (path === '/api/shows') return jsonResponse([{
-        id: 1, showNumber: 1, name: 'Show Eins', candidateCount: 1, contestEntryCount: 15, assessedEntryCount: 15, rankedEntryCount: 15,
+      if (path === '/api/shows/1') return jsonResponse({
+        id: 1, contestId: 1, showNumber: 1, name: 'Show Eins', candidateCount: 1, contestEntryCount: 15, assessedEntryCount: 15, rankedEntryCount: 15,
         assignedEntryCount: 10, activeParticipantCount: 1, knownActiveResultCount: 1, ballotClosedAt: '2026-08-27T10:00:00Z', resultsClosedAt: '2026-08-27T12:00:00Z',
         calculatedTotalPoints: 5, officialTotalPoints: 7, officialTotalDifference: 2, finalPlace: 3, finalPlaceTied: true,
         selectedCandidate: { id: 7, artist: 'Eigene Band', title: 'Mein Lied', youtubeUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' },
-      }])
+      })
       if (path === '/api/shows/1/results') return jsonResponse({
         mottoShowId: 1, ballotClosedAt: '2026-08-27T10:00:00Z', resultsClosedAt: '2026-08-27T12:00:00Z',
         selectedCandidate: { id: 7, artist: 'Eigene Band', title: 'Mein Lied', youtubeUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' },
@@ -62,12 +62,12 @@ describe('ResultPage', () => {
     }
     fetchMock.mockImplementation(async (input, init) => {
       const path = String(input)
-      if (path === '/api/shows') return jsonResponse([{
-        id: 1, showNumber: 1, name: 'Show Eins', candidateCount: 0, contestEntryCount: 15, assessedEntryCount: 15, rankedEntryCount: 15,
+      if (path === '/api/shows/1') return jsonResponse({
+        id: 1, contestId: 1, showNumber: 1, name: 'Show Eins', candidateCount: 0, contestEntryCount: 15, assessedEntryCount: 15, rankedEntryCount: 15,
         assignedEntryCount: 0, activeParticipantCount: 2, knownActiveResultCount: 2, ballotClosedAt: result.ballotClosedAt, resultsClosedAt: null,
         calculatedTotalPoints: result.calculatedTotalPoints, officialTotalPoints: null, officialTotalDifference: null, finalPlace: null, finalPlaceTied: false,
         selectedCandidate: null,
-      }])
+      })
       if (path === '/api/shows/1/results') return jsonResponse(result)
       if (path === '/api/shows/1/results/scores/2' && init?.method === 'PUT') {
         result = {

@@ -179,8 +179,13 @@ class ContestEntryApiIntegrationTest {
                 VALUES (999, 'X', 'Y', 'https://www.youtube.com/watch?v=9bZkp7q19f0', NULL, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                 """)).isInstanceOf(DataAccessException.class);
 
-        long participantId = firstId(post("/api/participants", "{" + "\"displayName\":\"Historisch\",\"countryCode\":\"DE\",\"active\":true}" ).body());
-        jdbcTemplate.update("UPDATE contest_entry SET participant_id = ? WHERE id = ?", participantId, entryId);
+        long participantId = firstId(post("/api/participants", "{" + "\"displayName\":\"Historisch\",\"active\":true}" ).body());
+        assertThat(post("/api/contests/1/participants", "{" + "\"participantId\":" + participantId + ",\"countryCode\":\"DE\",\"active\":true}").statusCode())
+                .isEqualTo(201);
+        long participationId = jdbcTemplate.queryForObject(
+                "SELECT id FROM contest_participation WHERE contest_id = 1 AND participant_id = ?", Long.class, participantId
+        );
+        jdbcTemplate.update("UPDATE contest_entry SET contest_participation_id = ? WHERE id = ?", participationId, entryId);
         HttpResponse<String> deletion = delete("/api/participants/" + participantId);
         assertThat(deletion.statusCode()).isEqualTo(409);
         assertThat(deletion.body()).contains("\"code\":\"PARTICIPANT_IN_USE\"");

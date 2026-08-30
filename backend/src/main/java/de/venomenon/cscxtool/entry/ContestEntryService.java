@@ -2,6 +2,7 @@ package de.venomenon.cscxtool.entry;
 
 import de.venomenon.cscxtool.shared.ApiBadRequestException;
 import de.venomenon.cscxtool.shared.ApiConflictException;
+import de.venomenon.cscxtool.contest.ContestRepository;
 import de.venomenon.cscxtool.participant.ParticipantNotFoundException;
 import de.venomenon.cscxtool.show.ShowNotFoundException;
 import de.venomenon.cscxtool.song.YoutubeUrlNormalizer;
@@ -21,15 +22,18 @@ class ContestEntryService {
     private final ContestEntryRepository repository;
     private final ClipboardEntryParser clipboardEntryParser;
     private final YoutubeUrlNormalizer youtubeUrlNormalizer;
+    private final ContestRepository contests;
 
     ContestEntryService(
             ContestEntryRepository repository,
             ClipboardEntryParser clipboardEntryParser,
-            YoutubeUrlNormalizer youtubeUrlNormalizer
+            YoutubeUrlNormalizer youtubeUrlNormalizer,
+            ContestRepository contests
     ) {
         this.repository = repository;
         this.clipboardEntryParser = clipboardEntryParser;
         this.youtubeUrlNormalizer = youtubeUrlNormalizer;
+        this.contests = contests;
     }
 
     List<ContestEntry> findAll(long showId) {
@@ -111,24 +115,30 @@ class ContestEntryService {
         ContestEntry entry = repository.findByIdAndShowId(entryId, showId)
                 .orElseThrow(() -> new ContestEntryNotFoundException(entryId, showId));
         Long participantId = request == null ? null : request.participantId();
+        Long participationId = null;
         if (participantId != null) {
             if (!repository.participantExists(participantId)) {
                 throw new ParticipantNotFoundException(participantId);
             }
-            if (!repository.participantIsActive(participantId) && !participantId.equals(entry.participantId())) {
+            var participation = contests.findParticipationForShow(showId, participantId).orElseThrow(() -> new ApiConflictException(
+                    "PARTICIPANT_NOT_IN_CONTEST",
+                    "Der Teilnehmer nimmt nicht an der CSC-Ausgabe dieser Mottoshow teil."
+            ));
+            if (!participation.active() && !participantId.equals(entry.participantId())) {
                 throw new ApiConflictException(
                         "INACTIVE_PARTICIPANT_CANNOT_BE_ASSIGNED",
                         "Inaktive Teilnehmer können nicht neu einem Wettbewerbsbeitrag zugeordnet werden."
                 );
             }
-            repository.findEntryIdByParticipant(showId, participantId)
+            repository.findEntryIdByParticipation(showId, participation.id())
                     .filter(assignedEntryId -> assignedEntryId != entry.id())
                     .ifPresent(assignedEntryId -> {
                         throw duplicateParticipantAssignment();
                     });
+            participationId = participation.id();
         }
         try {
-            if (!repository.updateParticipantAssignment(entryId, showId, participantId)) {
+            if (!repository.updateParticipantAssignment(entryId, showId, participationId)) {
                 throw new ContestEntryNotFoundException(entryId, showId);
             }
         } catch (DataIntegrityViolationException exception) {
@@ -260,7 +270,7 @@ class ContestEntryService {
     private static boolean isParticipantAssignmentUniqueConstraint(Throwable exception) {
         for (Throwable current = exception; current != null; current = current.getCause()) {
             String message = current.getMessage();
-            if (message != null && message.contains("contest_entry.motto_show_id, contest_entry.participant_id")) {
+            if (message != null && message.contains("contest_entry.motto_show_id, contest_entry.contest_participation_id")) {
                 return true;
             }
         }

@@ -25,6 +25,7 @@ import {
 import { useEffect, useState } from 'react'
 import { ApiErrorNotice } from '../../components/ApiErrorNotice'
 import { CountryFlag } from './CountryFlag'
+import { useContest } from '../contests/ContestContext'
 import {
   ParticipantApiError,
   createParticipant,
@@ -45,6 +46,7 @@ type EditorState = {
 const emptyInput: ParticipantInput = { displayName: '', countryCode: '', active: true, aliases: [] }
 
 export function ParticipantPage() {
+  const { selectedContestId, selectedContest } = useContest()
   const [countries, setCountries] = useState<Country[]>([])
   const [participants, setParticipants] = useState<Participant[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -56,11 +58,16 @@ export function ParticipantPage() {
   const [participantToDelete, setParticipantToDelete] = useState<Participant | null>(null)
 
   const load = async (query = activeSearch, include = includeInactive) => {
+    if (selectedContestId === null) {
+      setParticipants([])
+      setIsLoading(false)
+      return
+    }
     setIsLoading(true)
     setError(null)
     try {
       const [loadedCountries, loadedParticipants] = await Promise.all([
-        fetchCountries(), fetchParticipants({ q: query, includeInactive: include }),
+        fetchCountries(), fetchParticipants({ contestId: selectedContestId, q: query, includeInactive: include }),
       ])
       setCountries(loadedCountries)
       setParticipants(loadedParticipants)
@@ -73,7 +80,15 @@ export function ParticipantPage() {
 
   useEffect(() => {
     let disposed = false
-    void Promise.all([fetchCountries(), fetchParticipants()]).then(([loadedCountries, loadedParticipants]) => {
+    if (selectedContestId === null) {
+      void Promise.resolve().then(() => {
+        if (disposed) return
+        setParticipants([])
+        setIsLoading(false)
+      })
+      return () => { disposed = true }
+    }
+    void Promise.all([fetchCountries(), fetchParticipants({ contestId: selectedContestId })]).then(([loadedCountries, loadedParticipants]) => {
       if (disposed) return
       setCountries(loadedCountries)
       setParticipants(loadedParticipants)
@@ -84,7 +99,7 @@ export function ParticipantPage() {
       setIsLoading(false)
     })
     return () => { disposed = true }
-  }, [])
+  }, [selectedContestId])
 
   const submitSearch = (event: React.FormEvent) => {
     event.preventDefault()
@@ -101,9 +116,11 @@ export function ParticipantPage() {
     if (editor === null) return
     try {
       if (editor.participant === null) {
-        await createParticipant(input)
+        if (selectedContestId === null) return
+        await createParticipant(selectedContestId, input)
       } else {
-        await updateParticipant(editor.participant.id, input)
+        if (selectedContestId === null) return
+        await updateParticipant(selectedContestId, editor.participant.id, input)
       }
       setEditor(null)
       await load()
@@ -115,7 +132,8 @@ export function ParticipantPage() {
   const confirmDelete = async () => {
     if (participantToDelete === null) return
     try {
-      await deleteParticipant(participantToDelete.id)
+      if (selectedContestId === null) return
+      await deleteParticipant(selectedContestId, participantToDelete.id)
       setParticipantToDelete(null)
       await load()
     } catch (caughtError) {
@@ -126,8 +144,8 @@ export function ParticipantPage() {
   return (
     <Stack spacing={3}>
       <Box>
-        <Typography component="h1" variant="h4">Teilnehmer</Typography>
-        <Typography color="text.secondary">Andere CSC-Teilnehmer mit Land, Aliasnamen und Aktivstatus verwalten.</Typography>
+        <Typography component="h1" variant="h4">Teilnehmer{selectedContest === null ? '' : ' · ' + selectedContest.name}</Typography>
+        <Typography color="text.secondary">Dauerhafte Identitäten, Aliasnamen und die Teilnahme an dieser CSC-Ausgabe verwalten.</Typography>
       </Box>
 
       {error !== null && <ApiErrorNotice error={error.apiError} />}
@@ -238,7 +256,9 @@ function ParticipantEditor({ countries, initialInput, onClose, onSave, title }: 
       <DialogTitle>{title}</DialogTitle>
       <DialogContent><Stack spacing={2} sx={{ pt: 1 }}>
         {error !== null && <Alert severity="error">{error.message}</Alert>}
+        <Typography variant="subtitle2">Dauerhafte Identität</Typography>
         <TextField autoFocus label="Anzeigename" onChange={(event) => setInput((current) => ({ ...current, displayName: event.target.value }))} required value={input.displayName} />
+        <Typography variant="subtitle2">Teilnahme in dieser CSC-Ausgabe</Typography>
         <Autocomplete
           getOptionKey={(country) => country.code}
           getOptionLabel={(country) => country.name}
@@ -250,7 +270,7 @@ function ParticipantEditor({ countries, initialInput, onClose, onSave, title }: 
           value={selectedCountry}
         />
         <FormControlLabel control={<Switch checked={input.active} onChange={(event) => setInput((current) => ({ ...current, active: event.target.checked }))} />} label="Aktiver Teilnehmer" />
-        <Stack spacing={1}><Typography variant="subtitle2">Aliasse</Typography>
+        <Stack spacing={1}><Typography variant="subtitle2">Dauerhafte Aliasse</Typography>
           {input.aliases.map((alias, index) => <Stack direction="row" key={index} spacing={1}><TextField fullWidth label={`Alias ${index + 1}`} onChange={(event) => updateAlias(index, event.target.value)} value={alias} /><IconButton aria-label={`Alias ${index + 1} entfernen`} onClick={() => setInput((current) => ({ ...current, aliases: current.aliases.filter((_, aliasIndex) => aliasIndex !== index) }))}>×</IconButton></Stack>)}
           <Button onClick={() => setInput((current) => ({ ...current, aliases: [...current.aliases, ''] }))} sx={{ alignSelf: 'flex-start' }}>Alias hinzufügen</Button>
         </Stack>

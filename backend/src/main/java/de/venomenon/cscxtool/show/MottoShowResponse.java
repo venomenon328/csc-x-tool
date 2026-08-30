@@ -4,6 +4,7 @@ import java.time.Instant;
 
 record MottoShowResponse(
         long id,
+        long contestId,
         int showNumber,
         String name,
         int candidateCount,
@@ -26,6 +27,7 @@ record MottoShowResponse(
     static MottoShowResponse from(MottoShow show) {
         return new MottoShowResponse(
                 show.id(),
+                show.contestId(),
                 show.showNumber(),
                 show.name(),
                 show.candidateCount(),
