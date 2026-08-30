@@ -1,5 +1,6 @@
 package de.venomenon.cscxtool.contest;
 
+import de.venomenon.cscxtool.shared.EntryListReadiness;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -144,21 +145,19 @@ public class ContestRepository {
     }
 
     public boolean hasDerivedOwnResults(long contestId, long participationId) {
-        return Boolean.TRUE.equals(jdbcTemplate.queryForObject("""
-                SELECT EXISTS(
-                  SELECT 1
-                  FROM motto_show show
-                  JOIN contest_entry own_entry
-                    ON own_entry.motto_show_id = show.id AND own_entry.contest_participation_id = ?
-                  WHERE show.contest_id = ?
-                    AND (show.entry_list_complete = 1 OR (
-                      (SELECT is_current FROM contest WHERE id = show.contest_id) = 1
-                      AND show.ballot_closed_at IS NOT NULL
-                      AND EXISTS (SELECT 1 FROM contest_entry WHERE motto_show_id = show.id)
-                      AND NOT EXISTS (SELECT 1 FROM contest_entry WHERE motto_show_id = show.id AND contest_participation_id IS NULL)
-                    ))
-                )
-                """, Boolean.class, participationId, contestId));
+        return jdbcTemplate.query("""
+                SELECT show.entry_list_complete, contest.is_current,
+                       EXISTS(SELECT 1 FROM contest_entry entry WHERE entry.motto_show_id = show.id),
+                       NOT EXISTS(SELECT 1 FROM contest_entry entry WHERE entry.motto_show_id = show.id
+                                  AND entry.contest_participation_id IS NULL)
+                FROM motto_show show
+                JOIN contest ON contest.id = show.contest_id
+                JOIN contest_entry own_entry
+                  ON own_entry.motto_show_id = show.id AND own_entry.contest_participation_id = ?
+                WHERE show.contest_id = ?
+                """, (resultSet, rowNumber) -> EntryListReadiness.isReady(
+                resultSet.getBoolean(1), resultSet.getBoolean(2), resultSet.getBoolean(3), resultSet.getBoolean(4)
+        ), participationId, contestId).stream().anyMatch(Boolean::booleanValue);
     }
 
     public boolean participationIsReferenced(long contestId, long participantId) {
