@@ -5,9 +5,11 @@ import de.venomenon.cscxtool.participant.CountryCatalog;
 import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.jsoup.Jsoup;
@@ -17,7 +19,7 @@ import org.jsoup.nodes.TextNode;
 import org.springframework.stereotype.Component;
 
 /**
- * Converts only the representations from a user paste event into an ephemeral preview.  It uses a DOM parser
+ * Converts only the representations from a user paste event into an ephemeral preview. It uses a DOM parser
  * for HTML, never renders source markup and intentionally treats the points word as opaque formatting.
  */
 @Component
@@ -31,7 +33,7 @@ class PublishedBallotImportParser {
     PublishedBallotImportParser(CountryCatalog countries) {
         Map<String, String> values = new HashMap<>();
         for (Country country : countries.findAll()) values.put(normalized(country.name()), country.code());
-        // These spellings are source plausibility signals only; a name/alias still resolves the participant.
+        // Historic source spellings used as plausibility signals only.
         values.put(normalized("Südkorea"), "KR");
         values.put(normalized("Südafrika"), "ZA");
         values.put(normalized("Türkei"), "TR");
@@ -40,8 +42,11 @@ class PublishedBallotImportParser {
     }
 
     List<PublishedBallotPreviewBlock> parse(
-            String html, String text, List<PublishedBallotParticipant> participants, List<PublishedBallotEntry> entries,
-            java.util.Set<Long> existingParticipationIds
+            String html,
+            String text,
+            List<PublishedBallotParticipant> participants,
+            List<PublishedBallotEntry> entries,
+            Set<Long> existingParticipationIds
     ) {
         List<SourceLine> sources = extract(html, text);
         List<Block> blocks = blocks(sources);
@@ -59,15 +64,16 @@ class PublishedBallotImportParser {
             document.select("script,style,noscript,template").remove();
             document.select("br").forEach(element -> element.after(new TextNode("\n")));
             for (Element element : document.select("h1,h2,h3,h4,h5,h6,p,li,div")) {
-                if (element.children().stream().anyMatch(child -> List.of("p", "li", "div").contains(child.normalName()))) continue;
+                if (element.children().stream().anyMatch(child -> List.of("p", "li", "div").contains(child.normalName()))) {
+                    continue;
+                }
                 String url = element.select("a[href]").stream().map(link -> compact(link.attr("href")))
                         .filter(value -> !value.isBlank()).findFirst().orElse(null);
                 appendText(element.wholeText(), htmlLines, url);
             }
             if (htmlLines.isEmpty()) appendText(document.body().wholeText(), htmlLines, null);
         }
-        // One paste event commonly carries both representations. Prefer the DOM-derived form so
-        // identical song lines in consecutive ballots are not accidentally de-duplicated.
+        // A paste commonly supplies HTML and plain text. Prefer the DOM form rather than importing both.
         if (!htmlLines.isEmpty()) return htmlLines;
         List<SourceLine> textLines = new ArrayList<>();
         appendText(text, textLines, null);
@@ -96,106 +102,217 @@ class PublishedBallotImportParser {
         }
         if (blocks.isEmpty()) {
             Block unknown = new Block(null, null, null);
-            for (SourceLine line : lines) if (SONG_LINE.matcher(line.text()).matches()) unknown.songLines().add(line);
+            for (SourceLine line : lines) {
+                if (SONG_LINE.matcher(line.text()).matches()) unknown.songLines().add(line);
+            }
             blocks.add(unknown);
         }
         return blocks;
     }
 
     private PublishedBallotPreviewBlock toPreview(
-            int sourcePosition, Block block, List<PublishedBallotParticipant> participants, List<PublishedBallotEntry> entries,
-            java.util.Set<Long> existingParticipationIds
+            int sourcePosition,
+            Block block,
+            List<PublishedBallotParticipant> participants,
+            List<PublishedBallotEntry> entries,
+            Set<Long> existingParticipationIds
     ) {
         List<BallotImportWarning> warnings = new ArrayList<>();
-        ResolvedParticipant voter = resolveParticipant(block.firstHeaderToken(), block.secondHeaderToken(), participants, warnings);
-        if (block.songLines().size() != 15) warnings.add(new BallotImportWarning("POSITION_COUNT", "Der Bewertungsblock muss genau 15 Songzeilen enthalten."));
+        ResolvedParticipant voter = resolveParticipant(
+                block.firstHeaderToken(), block.secondHeaderToken(), participants, warnings
+        );
+        if (block.songLines().size() != 15) {
+            warnings.add(new BallotImportWarning("POSITION_COUNT", "Der Bewertungsblock muss genau 15 Songzeilen enthalten."));
+        }
         List<PublishedBallotPreviewPosition> positions = new ArrayList<>();
         for (int index = 0; index < block.songLines().size(); index++) {
-            positions.add(resolvePosition(index + 1, 15 - index, block.songLines().get(index), entries, warnings));
+            positions.add(resolvePosition(
+                    index + 1, 15 - index, block.songLines().get(index), entries, participants, warnings
+            ));
         }
-        boolean existing = voter.participant() != null && existingParticipationIds.contains(voter.participant().participationId());
-        if (existing) warnings.add(new BallotImportWarning("EXISTING_BALLOT", "Für diesen Teilnehmer ist bereits ein Stimmzettelstatus gespeichert. Ein Ersatz muss bewusst bestätigt werden."));
+        boolean existing = voter.participant() != null
+                && existingParticipationIds.contains(voter.participant().participationId());
+        if (existing) {
+            warnings.add(new BallotImportWarning(
+                    "EXISTING_BALLOT",
+                    "Für diesen Teilnehmer ist bereits ein Stimmzettelstatus gespeichert. Ein Ersatz muss bewusst bestätigt werden."
+            ));
+        }
         boolean complete = voter.participant() != null && positions.size() == 15
                 && positions.stream().allMatch(position -> position.entryId() != null);
-        String status = complete && warnings.stream().noneMatch(this::blocksImport) ? "READY" : complete ? "WARNING" : "INCOMPLETE";
+        String status = complete && warnings.stream().noneMatch(this::blocksImport)
+                ? "READY" : complete ? "WARNING" : "INCOMPLETE";
         PublishedBallotParticipant participant = voter.participant();
-        return new PublishedBallotPreviewBlock(sourcePosition,
-                participant == null ? null : participant.participationId(), participant == null ? null : participant.participantId(),
-                participant == null ? null : participant.displayName(), participant == null ? null : participant.countryCode(), existing,
-                status, List.copyOf(positions), List.copyOf(warnings));
+        return new PublishedBallotPreviewBlock(
+                sourcePosition,
+                participant == null ? null : participant.participationId(),
+                participant == null ? null : participant.participantId(),
+                participant == null ? null : participant.displayName(),
+                participant == null ? null : participant.countryCode(),
+                existing,
+                status,
+                List.copyOf(positions),
+                List.copyOf(warnings)
+        );
     }
 
     private boolean blocksImport(BallotImportWarning warning) {
         return switch (warning.code()) {
-            case "POSITION_COUNT", "UNRESOLVED_VOTER", "AMBIGUOUS_VOTER" -> true;
+            case "POSITION_COUNT", "UNRESOLVED_VOTER", "AMBIGUOUS_VOTER", "COUNTRY_CONFLICT",
+                    "UNRESOLVED_SONG", "AMBIGUOUS_SONG", "SOURCE_CONFLICT", "SUBMITTER_CONFLICT" -> true;
             default -> false;
         };
     }
 
     private PublishedBallotPreviewPosition resolvePosition(
-            int sourcePosition, int rank, SourceLine source, List<PublishedBallotEntry> entries,
+            int sourcePosition,
+            int rank,
+            SourceLine source,
+            List<PublishedBallotEntry> entries,
+            List<PublishedBallotParticipant> participants,
             List<BallotImportWarning> blockWarnings
     ) {
         List<BallotImportWarning> warnings = new ArrayList<>();
         String songText = songText(source.text());
-        List<PublishedBallotEntry> candidates = candidates(songText, source.url(), entries);
-        PublishedBallotEntry entry = candidates.size() == 1 ? candidates.getFirst() : null;
-        if (candidates.isEmpty()) warnings.add(new BallotImportWarning("UNRESOLVED_SONG", "Die Songzeile konnte keinem bestehenden Beitrag dieser Show zugeordnet werden."));
-        if (candidates.size() > 1) warnings.add(new BallotImportWarning("AMBIGUOUS_SONG", "Mehrere vorhandene Beiträge passen auf diese Songzeile; bitte den Beitrag manuell wählen."));
-        if (entry != null && participantHintConflicts(songText, entry, entries)) {
-            warnings.add(new BallotImportWarning("SUBMITTER_CONFLICT", "Der Teilnehmer- oder Länderhinweis passt nicht zum Einreichenden des zugeordneten Beitrags."));
+        EntryResolution resolution = resolveEntry(songText, source.url(), entries);
+        warnings.addAll(resolution.warnings());
+        PublishedBallotEntry entry = resolution.entry();
+        if (entry != null) {
+            List<BallotImportWarning> submitterWarnings = submitterWarnings(songText, entry, participants);
+            warnings.addAll(submitterWarnings);
+            if (submitterWarnings.stream().anyMatch(warning -> "SUBMITTER_CONFLICT".equals(warning.code()))) {
+                entry = null;
+            }
         }
         blockWarnings.addAll(warnings);
-        return new PublishedBallotPreviewPosition(sourcePosition, rank, source.text(), entry == null ? null : entry.id(),
+        return new PublishedBallotPreviewPosition(
+                sourcePosition, rank, source.text(), entry == null ? null : entry.id(),
                 entry == null ? null : entry.artist(), entry == null ? null : entry.title(),
-                entry == null ? null : entry.submitterParticipantId(), entry == null ? null : entry.submitterDisplayName(), List.copyOf(warnings));
+                entry == null ? null : entry.submitterParticipantId(),
+                entry == null ? null : entry.submitterDisplayName(),
+                List.copyOf(warnings)
+        );
     }
 
-    private static String songText(String source) {
-        Matcher matcher = SONG_LINE.matcher(source);
-        return matcher.matches() ? compact(matcher.group(1)) : compact(source);
-    }
-
-    private static List<PublishedBallotEntry> candidates(String text, String url, List<PublishedBallotEntry> entries) {
+    private EntryResolution resolveEntry(String text, String url, List<PublishedBallotEntry> entries) {
         String normalizedText = normalized(text);
-        List<PublishedBallotEntry> matchedByUrl = url == null ? List.of() : entries.stream()
-                .filter(entry -> entry.youtubeUrl() != null && normalized(entry.youtubeUrl()).equals(normalized(url))).toList();
-        if (matchedByUrl.size() == 1) return matchedByUrl;
-        return entries.stream().filter(entry -> normalizedText.contains(normalized(entry.artist() + " - " + entry.title()))).toList();
-    }
+        List<PublishedBallotEntry> textMatches = entries.stream()
+                .filter(entry -> normalizedText.contains(normalized(entry.artist() + " - " + entry.title())))
+                .toList();
+        if (url == null || url.isBlank()) return resolveWithoutUrl(textMatches);
 
-    private boolean participantHintConflicts(String source, PublishedBallotEntry selected, List<PublishedBallotEntry> entries) {
-        if (selected.submitterParticipantId() == null) return false;
-        int songStart = source.toLowerCase(Locale.ROOT).indexOf(selected.artist().toLowerCase(Locale.ROOT));
-        String beforeSong = songStart < 0 ? source : source.substring(0, songStart);
-        String hint = normalized(beforeSong);
-        if (hint.isBlank()) return false;
-        for (PublishedBallotEntry entry : entries) {
-            if (entry.submitterParticipantId() == null || entry.submitterParticipantId().equals(selected.submitterParticipantId())) continue;
-            if ((entry.submitterDisplayName() != null && hint.contains(normalized(entry.submitterDisplayName())))
-                    || (entry.submitterCountryCode() != null && countryNameHint(hint, entry.submitterCountryCode()))) return true;
+        List<PublishedBallotEntry> urlMatches = entries.stream()
+                .filter(entry -> entry.youtubeUrl() != null && normalized(entry.youtubeUrl()).equals(normalized(url)))
+                .toList();
+        if (urlMatches.size() == 1) {
+            PublishedBallotEntry urlEntry = urlMatches.getFirst();
+            if (textMatches.size() == 1 && textMatches.getFirst().id() != urlEntry.id()) {
+                return conflict("SOURCE_CONFLICT", "Link und sichtbarer Interpret/Titel verweisen auf unterschiedliche vorhandene Beiträge.");
+            }
+            if (textMatches.size() > 1 && textMatches.stream().noneMatch(entry -> entry.id() == urlEntry.id())) {
+                return conflict("SOURCE_CONFLICT", "Link und sichtbarer Songtext lassen sich nicht auf denselben vorhandenen Beitrag zurückführen.");
+            }
+            if (textMatches.isEmpty()) {
+                return new EntryResolution(urlEntry, List.of(new BallotImportWarning(
+                        "TEXT_MISMATCH",
+                        "Der Link identifiziert einen vorhandenen Beitrag, Interpret/Titel stimmen aber nicht exakt mit dem gespeicherten Text überein."
+                )));
+            }
+            return new EntryResolution(urlEntry, List.of());
         }
-        return false;
+        if (urlMatches.isEmpty()) {
+            if (textMatches.size() == 1) {
+                return new EntryResolution(textMatches.getFirst(), List.of(new BallotImportWarning(
+                        "UNKNOWN_SOURCE_URL",
+                        "Der Quelllink ist lokal unbekannt; der Beitrag wurde ausschließlich über den eindeutigen Songtext erkannt."
+                )));
+            }
+            return resolveWithoutUrl(textMatches);
+        }
+        if (textMatches.size() == 1 && urlMatches.stream().anyMatch(entry -> entry.id() == textMatches.getFirst().id())) {
+            return new EntryResolution(textMatches.getFirst(), List.of(new BallotImportWarning(
+                    "AMBIGUOUS_SOURCE_URL",
+                    "Der Link kommt bei mehreren vorhandenen Beiträgen vor; der sichtbare Songtext löst die Zuordnung eindeutig auf."
+            )));
+        }
+        return conflict("AMBIGUOUS_SONG", "Mehrere vorhandene Beiträge passen auf Link oder Songtext; bitte den Beitrag manuell wählen.");
     }
 
-    private boolean countryNameHint(String source, String countryCode) {
-        return countriesByName.entrySet().stream().anyMatch(country -> country.getValue().equals(countryCode) && source.contains(country.getKey()));
+    private static EntryResolution resolveWithoutUrl(List<PublishedBallotEntry> textMatches) {
+        if (textMatches.size() == 1) return new EntryResolution(textMatches.getFirst(), List.of());
+        if (textMatches.isEmpty()) {
+            return conflict("UNRESOLVED_SONG", "Die Songzeile konnte keinem bestehenden Beitrag dieser Show zugeordnet werden.");
+        }
+        return conflict("AMBIGUOUS_SONG", "Mehrere vorhandene Beiträge passen auf diese Songzeile; bitte den Beitrag manuell wählen.");
+    }
+
+    private static EntryResolution conflict(String code, String message) {
+        return new EntryResolution(null, List.of(new BallotImportWarning(code, message)));
+    }
+
+    private List<BallotImportWarning> submitterWarnings(
+            String source,
+            PublishedBallotEntry selected,
+            List<PublishedBallotParticipant> participants
+    ) {
+        if (selected.submitterParticipationId() == null) {
+            return List.of(new BallotImportWarning(
+                    "SUBMITTER_CONFLICT", "Der zugeordnete Beitrag besitzt keinen gültigen Einreichenden."
+            ));
+        }
+        PublishedBallotParticipant submitter = participants.stream()
+                .filter(participant -> participant.participationId() == selected.submitterParticipationId())
+                .findFirst().orElse(null);
+        if (submitter == null) {
+            return List.of(new BallotImportWarning(
+                    "SUBMITTER_CONFLICT", "Der Einreichende des Beitrags gehört nicht zum Teilnehmerfeld dieser CSC-Ausgabe."
+            ));
+        }
+        int songStart = source.toLowerCase(Locale.ROOT).indexOf(selected.artist().toLowerCase(Locale.ROOT));
+        if (songStart < 0) return List.of();
+        String hint = normalized(source.substring(0, songStart));
+        boolean participantMatches = hint.contains(normalized(submitter.displayName()))
+                || submitter.aliases().stream().anyMatch(alias -> hint.contains(normalized(alias)));
+        Set<String> hintedCountries = new HashSet<>();
+        countriesByName.forEach((name, code) -> {
+            if (hint.contains(name)) hintedCountries.add(code);
+        });
+        boolean countryConflicts = !hintedCountries.isEmpty() && !hintedCountries.contains(submitter.countryCode());
+        if (!participantMatches || countryConflicts) {
+            return List.of(new BallotImportWarning(
+                    "SUBMITTER_CONFLICT",
+                    "Der Teilnehmer- oder Länderhinweis passt nicht zum Einreichenden des zugeordneten Beitrags; bitte manuell zuordnen."
+            ));
+        }
+        if (hintedCountries.isEmpty()) {
+            return List.of(new BallotImportWarning(
+                    "UNKNOWN_SUBMITTER_COUNTRY",
+                    "Das in der Songzeile genannte Land konnte nicht eindeutig geprüft werden."
+            ));
+        }
+        return List.of();
     }
 
     private ResolvedParticipant resolveParticipant(
-            String first, String second, List<PublishedBallotParticipant> participants, List<BallotImportWarning> warnings
+            String first,
+            String second,
+            List<PublishedBallotParticipant> participants,
+            List<BallotImportWarning> warnings
     ) {
         if (first == null || second == null) {
-            warnings.add(new BallotImportWarning("UNRESOLVED_VOTER", "Eine Kopfzeile wie [#3] Land - Teilnehmer fehlt oder ist nicht lesbar."));
+            warnings.add(new BallotImportWarning(
+                    "UNRESOLVED_VOTER", "Eine Kopfzeile wie [#3] Land - Teilnehmer fehlt oder ist nicht lesbar."
+            ));
             return new ResolvedParticipant(null);
         }
         List<PublishedBallotParticipant> firstMatches = matching(first, participants);
         List<PublishedBallotParticipant> secondMatches = matching(second, participants);
-        List<PublishedBallotParticipant> matches = firstMatches.size() == 1 && secondMatches.isEmpty() ? firstMatches
-                : secondMatches.size() == 1 && firstMatches.isEmpty() ? secondMatches : List.of();
+        List<PublishedBallotParticipant> matches = firstMatches.size() == 1 && secondMatches.isEmpty()
+                ? firstMatches : secondMatches.size() == 1 && firstMatches.isEmpty() ? secondMatches : List.of();
         if (matches.isEmpty()) {
             warnings.add(new BallotImportWarning(
-                    firstMatches.size() > 1 || secondMatches.size() > 1 || (!firstMatches.isEmpty() && !secondMatches.isEmpty())
+                    firstMatches.size() > 1 || secondMatches.size() > 1
+                            || (!firstMatches.isEmpty() && !secondMatches.isEmpty())
                             ? "AMBIGUOUS_VOTER" : "UNRESOLVED_VOTER",
                     "Der Abstimmende muss über Anzeigename oder Alias eindeutig im Teilnehmerfeld dieser CSC-Ausgabe aufgelöst werden."
             ));
@@ -204,28 +321,51 @@ class PublishedBallotImportParser {
         PublishedBallotParticipant participant = matches.getFirst();
         String countryToken = firstMatches.size() == 1 ? second : first;
         String statedCountry = countriesByName.get(normalized(countryToken));
-        if (statedCountry == null) warnings.add(new BallotImportWarning("UNKNOWN_COUNTRY", "Das Quellenland ist nicht im lokalen Katalog bekannt."));
-        else if (!statedCountry.equals(participant.countryCode())) warnings.add(new BallotImportWarning("COUNTRY_CONFLICT", "Das Quellenland passt nicht zur gepflegten Contest-Teilnahme."));
+        if (statedCountry == null) {
+            warnings.add(new BallotImportWarning("UNKNOWN_COUNTRY", "Das Quellenland ist nicht im lokalen Katalog bekannt."));
+        } else if (!statedCountry.equals(participant.countryCode())) {
+            warnings.add(new BallotImportWarning(
+                    "COUNTRY_CONFLICT",
+                    "Das Quellenland passt nicht zur gepflegten Contest-Teilnahme; bitte den Abstimmenden bewusst manuell wählen."
+            ));
+            return new ResolvedParticipant(null);
+        }
         return new ResolvedParticipant(participant);
     }
 
-    private static List<PublishedBallotParticipant> matching(String token, List<PublishedBallotParticipant> participants) {
+    private static List<PublishedBallotParticipant> matching(
+            String token, List<PublishedBallotParticipant> participants
+    ) {
         String needle = normalized(token);
         return participants.stream().filter(participant -> normalized(participant.displayName()).equals(needle)
                 || participant.aliases().stream().anyMatch(alias -> normalized(alias).equals(needle))).toList();
     }
-    private static String compact(String value) { return value == null ? "" : value.replace('\u00a0', ' ').replaceAll("\\s+", " ").trim(); }
+
+    private static String songText(String source) {
+        Matcher matcher = SONG_LINE.matcher(source);
+        return matcher.matches() ? compact(matcher.group(1)) : compact(source);
+    }
+
+    private static String compact(String value) {
+        return value == null ? "" : value.replace('\u00a0', ' ').replaceAll("\\s+", " ").trim();
+    }
+
     private static String withoutMarkdownDecoration(String value) {
         return compact(value).replaceAll("(?<!\\w)[*_`]+|[*_`]+(?!\\w)", "");
     }
+
     private static String normalized(String value) {
         return Normalizer.normalize(compact(value), Normalizer.Form.NFKC)
-                .replace('\u2010', '-').replace('\u2011', '-').replace('\u2012', '-').replace('\u2013', '-').replace('\u2014', '-')
-                .toLowerCase(Locale.ROOT);
+                .replace('\u2010', '-').replace('\u2011', '-').replace('\u2012', '-')
+                .replace('\u2013', '-').replace('\u2014', '-').toLowerCase(Locale.ROOT);
     }
+
     private record SourceLine(String text, String url) { }
     private record Block(String header, String firstHeaderToken, String secondHeaderToken, List<SourceLine> songLines) {
-        Block(String header, String firstHeaderToken, String secondHeaderToken) { this(header, firstHeaderToken, secondHeaderToken, new ArrayList<>()); }
+        Block(String header, String firstHeaderToken, String secondHeaderToken) {
+            this(header, firstHeaderToken, secondHeaderToken, new ArrayList<>());
+        }
     }
     private record ResolvedParticipant(PublishedBallotParticipant participant) { }
+    private record EntryResolution(PublishedBallotEntry entry, List<BallotImportWarning> warnings) { }
 }
