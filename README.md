@@ -16,6 +16,8 @@ Das Tool begleitet den praktischen Ablauf einer Mottoshow:
 
 Die Entwicklungsinhalte bis 0.1.0 sind umgesetzt: Die Anwendung verwaltet die zwölf Mottoshows, Kandidaten, Beiträge, Top 15, Teilnehmer, Ergebnisse sowie Sicherungen lokal in SQLite. Der Windows-Releasepfad erzeugt ein App-Image und einen per-user MSI; die manuelle Windows-/Vivaldi-Abnahme bleibt vor einer Freigabe verpflichtend.
 
+Die geplante Erweiterung um mehrere CSC-Ausgaben, vollständige historische Songlisten, veröffentlichte Einzelwertungen, Analyseexporte und ein späteres Tippspiel ist bereits verbindlich spezifiziert, aber noch nicht umgesetzt. Sie wird in der [Erweiterungsroadmap #66](https://github.com/venomenon328/csc-x-tool/issues/66) verfolgt.
+
 ## Sicherungen und Exporte
 
 Die Seite `/data` erzeugt manuelle Sicherungen, listet automatische und manuelle Artefakte, lädt sie herunter und führt Restore-Vorschau sowie eine separate Bestätigung aus. Backups sind einzelne `.cscbackup`-Container mit einem SQLite-Snapshot und prüfbarem Manifest; sie dürfen nicht manuell verändert werden. Bei jedem Restore entsteht unmittelbar davor eine zusätzliche, nicht rotierte Sicherheitskopie.
@@ -37,11 +39,13 @@ Der vollständige JSON-Download verwendet den versionierten Contract `csc-x-tool
 ## Dokumentation
 
 - [Produktspezifikation](docs/specification.md)
+- [Erweiterungsspezifikation: Historische CSC-Daten, Einzelwertungen und Analyseexport](docs/historical-contests-ballots-analysis.md)
 - [Technische Architektur](docs/architecture.md)
 - [Implementierungsplan](docs/implementation-plan.md)
 - [Entscheidungsprotokoll](docs/decisions.md)
 - [Abgrenzung der fachlichen Quellen](docs/reference/README.md)
 - [GitHub-Roadmap bis 0.1.0](https://github.com/venomenon328/csc-x-tool/issues/3)
+- [GitHub-Erweiterungsroadmap für historische CSC-Daten](https://github.com/venomenon328/csc-x-tool/issues/66)
 
 ## Repository-Struktur
 
