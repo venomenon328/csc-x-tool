@@ -84,6 +84,8 @@ class DataManagementController {
     ResponseEntity<byte[]> legacyResults() { return csv("legacy-ergebnisse.csv", this.csv.legacyResults()); }
     @GetMapping("/export/published-ballots.csv")
     ResponseEntity<byte[]> publishedBallots() { return csv("veroeffentlichte-einzelwertungen.csv", this.csv.publishedBallots()); }
+    @GetMapping("/export/tips-game.csv")
+    ResponseEntity<byte[]> tipsGame() { return csv("tippspiel.csv", this.csv.tipsGame()); }
 
     @PostMapping("/analysis-export/preview")
     AnalysisExportService.AnalysisExportPreview analysisExportPreview(

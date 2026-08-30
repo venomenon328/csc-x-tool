@@ -84,7 +84,7 @@ public class ExportService {
                                 contests(connection), shows, candidates(connection), participants(connection),
                                 contestParticipations(connection), participantAliases(connection), contestEntries(connection),
                                 ballotSnapshots(connection), ballotSnapshotItems(connection), legacyResults(connection), legacyReceivedScores(connection),
-                                publishedBallots(connection), publishedBallotPositions(connection)
+                                publishedBallots(connection), publishedBallotPositions(connection), tipsGames(connection), tipsGameAssignments(connection)
                         )
                 );
             } finally {
@@ -118,6 +118,7 @@ public class ExportService {
                 case ExportFormat.VERSION_4 -> upgradeV6(upgradeV4(strictMapper.readValue(input, ExportFormat.FullExportV4.class)));
                 case ExportFormat.VERSION_5 -> upgradeV6(upgradeV5(strictMapper.readValue(input, ExportFormat.FullExportV5.class)));
                 case ExportFormat.VERSION_6 -> upgradeV6(strictMapper.readValue(input, ExportFormat.FullExportV6.class));
+                case ExportFormat.VERSION_7 -> upgradeV7(strictMapper.readValue(input, ExportFormat.FullExportV7.class));
                 case ExportFormat.VERSION -> strictMapper.readValue(input, ExportFormat.FullExport.class);
                 default -> throw invalid("Das JSON-Format wird von dieser Anwendung nicht unterstützt.");
             };
@@ -141,6 +142,8 @@ public class ExportService {
         JdbcTemplate stage = new JdbcTemplate(SqliteDataSourceFactory.create(databaseFile));
         ExportFormat.Data data = export.data();
         try {
+            stage.update("DELETE FROM tips_game_assignment");
+            stage.update("DELETE FROM tips_game");
             stage.update("DELETE FROM published_ballot_position");
             stage.update("DELETE FROM published_ballot");
             stage.update("DELETE FROM legacy_received_score");
@@ -197,6 +200,22 @@ public class ExportService {
                         """, row.id(), row.mottoShowId(), row.contestId(), row.artist(), row.title(), row.youtubeUrl(), row.comment(),
                         row.assessment(), row.assessmentConfidence(), row.poolPosition(), row.rankingPosition(),
                         row.contestParticipationId(), row.createdAt(), row.updatedAt());
+            }
+            for (ExportFormat.TipsGame row : data.tipsGames()) {
+                stage.update("""
+                        INSERT INTO tips_game (id,motto_show_id,contest_id,status,created_at,updated_at,resolved_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """, row.id(), row.mottoShowId(), row.contestId(), "DRAFT", row.createdAt(), row.updatedAt(), null);
+            }
+            for (ExportFormat.TipsGameAssignment row : data.tipsGameAssignments()) {
+                stage.update("""
+                        INSERT INTO tips_game_assignment (id,tips_game_id,contest_entry_id,guessed_participation_id,confidence,note)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                        """, row.id(), row.tipsGameId(), row.contestEntryId(), row.guessedParticipationId(), row.confidence(), row.note());
+            }
+            for (ExportFormat.TipsGame row : data.tipsGames()) {
+                stage.update("UPDATE tips_game SET status = ?, updated_at = ?, resolved_at = ? WHERE id = ?",
+                        row.status(), row.updatedAt(), row.resolvedAt(), row.id());
             }
             for (ExportFormat.BallotSnapshot row : data.ballotSnapshots()) {
                 stage.update("INSERT INTO ballot_snapshot (id,motto_show_id,snapshot_number,created_at,is_current) VALUES (?, ?, ?, ?, ?)",
@@ -265,7 +284,8 @@ public class ExportService {
         if (data.contests() == null || data.mottoShows() == null || data.candidates() == null || data.participants() == null
                 || data.contestParticipations() == null || data.participantAliases() == null || data.contestEntries() == null
                 || data.ballotSnapshots() == null || data.ballotSnapshotItems() == null || data.legacyResults() == null || data.legacyReceivedScores() == null
-                || data.publishedBallots() == null || data.publishedBallotPositions() == null) {
+                || data.publishedBallots() == null || data.publishedBallotPositions() == null || data.tipsGames() == null
+                || data.tipsGameAssignments() == null) {
             throw invalid("Der JSON-Export enthält keine vollständigen fachlichen Daten.");
         }
         Set<Long> contestIds = uniquePositive(data.contests(), ExportFormat.Contest::id, "CSC-Ausgabe");
@@ -508,6 +528,43 @@ public class ExportService {
             }
         }
 
+        Set<Long> tipsGameIds = uniquePositive(data.tipsGames(), ExportFormat.TipsGame::id, "Tippstand");
+        Map<Long, ExportFormat.TipsGame> tipsGames = new HashMap<>();
+        Set<Long> tipsGameShows = new HashSet<>();
+        for (ExportFormat.TipsGame game : data.tipsGames()) {
+            ExportFormat.MottoShow show = shows.get(game.mottoShowId());
+            ExportFormat.Contest contest = contestsById.get(game.contestId());
+            boolean draft = "DRAFT".equals(game.status());
+            boolean resolved = "RESOLVED".equals(game.status());
+            if (show == null || contest == null || show.contestId() != game.contestId() || !contest.current()
+                    || !tipsGameShows.add(game.mottoShowId()) || (!draft && !resolved)) {
+                throw invalid("Ein Tippstand verweist nicht eindeutig auf eine aktuelle Mottoshow.");
+            }
+            requireText(game.createdAt(), "Ein Tippstand ohne Erstellungszeitpunkt ist nicht gültig.");
+            requireText(game.updatedAt(), "Ein Tippstand ohne Änderungszeitpunkt ist nicht gültig.");
+            if ((draft && game.resolvedAt() != null) || (resolved && game.resolvedAt() == null)) {
+                throw invalid("Der Auflösungsstatus eines Tippstands ist nicht konsistent.");
+            }
+            if (resolved) requireText(game.resolvedAt(), "Ein aufgelöster Tippstand benötigt einen gültigen Auflösungszeitpunkt.");
+            tipsGames.put(game.id(), game);
+        }
+        uniquePositive(data.tipsGameAssignments(), ExportFormat.TipsGameAssignment::id, "Tippzuordnung");
+        Set<String> tipsEntries = new HashSet<>();
+        Set<String> tipsParticipations = new HashSet<>();
+        for (ExportFormat.TipsGameAssignment assignment : data.tipsGameAssignments()) {
+            ExportFormat.TipsGame game = tipsGames.get(assignment.tipsGameId());
+            ExportFormat.ContestEntry entry = entries.get(assignment.contestEntryId());
+            ExportFormat.ContestParticipation participation = participations.get(assignment.guessedParticipationId());
+            if (game == null || entry == null || participation == null || entry.mottoShowId() != game.mottoShowId()
+                    || entry.contestId() != game.contestId() || participation.contestId() != game.contestId()
+                    || !tipsEntries.add(key(assignment.tipsGameId(), assignment.contestEntryId()))
+                    || !tipsParticipations.add(key(assignment.tipsGameId(), assignment.guessedParticipationId()))
+                    || (assignment.confidence() != null && !enumValue(de.venomenon.cscxtool.tips.TipsConfidence.class, assignment.confidence()))
+                    || (assignment.note() != null && assignment.note().length() > 2000)) {
+                throw invalid("Eine Tippzuordnung ist nicht eindeutig oder verweist auf fremde Contestdaten.");
+            }
+        }
+
         for (ExportFormat.MottoShow show : data.mottoShows()) {
             List<ExportFormat.BallotSnapshot> currentSnapshots = data.ballotSnapshots().stream()
                     .filter(snapshot -> snapshot.mottoShowId() == show.id() && snapshot.current()).toList();
@@ -638,6 +695,18 @@ public class ExportService {
                         data.publishedBallots(), data.publishedBallotPositions()));
     }
 
+    private static ExportFormat.FullExport upgradeV7(ExportFormat.FullExportV7 legacy) {
+        if (legacy == null || legacy.data() == null) return new ExportFormat.FullExport(
+                legacy == null ? null : legacy.format(), ExportFormat.VERSION, legacy == null ? null : legacy.exportedAt(),
+                legacy == null ? null : legacy.applicationVersion(), legacy == null ? 0 : legacy.schemaVersion(), null);
+        ExportFormat.DataV7 data = legacy.data();
+        return new ExportFormat.FullExport(legacy.format(), ExportFormat.VERSION, legacy.exportedAt(), legacy.applicationVersion(),
+                legacy.schemaVersion(), new ExportFormat.Data(data.contests(), data.mottoShows(), data.candidates(), data.participants(),
+                        data.contestParticipations(), data.participantAliases(), data.contestEntries(), data.ballotSnapshots(),
+                        data.ballotSnapshotItems(), data.legacyResults(), data.legacyReceivedScores(), data.publishedBallots(),
+                        data.publishedBallotPositions()));
+    }
+
     private static boolean validAssessmentPair(Integer assessment, Integer confidence) {
         return (assessment == null && confidence == null)
                 || (assessment != null && confidence != null && assessment >= 1 && assessment <= 5 && confidence >= 1 && confidence <= 5);
@@ -720,6 +789,14 @@ public class ExportService {
     private static List<ExportFormat.PublishedBallotPosition> publishedBallotPositions(Connection connection) throws SQLException {
         return query(connection, "SELECT id,published_ballot_id,contest_entry_id,rank FROM published_ballot_position ORDER BY id",
                 r -> new ExportFormat.PublishedBallotPosition(r.getLong(1), r.getLong(2), r.getLong(3), r.getInt(4)));
+    }
+    private static List<ExportFormat.TipsGame> tipsGames(Connection connection) throws SQLException {
+        return query(connection, "SELECT id,motto_show_id,contest_id,status,created_at,updated_at,resolved_at FROM tips_game ORDER BY id",
+                r -> new ExportFormat.TipsGame(r.getLong(1), r.getLong(2), r.getLong(3), r.getString(4), r.getString(5), r.getString(6), r.getString(7)));
+    }
+    private static List<ExportFormat.TipsGameAssignment> tipsGameAssignments(Connection connection) throws SQLException {
+        return query(connection, "SELECT id,tips_game_id,contest_entry_id,guessed_participation_id,confidence,note FROM tips_game_assignment ORDER BY id",
+                r -> new ExportFormat.TipsGameAssignment(r.getLong(1), r.getLong(2), r.getLong(3), r.getLong(4), r.getString(5), r.getString(6)));
     }
     private static <T> List<T> query(Connection connection, String sql, SqlRowMapper<T> mapper) throws SQLException {
         List<T> rows = new ArrayList<>();

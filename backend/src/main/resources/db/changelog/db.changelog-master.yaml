@@ -38,3 +38,6 @@ databaseChangeLog:
   - include:
       file: 013-derived-own-results.yaml
       relativeToChangelogFile: true
+  - include:
+      file: 014-tips-game.yaml
+      relativeToChangelogFile: true

@@ -229,7 +229,7 @@ function ShowCard({ show, onRename }: { show: MottoShow, onRename: () => void })
         <Box
           aria-label={`Arbeitsbereiche für Show ${show.showNumber}`}
           component="nav"
-          sx={{ display: 'grid', gap: 0.5, gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', width: '100%' }}
+          sx={{ display: 'grid', gap: 0.5, gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', width: '100%' }}
         >
           <Button
             component={RouterLink}
@@ -269,6 +269,16 @@ function ShowCard({ show, onRename }: { show: MottoShow, onRename: () => void })
             variant="outlined"
           >
             Einzelwertungen
+          </Button>
+          <Button
+            component={RouterLink}
+            size="small"
+            startIcon={<SubmissionIcon aria-hidden="true" fontSize="small" />}
+            sx={showNavigationButtonSx}
+            to={`/shows/${show.id}/tips`}
+            variant="outlined"
+          >
+            Tippspiel
           </Button>
         </Box>
       </CardActions>

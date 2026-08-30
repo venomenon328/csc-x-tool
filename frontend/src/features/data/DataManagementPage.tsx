@@ -140,6 +140,7 @@ export function DataManagementPage() {
           <ExportCard title="Eigene Ergebnisse" detail="Aus vollständigen Einzelwertungen abgeleitete Zustände, Ränge und Punkte." href="/api/data/export/results.csv" />
           <ExportCard title="Legacy-Ergebnisse" detail="Getrennter Read-only-Export alter isolierter Punktwerte und offizieller Angaben." href="/api/data/export/legacy-results.csv" />
           <ExportCard title="Einzelwertungen" detail="CSV im Long-Format mit Stimmzettelstatus, Rang und abgeleiteten Punkten." href="/api/data/export/published-ballots.csv" />
+          <ExportCard title="Tippspiel" detail="CSV mit Tipp, tatsächlicher Zuordnung, Sicherheit, Notiz und Trefferstatus." href="/api/data/export/tips-game.csv" />
         </Stack>
         <AnalysisExportCard
           candidateShowId={candidateShowId}
