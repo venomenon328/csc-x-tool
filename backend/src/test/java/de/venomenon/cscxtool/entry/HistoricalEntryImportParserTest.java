@@ -66,6 +66,21 @@ class HistoricalEntryImportParserTest {
         });
     }
 
+    @Test
+    void deduplicatesHtmlAndPlaintextRepresentationsFromOnePasteAndKeepsTheRichLink() {
+        String source = "Imminence - Paralyzed (Finnland/Cortez)";
+        String html = "<p><a href=\"https://source.example/imminence\">Imminence - Paralyzed</a> (Finnland/Cortez)</p>";
+
+        List<HistoricalImportPreviewLine> lines = parser.parse(html, source, participants());
+
+        assertThat(lines).singleElement().satisfies(line -> {
+            assertThat(line.sourceText()).isEqualTo(source);
+            assertThat(line.youtubeUrl()).isEqualTo("https://source.example/imminence");
+            assertThat(line.participantDisplayName()).isEqualTo("Cortez");
+            assertThat(line.status()).isEqualTo(ImportPreviewStatus.READY);
+        });
+    }
+
     private static List<HistoricalImportParticipant> participants() {
         return List.of(
                 participant(1, "Cortez", "FI", "Cortez-Alt"), participant(2, "The Red-NGA Shankmos", "NG"), participant(3, "Jamie Hayter", "NZ"),
