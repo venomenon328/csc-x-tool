@@ -78,6 +78,25 @@ class ParticipantApiIntegrationTest {
     }
 
     @Test
+    void createsANewIdentityAndItsFirstParticipationAtomically() throws Exception {
+        HttpResponse<String> created = post("/api/contests/1/participants", """
+                {"displayName":"  Neu  ","aliases":[" Alias "],"countryCode":"de","active":false}
+                """);
+
+        assertThat(created.statusCode()).isEqualTo(201);
+        long participantId = firstId(created.body());
+        assertThat(created.body()).contains("\"displayName\":\"Neu\"", "\"countryCode\":\"DE\"", "\"active\":false", "\"aliases\":[\"Alias\"]");
+        assertThat(jdbcTemplate.queryForObject("SELECT active FROM participant WHERE id = ?", Boolean.class, participantId)).isTrue();
+        assertThat(jdbcTemplate.queryForObject("SELECT active FROM contest_participation WHERE contest_id = 1 AND participant_id = ?", Boolean.class, participantId)).isFalse();
+
+        int identitiesBeforeInvalidRequest = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM participant", Integer.class);
+        assertThat(post("/api/contests/1/participants", """
+                {"displayName":"Darf nicht bleiben","aliases":[],"countryCode":"XX","active":true}
+                """).statusCode()).isEqualTo(400);
+        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM participant", Integer.class)).isEqualTo(identitiesBeforeInvalidRequest);
+    }
+
+    @Test
     void exposesCountryCatalogAndValidatesParticipationAndIdentityInputs() throws Exception {
         HttpResponse<String> countries = get("/api/countries");
         assertThat(countries.statusCode()).isEqualTo(200);

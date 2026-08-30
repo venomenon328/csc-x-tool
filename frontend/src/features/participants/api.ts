@@ -15,7 +15,9 @@ export type Participant = {
   updatedAt: string
 }
 export type ParticipantInput = { displayName: string, countryCode: string, active: boolean, aliases: string[] }
-type ParticipantIdentity = { id: number, displayName: string, active: boolean, aliases: string[] }
+export type ParticipantIdentity = { id: number, displayName: string, active: boolean, aliases: string[] }
+export type IdentityInput = Pick<ParticipantInput, 'displayName' | 'aliases'>
+export type ParticipationInput = Pick<ParticipantInput, 'countryCode' | 'active'>
 
 export class ParticipantApiError extends Error {
   constructor(readonly apiError: ApiError) { super(apiError.message) }
@@ -37,13 +39,21 @@ export async function fetchParticipants(options: { contestId: number, q?: string
   return response.json() as Promise<Participant[]>
 }
 
-export async function createParticipant(contestId: number, input: ParticipantInput): Promise<Participant> {
-  const identity = await writeIdentity('/api/participants', 'POST', input)
-  return createParticipation(contestId, identity.id, input)
+export async function fetchParticipantIdentities(): Promise<ParticipantIdentity[]> {
+  const response = await apiFetch('/api/participants?includeInactive=true')
+  if (!response.ok) throw new ParticipantApiError(await readApiError(response))
+  return response.json() as Promise<ParticipantIdentity[]>
 }
 
-export async function updateParticipant(contestId: number, participantId: number, input: ParticipantInput): Promise<Participant> {
-  await writeIdentity('/api/participants/' + participantId, 'PATCH', input)
+export async function createParticipant(contestId: number, input: ParticipantInput): Promise<Participant> {
+  return createParticipation(contestId, { displayName: input.displayName, aliases: input.aliases, countryCode: input.countryCode, active: input.active })
+}
+
+export async function addExistingParticipant(contestId: number, participantId: number, input: ParticipationInput): Promise<Participant> {
+  return createParticipation(contestId, { participantId, countryCode: input.countryCode, active: input.active })
+}
+
+export async function updateParticipation(contestId: number, participantId: number, input: ParticipationInput): Promise<Participant> {
   const response = await apiFetch('/api/contests/' + contestId + '/participants/' + participantId, {
     method: 'PATCH', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ countryCode: input.countryCode, active: input.active }),
@@ -52,27 +62,27 @@ export async function updateParticipant(contestId: number, participantId: number
   return response.json() as Promise<Participant>
 }
 
+export async function updateParticipantIdentity(participantId: number, input: IdentityInput): Promise<ParticipantIdentity> {
+  return writeIdentity('/api/participants/' + participantId, 'PATCH', input)
+}
+
 export async function deleteParticipant(contestId: number, participantId: number): Promise<void> {
   const response = await apiFetch('/api/contests/' + contestId + '/participants/' + participantId, { method: 'DELETE' })
   if (!response.ok) throw new ParticipantApiError(await readApiError(response))
 }
 
-async function createParticipation(contestId: number, participantId: number, input: ParticipantInput): Promise<Participant> {
+async function createParticipation(contestId: number, input: Record<string, unknown>): Promise<Participant> {
   const response = await apiFetch('/api/contests/' + contestId + '/participants', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ participantId, countryCode: input.countryCode, active: input.active }),
+    body: JSON.stringify(input),
   })
   if (!response.ok) throw new ParticipantApiError(await readApiError(response))
   return response.json() as Promise<Participant>
 }
 
-async function writeIdentity(path: string, method: string, input: ParticipantInput): Promise<ParticipantIdentity> {
-  const payload = method === 'POST'
-    ? { displayName: input.displayName, active: true, aliases: input.aliases }
-    : { displayName: input.displayName, aliases: input.aliases }
+async function writeIdentity(path: string, method: string, input: IdentityInput): Promise<ParticipantIdentity> {
   const response = await apiFetch(path, {
-    method, headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
+    method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
   })
   if (!response.ok) throw new ParticipantApiError(await readApiError(response))
   return response.json() as Promise<ParticipantIdentity>

@@ -92,14 +92,20 @@ class ParticipantService {
     @Transactional
     ContestParticipantResponse createParticipation(long contestId, CreateContestParticipationRequest request) {
         requireContest(contestId);
-        requireParticipant(request.participantId());
         Country country = countryCatalog.findRequired(request.countryCode());
+        long participantId = request.participantId() == null
+                ? repository.create(
+                        requiredText(request.displayName(), "Der Anzeigename darf nicht leer sein."),
+                        true,
+                        normalizedAliases(request.aliases())
+                ).id()
+                : requireParticipant(request.participantId()).id();
         try {
-            contests.createParticipation(contestId, request.participantId(), country.code(), request.active() == null || request.active());
+            contests.createParticipation(contestId, participantId, country.code(), request.active() == null || request.active());
         } catch (DataIntegrityViolationException exception) {
             throw new ApiConflictException("DUPLICATE_CONTEST_PARTICIPATION", "Dieser Teilnehmer nimmt bereits an dieser CSC-Ausgabe teil.");
         }
-        return requireContestParticipant(contestId, request.participantId());
+        return requireContestParticipant(contestId, participantId);
     }
 
     @Transactional

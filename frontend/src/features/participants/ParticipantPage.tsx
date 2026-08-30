@@ -24,24 +24,32 @@ import {
 } from '@mui/material'
 import { useEffect, useState } from 'react'
 import { ApiErrorNotice } from '../../components/ApiErrorNotice'
-import { CountryFlag } from './CountryFlag'
 import { useContest } from '../contests/ContestContext'
+import { CountryFlag } from './CountryFlag'
 import {
   ParticipantApiError,
+  addExistingParticipant,
   createParticipant,
   deleteParticipant,
   fetchCountries,
+  fetchParticipantIdentities,
   fetchParticipants,
-  updateParticipant,
+  updateParticipantIdentity,
+  updateParticipation,
   type Country,
+  type IdentityInput,
   type Participant,
+  type ParticipantIdentity,
   type ParticipantInput,
+  type ParticipationInput,
 } from './api'
 
-type EditorState = {
-  participant: Participant | null
-  input: ParticipantInput
-}
+type EditorState =
+  | { kind: 'new', input: ParticipantInput }
+  | { kind: 'identity', participant: Participant, input: IdentityInput }
+  | { kind: 'participation', participant: Participant, input: ParticipationInput }
+
+type ExistingIdentityEditorState = { identities: ParticipantIdentity[] }
 
 const emptyInput: ParticipantInput = { displayName: '', countryCode: '', active: true, aliases: [] }
 
@@ -55,6 +63,7 @@ export function ParticipantPage() {
   const [activeSearch, setActiveSearch] = useState('')
   const [includeInactive, setIncludeInactive] = useState(false)
   const [editor, setEditor] = useState<EditorState | null>(null)
+  const [existingIdentityEditor, setExistingIdentityEditor] = useState<ExistingIdentityEditorState | null>(null)
   const [participantToDelete, setParticipantToDelete] = useState<Participant | null>(null)
 
   const load = async (query = activeSearch, include = includeInactive) => {
@@ -112,32 +121,67 @@ export function ParticipantPage() {
     void load(activeSearch, checked)
   }
 
-  const saveParticipant = async (input: ParticipantInput) => {
-    if (editor === null) return
+  const createNewParticipant = async (input: ParticipantInput) => {
+    if (selectedContestId === null) return
     try {
-      if (editor.participant === null) {
-        if (selectedContestId === null) return
-        await createParticipant(selectedContestId, input)
-      } else {
-        if (selectedContestId === null) return
-        await updateParticipant(selectedContestId, editor.participant.id, input)
-      }
+      await createParticipant(selectedContestId, input)
       setEditor(null)
       await load()
     } catch (caughtError) {
-      throw asParticipantApiError(caughtError, '/api/participants')
+      throw asParticipantApiError(caughtError, '/api/contests/' + selectedContestId + '/participants')
+    }
+  }
+
+  const saveIdentity = async (participantId: number, input: IdentityInput) => {
+    try {
+      await updateParticipantIdentity(participantId, input)
+      setEditor(null)
+      await load()
+    } catch (caughtError) {
+      throw asParticipantApiError(caughtError, '/api/participants/' + participantId)
+    }
+  }
+
+  const saveParticipation = async (participantId: number, input: ParticipationInput) => {
+    if (selectedContestId === null) return
+    try {
+      await updateParticipation(selectedContestId, participantId, input)
+      setEditor(null)
+      await load()
+    } catch (caughtError) {
+      throw asParticipantApiError(caughtError, '/api/contests/' + selectedContestId + '/participants/' + participantId)
+    }
+  }
+
+  const openExistingIdentityEditor = async () => {
+    if (selectedContestId === null) return
+    setError(null)
+    try {
+      setExistingIdentityEditor({ identities: await fetchParticipantIdentities() })
+    } catch (caughtError) {
+      setError(asParticipantApiError(caughtError, '/api/participants'))
+    }
+  }
+
+  const addExistingIdentity = async (identity: ParticipantIdentity, input: ParticipationInput) => {
+    if (selectedContestId === null) return
+    try {
+      await addExistingParticipant(selectedContestId, identity.id, input)
+      setExistingIdentityEditor(null)
+      await load()
+    } catch (caughtError) {
+      throw asParticipantApiError(caughtError, '/api/contests/' + selectedContestId + '/participants')
     }
   }
 
   const confirmDelete = async () => {
-    if (participantToDelete === null) return
+    if (participantToDelete === null || selectedContestId === null) return
     try {
-      if (selectedContestId === null) return
       await deleteParticipant(selectedContestId, participantToDelete.id)
       setParticipantToDelete(null)
       await load()
     } catch (caughtError) {
-      setError(asParticipantApiError(caughtError, `/api/participants/${participantToDelete.id}`))
+      setError(asParticipantApiError(caughtError, `/api/contests/${selectedContestId}/participants/${participantToDelete.id}`))
     }
   }
 
@@ -162,41 +206,57 @@ export function ParticipantPage() {
           <Button type="submit" variant="outlined">Suchen</Button>
         </Box>
         <FormControlLabel control={<Switch checked={includeInactive} onChange={(event) => changeInactiveFilter(event.target.checked)} />} label="Inaktive anzeigen" />
-        <Button onClick={() => setEditor({ participant: null, input: emptyInput })} variant="contained">Teilnehmer anlegen</Button>
+        <Button onClick={() => void openExistingIdentityEditor()} variant="outlined">Vorhandene Identität hinzufügen</Button>
+        <Button onClick={() => setEditor({ kind: 'new', input: emptyInput })} variant="contained">Teilnehmer anlegen</Button>
       </Stack>
 
       {isLoading ? <ParticipantLoading /> : (
         <ParticipantTable
           participants={participants}
           onDelete={setParticipantToDelete}
-          onEdit={(participant) => setEditor({
-            participant,
-            input: {
-              displayName: participant.displayName,
-              countryCode: participant.countryCode,
-              active: participant.active,
-              aliases: participant.aliases,
-            },
+          onEditIdentity={(participant) => setEditor({
+            kind: 'identity', participant, input: { displayName: participant.displayName, aliases: participant.aliases },
+          })}
+          onEditParticipation={(participant) => setEditor({
+            kind: 'participation', participant, input: { countryCode: participant.countryCode, active: participant.active },
           })}
         />
       )}
 
-      {editor !== null && <ParticipantEditor
+      {editor?.kind === 'new' && <NewParticipantEditor
         countries={countries}
         initialInput={editor.input}
-        key={editor.participant?.id ?? 'new'}
         onClose={() => setEditor(null)}
-        onSave={saveParticipant}
-        title={editor.participant === null ? 'Teilnehmer anlegen' : 'Teilnehmer bearbeiten'}
+        onSave={createNewParticipant}
+      />}
+      {editor?.kind === 'identity' && <IdentityEditor
+        initialInput={editor.input}
+        onClose={() => setEditor(null)}
+        onSave={(input) => saveIdentity(editor.participant.id, input)}
+        title={'Identität bearbeiten · ' + editor.participant.displayName}
+      />}
+      {editor?.kind === 'participation' && <ParticipationEditor
+        countries={countries}
+        initialInput={editor.input}
+        onClose={() => setEditor(null)}
+        onSave={(input) => saveParticipation(editor.participant.id, input)}
+        title={'Teilnahme bearbeiten · ' + editor.participant.displayName}
+      />}
+      {existingIdentityEditor !== null && <ExistingIdentityParticipationEditor
+        countries={countries}
+        identities={existingIdentityEditor.identities}
+        onClose={() => setExistingIdentityEditor(null)}
+        onSave={addExistingIdentity}
       />}
       <DeleteParticipantDialog participant={participantToDelete} onClose={() => setParticipantToDelete(null)} onConfirm={confirmDelete} />
     </Stack>
   )
 }
 
-function ParticipantTable({ participants, onEdit, onDelete }: {
+function ParticipantTable({ participants, onEditIdentity, onEditParticipation, onDelete }: {
   participants: Participant[]
-  onEdit: (participant: Participant) => void
+  onEditIdentity: (participant: Participant) => void
+  onEditParticipation: (participant: Participant) => void
   onDelete: (participant: Participant) => void
 }) {
   if (participants.length === 0) {
@@ -213,7 +273,11 @@ function ParticipantTable({ participants, onEdit, onDelete }: {
               <TableCell><Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}><CountryFlag code={participant.countryCode} countryName={participant.countryName} /><span>{participant.countryName}</span></Stack></TableCell>
               <TableCell>{participant.aliases.length === 0 ? '—' : <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap' }}>{participant.aliases.map((alias) => <Chip key={alias} label={alias} size="small" />)}</Stack>}</TableCell>
               <TableCell>{participant.active ? 'Aktiv' : 'Inaktiv'}</TableCell>
-              <TableCell align="right"><Button onClick={() => onEdit(participant)}>Bearbeiten</Button><Button color="error" onClick={() => onDelete(participant)}>Löschen</Button></TableCell>
+              <TableCell align="right">
+                <Button onClick={() => onEditParticipation(participant)}>Teilnahme bearbeiten</Button>
+                <Button onClick={() => onEditIdentity(participant)}>Identität bearbeiten</Button>
+                <Button color="error" onClick={() => onDelete(participant)}>Entfernen</Button>
+              </TableCell>
             </TableRow>
           ))}
         </TableBody>
@@ -222,12 +286,11 @@ function ParticipantTable({ participants, onEdit, onDelete }: {
   )
 }
 
-function ParticipantEditor({ countries, initialInput, onClose, onSave, title }: {
+function NewParticipantEditor({ countries, initialInput, onClose, onSave }: {
   countries: Country[]
   initialInput: ParticipantInput
   onClose: () => void
   onSave: (input: ParticipantInput) => Promise<void>
-  title: string
 }) {
   const [input, setInput] = useState<ParticipantInput>(() => ({ ...initialInput, aliases: [...initialInput.aliases] }))
   const [error, setError] = useState<ParticipantApiError | null>(null)
@@ -245,39 +308,141 @@ function ParticipantEditor({ countries, initialInput, onClose, onSave, title }: 
     }
   }
 
-  const selectedCountry = countries.find((country) => country.code === input.countryCode) ?? null
-  const updateAlias = (index: number, alias: string) => setInput((current) => ({
-    ...current,
-    aliases: current.aliases.map((existingAlias, existingIndex) => existingIndex === index ? alias : existingAlias),
-  }))
-
   return (
     <Dialog fullWidth maxWidth="sm" onClose={onClose} open>
-      <DialogTitle>{title}</DialogTitle>
+      <DialogTitle>Teilnehmer anlegen</DialogTitle>
       <DialogContent><Stack spacing={2} sx={{ pt: 1 }}>
         {error !== null && <Alert severity="error">{error.message}</Alert>}
         <Typography variant="subtitle2">Dauerhafte Identität</Typography>
         <TextField autoFocus label="Anzeigename" onChange={(event) => setInput((current) => ({ ...current, displayName: event.target.value }))} required value={input.displayName} />
         <Typography variant="subtitle2">Teilnahme in dieser CSC-Ausgabe</Typography>
-        <Autocomplete
-          getOptionKey={(country) => country.code}
-          getOptionLabel={(country) => country.name}
-          isOptionEqualToValue={(left, right) => left.code === right.code}
-          onChange={(_, country) => setInput((current) => ({ ...current, countryCode: country?.code ?? '' }))}
-          options={countries}
-          renderInput={(params) => <TextField {...params} label="Land" required />}
-          renderOption={(props, country) => <Box component="li" {...props} key={country.code} sx={{ alignItems: 'center', gap: 1 }}><CountryFlag code={country.code} countryName={country.name} />{country.name}</Box>}
-          value={selectedCountry}
-        />
+        <CountryInput countries={countries} countryCode={input.countryCode} onChange={(countryCode) => setInput((current) => ({ ...current, countryCode }))} />
         <FormControlLabel control={<Switch checked={input.active} onChange={(event) => setInput((current) => ({ ...current, active: event.target.checked }))} />} label="Aktiver Teilnehmer" />
-        <Stack spacing={1}><Typography variant="subtitle2">Dauerhafte Aliasse</Typography>
-          {input.aliases.map((alias, index) => <Stack direction="row" key={index} spacing={1}><TextField fullWidth label={`Alias ${index + 1}`} onChange={(event) => updateAlias(index, event.target.value)} value={alias} /><IconButton aria-label={`Alias ${index + 1} entfernen`} onClick={() => setInput((current) => ({ ...current, aliases: current.aliases.filter((_, aliasIndex) => aliasIndex !== index) }))}>×</IconButton></Stack>)}
-          <Button onClick={() => setInput((current) => ({ ...current, aliases: [...current.aliases, ''] }))} sx={{ alignSelf: 'flex-start' }}>Alias hinzufügen</Button>
-        </Stack>
+        <AliasEditor aliases={input.aliases} onChange={(aliases) => setInput((current) => ({ ...current, aliases }))} />
       </Stack></DialogContent>
       <DialogActions><Button onClick={onClose}>Abbrechen</Button><Button disabled={isSaving} onClick={() => void save()} variant="contained">Speichern</Button></DialogActions>
     </Dialog>
   )
+}
+
+function IdentityEditor({ initialInput, onClose, onSave, title }: {
+  initialInput: IdentityInput
+  onClose: () => void
+  onSave: (input: IdentityInput) => Promise<void>
+  title: string
+}) {
+  const [input, setInput] = useState<IdentityInput>(() => ({ ...initialInput, aliases: [...initialInput.aliases] }))
+  const [error, setError] = useState<ParticipantApiError | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
+  const save = async () => {
+    setIsSaving(true)
+    setError(null)
+    try { await onSave(input) } catch (caughtError) { setError(asParticipantApiError(caughtError, '/api/participants')) } finally { setIsSaving(false) }
+  }
+  return (
+    <Dialog fullWidth maxWidth="sm" onClose={onClose} open>
+      <DialogTitle>{title}</DialogTitle>
+      <DialogContent><Stack spacing={2} sx={{ pt: 1 }}>
+        {error !== null && <Alert severity="error">{error.message}</Alert>}
+        <Typography color="text.secondary">Diese Daten gehören dauerhaft zur Identität und gelten in allen CSC-Ausgaben.</Typography>
+        <TextField autoFocus label="Anzeigename" onChange={(event) => setInput((current) => ({ ...current, displayName: event.target.value }))} required value={input.displayName} />
+        <AliasEditor aliases={input.aliases} onChange={(aliases) => setInput((current) => ({ ...current, aliases }))} />
+      </Stack></DialogContent>
+      <DialogActions><Button onClick={onClose}>Abbrechen</Button><Button disabled={isSaving} onClick={() => void save()} variant="contained">Speichern</Button></DialogActions>
+    </Dialog>
+  )
+}
+
+function ParticipationEditor({ countries, initialInput, onClose, onSave, title }: {
+  countries: Country[]
+  initialInput: ParticipationInput
+  onClose: () => void
+  onSave: (input: ParticipationInput) => Promise<void>
+  title: string
+}) {
+  const [input, setInput] = useState<ParticipationInput>(initialInput)
+  const [error, setError] = useState<ParticipantApiError | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
+  const save = async () => {
+    setIsSaving(true)
+    setError(null)
+    try { await onSave(input) } catch (caughtError) { setError(asParticipantApiError(caughtError, '/api/participants')) } finally { setIsSaving(false) }
+  }
+  return (
+    <Dialog fullWidth maxWidth="sm" onClose={onClose} open>
+      <DialogTitle>{title}</DialogTitle>
+      <DialogContent><Stack spacing={2} sx={{ pt: 1 }}>
+        {error !== null && <Alert severity="error">{error.message}</Alert>}
+        <Typography color="text.secondary">Diese Angaben gelten ausschließlich für die ausgewählte CSC-Ausgabe.</Typography>
+        <CountryInput countries={countries} countryCode={input.countryCode} onChange={(countryCode) => setInput((current) => ({ ...current, countryCode }))} />
+        <FormControlLabel control={<Switch checked={input.active} onChange={(event) => setInput((current) => ({ ...current, active: event.target.checked }))} />} label="Aktiver Teilnehmer" />
+      </Stack></DialogContent>
+      <DialogActions><Button onClick={onClose}>Abbrechen</Button><Button disabled={isSaving} onClick={() => void save()} variant="contained">Speichern</Button></DialogActions>
+    </Dialog>
+  )
+}
+
+function ExistingIdentityParticipationEditor({ countries, identities, onClose, onSave }: {
+  countries: Country[]
+  identities: ParticipantIdentity[]
+  onClose: () => void
+  onSave: (identity: ParticipantIdentity, input: ParticipationInput) => Promise<void>
+}) {
+  const [identity, setIdentity] = useState<ParticipantIdentity | null>(null)
+  const [input, setInput] = useState<ParticipationInput>({ countryCode: '', active: true })
+  const [error, setError] = useState<ParticipantApiError | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
+  const save = async () => {
+    if (identity === null) return
+    setIsSaving(true)
+    setError(null)
+    try { await onSave(identity, input) } catch (caughtError) { setError(asParticipantApiError(caughtError, '/api/participants')) } finally { setIsSaving(false) }
+  }
+  return (
+    <Dialog fullWidth maxWidth="sm" onClose={onClose} open>
+      <DialogTitle>Vorhandene Identität hinzufügen</DialogTitle>
+      <DialogContent><Stack spacing={2} sx={{ pt: 1 }}>
+        {error !== null && <Alert severity="error">{error.message}</Alert>}
+        <Typography color="text.secondary">Die ausgewählte Identität wird dieser CSC-Ausgabe zugeordnet. Anzeigename und Aliasse bleiben unverändert.</Typography>
+        <Autocomplete
+          getOptionKey={(option) => option.id}
+          getOptionLabel={(option) => option.displayName}
+          isOptionEqualToValue={(left, right) => left.id === right.id}
+          onChange={(_, selected) => setIdentity(selected)}
+          options={identities}
+          renderInput={(params) => <TextField {...params} autoFocus label="Vorhandene Identität" required />}
+          renderOption={(props, option) => <Box component="li" {...props} key={option.id}><Stack><span>{option.displayName}</span>{option.aliases.length > 0 && <Typography color="text.secondary" variant="caption">Aliasse: {option.aliases.join(', ')}</Typography>}</Stack></Box>}
+          value={identity}
+        />
+        <Typography variant="subtitle2">Teilnahme in dieser CSC-Ausgabe</Typography>
+        <CountryInput countries={countries} countryCode={input.countryCode} onChange={(countryCode) => setInput((current) => ({ ...current, countryCode }))} />
+        <FormControlLabel control={<Switch checked={input.active} onChange={(event) => setInput((current) => ({ ...current, active: event.target.checked }))} />} label="Aktiver Teilnehmer" />
+      </Stack></DialogContent>
+      <DialogActions><Button onClick={onClose}>Abbrechen</Button><Button disabled={isSaving || identity === null} onClick={() => void save()} variant="contained">Zuordnen</Button></DialogActions>
+    </Dialog>
+  )
+}
+
+function CountryInput({ countries, countryCode, onChange }: { countries: Country[], countryCode: string, onChange: (countryCode: string) => void }) {
+  const selectedCountry = countries.find((country) => country.code === countryCode) ?? null
+  return <Autocomplete
+    getOptionKey={(country) => country.code}
+    getOptionLabel={(country) => country.name}
+    isOptionEqualToValue={(left, right) => left.code === right.code}
+    onChange={(_, country) => onChange(country?.code ?? '')}
+    options={countries}
+    renderInput={(params) => <TextField {...params} label="Land" required />}
+    renderOption={(props, country) => <Box component="li" {...props} key={country.code} sx={{ alignItems: 'center', gap: 1 }}><CountryFlag code={country.code} countryName={country.name} />{country.name}</Box>}
+    value={selectedCountry}
+  />
+}
+
+function AliasEditor({ aliases, onChange }: { aliases: string[], onChange: (aliases: string[]) => void }) {
+  const updateAlias = (index: number, alias: string) => onChange(aliases.map((existingAlias, existingIndex) => existingIndex === index ? alias : existingAlias))
+  return <Stack spacing={1}><Typography variant="subtitle2">Dauerhafte Aliasse</Typography>
+    {aliases.map((alias, index) => <Stack direction="row" key={index} spacing={1}><TextField fullWidth label={`Alias ${index + 1}`} onChange={(event) => updateAlias(index, event.target.value)} value={alias} /><IconButton aria-label={`Alias ${index + 1} entfernen`} onClick={() => onChange(aliases.filter((_, aliasIndex) => aliasIndex !== index))}>×</IconButton></Stack>)}
+    <Button onClick={() => onChange([...aliases, ''])} sx={{ alignSelf: 'flex-start' }}>Alias hinzufügen</Button>
+  </Stack>
 }
 
 function DeleteParticipantDialog({ participant, onClose, onConfirm }: {
@@ -286,9 +451,9 @@ function DeleteParticipantDialog({ participant, onClose, onConfirm }: {
   onConfirm: () => void
 }) {
   return <Dialog onClose={onClose} open={participant !== null}>
-    <DialogTitle>Teilnehmer löschen?</DialogTitle>
-    <DialogContent><Typography>{participant?.displayName ?? ''} wird dauerhaft samt Aliasnamen entfernt. Für ausgeschiedene Teilnehmer ist „Inaktiv“ meist die passende Alternative.</Typography></DialogContent>
-    <DialogActions><Button onClick={onClose}>Abbrechen</Button><Button color="error" onClick={onConfirm} variant="contained">Teilnehmer löschen</Button></DialogActions>
+    <DialogTitle>Teilnahme entfernen?</DialogTitle>
+    <DialogContent><Typography>{participant?.displayName ?? ''} wird nur aus dieser CSC-Ausgabe entfernt. Die dauerhafte Identität und ihre Aliasse bleiben erhalten.</Typography></DialogContent>
+    <DialogActions><Button onClick={onClose}>Abbrechen</Button><Button color="error" onClick={onConfirm} variant="contained">Entfernen</Button></DialogActions>
   </Dialog>
 }
 

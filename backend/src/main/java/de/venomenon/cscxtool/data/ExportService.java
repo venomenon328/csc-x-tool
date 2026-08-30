@@ -264,6 +264,12 @@ public class ExportService {
             if (show.showNumber() < 1 || !showNumbers.add(key(show.contestId(), show.showNumber()))) {
                 throw invalid("Mottoshownummern müssen pro CSC-Ausgabe positiv und eindeutig sein.");
             }
+            if (show.finalPlaceTied() && show.finalPlace() == null) {
+                throw invalid("Eine geteilte Endplatzierung benötigt eine Endplatzierung.");
+            }
+            if (show.resultsClosedAt() != null && show.ballotClosedAt() == null) {
+                throw invalid("Abgeschlossene Ergebnisse benötigen eine abgeschlossene Abstimmung.");
+            }
             shows.put(show.id(), show);
         }
         Set<Long> participantIds = uniquePositive(data.participants(), ExportFormat.Participant::id, "Teilnehmer");
@@ -300,6 +306,8 @@ public class ExportService {
             requireText(candidate.artist(), "Ein Kandidat ohne Interpret ist nicht gültig.");
             requireText(candidate.title(), "Ein Kandidat ohne Titel ist nicht gültig.");
             requireText(candidate.youtubeUrl(), "Ein Kandidat ohne YouTube-URL ist nicht gültig.");
+            requireText(candidate.createdAt(), "Ein Kandidat ohne Erstellungszeitpunkt ist nicht gültig.");
+            requireText(candidate.updatedAt(), "Ein Kandidat ohne Aktualisierungszeitpunkt ist nicht gültig.");
             if (!enumValue(CandidateStatus.class, candidate.status()) || candidate.manualPosition() < 1
                     || !candidatePositions.add(key(candidate.mottoShowId(), candidate.manualPosition()))) {
                 throw invalid("Die Kandidatenreihenfolge oder der Kandidatenstatus ist nicht gültig.");
@@ -317,12 +325,16 @@ public class ExportService {
         Set<String> poolPositions = new HashSet<>();
         Set<String> rankingPositions = new HashSet<>();
         Set<String> entryParticipants = new HashSet<>();
+        Map<Long, ExportFormat.ContestEntry> entries = new HashMap<>();
+        Map<Long, List<Integer>> poolPositionsByShow = new HashMap<>();
         for (ExportFormat.ContestEntry entry : data.contestEntries()) {
             ExportFormat.MottoShow show = shows.get(entry.mottoShowId());
             if (show == null || show.contestId() != entry.contestId()) throw invalid("Ein Wettbewerbsbeitrag gehört nicht zum Contest seiner Mottoshow.");
             requireText(entry.artist(), "Ein Wettbewerbsbeitrag ohne Interpret ist nicht gültig.");
             requireText(entry.title(), "Ein Wettbewerbsbeitrag ohne Titel ist nicht gültig.");
             requireText(entry.youtubeUrl(), "Ein Wettbewerbsbeitrag ohne YouTube-URL ist nicht gültig.");
+            requireText(entry.createdAt(), "Ein Wettbewerbsbeitrag ohne Erstellungszeitpunkt ist nicht gültig.");
+            requireText(entry.updatedAt(), "Ein Wettbewerbsbeitrag ohne Aktualisierungszeitpunkt ist nicht gültig.");
             if (!validAssessmentPair(entry.assessment(), entry.assessmentConfidence()) || entry.poolPosition() < 1
                     || !poolPositions.add(key(entry.mottoShowId(), entry.poolPosition()))
                     || (entry.rankingPosition() != null && (entry.rankingPosition() < 1 || !rankingPositions.add(key(entry.mottoShowId(), entry.rankingPosition()))))) {
@@ -335,25 +347,53 @@ public class ExportService {
                     throw invalid("Die Teilnehmerzuordnung eines Wettbewerbsbeitrags ist nicht gültig.");
                 }
             }
+            entries.put(entry.id(), entry);
+            poolPositionsByShow.computeIfAbsent(entry.mottoShowId(), ignored -> new ArrayList<>()).add(entry.poolPosition());
+        }
+        for (List<Integer> positions : poolPositionsByShow.values()) {
+            positions.sort(Comparator.naturalOrder());
+            for (int index = 0; index < positions.size(); index++) {
+                if (positions.get(index) != index + 1) {
+                    throw invalid("Die manuelle Reihenfolge der Wettbewerbsbeiträge muss lückenlos sein.");
+                }
+            }
         }
 
         Set<Long> snapshotIds = uniquePositive(data.ballotSnapshots(), ExportFormat.BallotSnapshot::id, "Abstimmungssnapshot");
+        Map<Long, ExportFormat.BallotSnapshot> snapshots = new HashMap<>();
+        Set<String> snapshotNumbers = new HashSet<>();
         for (ExportFormat.BallotSnapshot snapshot : data.ballotSnapshots()) {
             requireReference(showIds, snapshot.mottoShowId(), "Ein Abstimmungssnapshot verweist auf eine unbekannte Mottoshow.");
-            if (snapshot.snapshotNumber() < 1) throw invalid("Die Nummer eines Abstimmungssnapshots ist nicht gültig.");
+            requireText(snapshot.createdAt(), "Ein Abstimmungssnapshot ohne Erstellungszeitpunkt ist nicht gültig.");
+            if (snapshot.snapshotNumber() < 1 || !snapshotNumbers.add(key(snapshot.mottoShowId(), snapshot.snapshotNumber()))) {
+                throw invalid("Die Nummer eines Abstimmungssnapshots ist nicht gültig.");
+            }
+            snapshots.put(snapshot.id(), snapshot);
         }
         uniquePositive(data.ballotSnapshotItems(), ExportFormat.BallotSnapshotItem::id, "Abstimmungssnapshot-Element");
+        Map<Long, List<ExportFormat.BallotSnapshotItem>> itemsBySnapshot = new HashMap<>();
+        Set<String> snapshotRanks = new HashSet<>();
+        Set<String> snapshotEntries = new HashSet<>();
         for (ExportFormat.BallotSnapshotItem item : data.ballotSnapshotItems()) {
             requireReference(snapshotIds, item.ballotSnapshotId(), "Ein Abstimmungssnapshot-Element verweist auf einen unbekannten Snapshot.");
-            if (item.contestEntryId() != null) requireReference(entryIds, item.contestEntryId(), "Ein Abstimmungssnapshot-Element verweist auf einen unbekannten Wettbewerbsbeitrag.");
-            if (item.rank() < 1 || item.rank() > 15) throw invalid("Die Top-15-Positionen eines Abstimmungssnapshots sind nicht gültig.");
+            if (item.contestEntryId() != null) {
+                requireReference(entryIds, item.contestEntryId(), "Ein Abstimmungssnapshot-Element verweist auf einen unbekannten Wettbewerbsbeitrag.");
+                if (entries.get(item.contestEntryId()).mottoShowId() != snapshots.get(item.ballotSnapshotId()).mottoShowId()) {
+                    throw invalid("Ein Abstimmungssnapshot-Element verweist auf einen Wettbewerbsbeitrag einer anderen Mottoshow.");
+                }
+            }
+            if (item.rank() < 1 || item.rank() > 15 || !snapshotRanks.add(key(item.ballotSnapshotId(), item.rank()))
+                    || (item.contestEntryId() != null && !snapshotEntries.add(key(item.ballotSnapshotId(), item.contestEntryId())))) {
+                throw invalid("Die Top-15-Positionen eines Abstimmungssnapshots sind nicht gültig.");
+            }
             requireText(item.artistSnapshot(), "Ein Abstimmungssnapshot-Element ohne Interpret ist nicht gültig.");
             requireText(item.titleSnapshot(), "Ein Abstimmungssnapshot-Element ohne Titel ist nicht gültig.");
             requireText(item.youtubeUrlSnapshot(), "Ein Abstimmungssnapshot-Element ohne YouTube-URL ist nicht gültig.");
+            itemsBySnapshot.computeIfAbsent(item.ballotSnapshotId(), ignored -> new ArrayList<>()).add(item);
         }
 
         uniquePositive(data.receivedScores(), ExportFormat.ReceivedScore::id, "Ergebniseintrag");
-        Set<String> scores = new HashSet<>();
+        Map<String, ExportFormat.ReceivedScore> scoresByShowAndParticipation = new HashMap<>();
         for (ExportFormat.ReceivedScore score : data.receivedScores()) {
             ExportFormat.MottoShow show = shows.get(score.mottoShowId());
             ExportFormat.ContestParticipation participation = participations.get(score.contestParticipationId());
@@ -362,9 +402,38 @@ public class ExportService {
             }
             if (!enumValue(ReceivedScoreStatus.class, score.status())
                     || ("ABGESTIMMT".equals(score.status()) && (score.points() == null || !CscPoints.isAllowedReceivedScore(score.points())))
-                    || (!"ABGESTIMMT".equals(score.status()) && score.points() != null)
-                    || !scores.add(key(score.mottoShowId(), score.contestParticipationId()))) {
+                    || (!"ABGESTIMMT".equals(score.status()) && score.points() != null)) {
                 throw invalid("Der Abstimmungsstatus oder die Punktzahl eines Ergebniseintrags ist nicht gültig.");
+            }
+            requireText(score.createdAt(), "Ein Ergebniseintrag ohne Erstellungszeitpunkt ist nicht gültig.");
+            requireText(score.updatedAt(), "Ein Ergebniseintrag ohne Aktualisierungszeitpunkt ist nicht gültig.");
+            if (scoresByShowAndParticipation.putIfAbsent(key(score.mottoShowId(), score.contestParticipationId()), score) != null) {
+                throw invalid("Ein Teilnehmer darf pro Mottoshow nur einen Ergebniseintrag besitzen.");
+            }
+        }
+
+        for (ExportFormat.MottoShow show : data.mottoShows()) {
+            List<ExportFormat.BallotSnapshot> currentSnapshots = data.ballotSnapshots().stream()
+                    .filter(snapshot -> snapshot.mottoShowId() == show.id() && snapshot.current()).toList();
+            if (currentSnapshots.size() > 1 || (show.ballotClosedAt() == null && !currentSnapshots.isEmpty())) {
+                throw invalid("Der Abstimmungsstatus und die aktuellen Snapshots sind nicht konsistent.");
+            }
+            if (show.ballotClosedAt() != null && (currentSnapshots.size() != 1
+                    || itemsBySnapshot.getOrDefault(currentSnapshots.getFirst().id(), List.of()).size() != 15)) {
+                throw invalid("Eine abgeschlossene Abstimmung benötigt genau einen vollständigen Top-15-Snapshot.");
+            }
+            if (show.resultsClosedAt() != null) {
+                if (show.selectedCandidateId() == null || show.finalPlace() == null) {
+                    throw invalid("Abgeschlossene Ergebnisse benötigen Einreichung und Endplatzierung.");
+                }
+                for (ExportFormat.ContestParticipation participation : participations.values()) {
+                    if (participation.contestId() == show.contestId() && participation.active()) {
+                        ExportFormat.ReceivedScore score = scoresByShowAndParticipation.get(key(show.id(), participation.id()));
+                        if (score == null || "UNBEKANNT".equals(score.status())) {
+                            throw invalid("Abgeschlossene Ergebnisse dürfen keine unbekannten aktiven Teilnehmer enthalten.");
+                        }
+                    }
+                }
             }
         }
     }
