@@ -62,7 +62,8 @@ class HistoricalEntryImportParser {
         Document document = Jsoup.parseBodyFragment(html);
         document.select("script,style,noscript,template").remove();
         for (Element block : document.select("p,li,div")) {
-            if (!block.select("p,li,div").isEmpty()) continue;
+            if (block.children().stream().anyMatch(child -> child.normalName().equals("p")
+                    || child.normalName().equals("li") || child.normalName().equals("div"))) continue;
             String value = compact(block.text());
             if (looksLikeEntry(value)) {
                 Element link = block.select("a[href]").first();
