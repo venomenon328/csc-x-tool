@@ -51,7 +51,8 @@ class HistoricalEntryImportParserTest {
 
     @Test
     void parsesTheSameFixtureFromRichClipboardBlocksAndResolvesAliases() {
-        String html = "<p>" + FIXTURE.replace("\n\n", "</p><p>") + "</p>";
+        String html = "<div>" + String.join("", FIXTURE.lines().filter(line -> !line.isBlank())
+                .map(line -> "<p>" + line + "</p>").toList()) + "</div>";
         List<HistoricalImportPreviewLine> richLines = parser.parse(html, "", participants());
         List<HistoricalImportPreviewLine> aliasedLine = parser.parse(
                 "", "Imminence - Paralyzed (Finnland/Cortez-Alt)", participants()
