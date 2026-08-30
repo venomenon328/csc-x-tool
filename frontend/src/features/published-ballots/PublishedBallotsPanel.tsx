@@ -20,7 +20,13 @@ export function PublishedBallotsPanel({ showId, entries, participants }: { showI
     try { setOverview(await fetchPublishedBallotOverview(showId)); setError(null) }
     catch (caught) { setError(asError(caught)); setOverview(null) }
   }, [showId])
-  useEffect(() => { void load() }, [load])
+  useEffect(() => {
+    let cancelled = false
+    void fetchPublishedBallotOverview(showId)
+      .then((loaded) => { if (!cancelled) { setOverview(loaded); setError(null) } })
+      .catch((caught: unknown) => { if (!cancelled) { setError(asError(caught)); setOverview(null) } })
+    return () => { cancelled = true }
+  }, [showId])
   async function showDetail(participationId: number) {
     try { setDetail(await fetchPublishedBallotDetail(showId, participationId)); setError(null) } catch (caught) { setError(asError(caught)) }
   }
