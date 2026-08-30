@@ -1,0 +1,92 @@
+databaseChangeLog:
+  - changeSet:
+      id: 014-tips-game
+      author: venomenon328
+      runInTransaction: false
+      changes:
+        - sql:
+            sql: |-
+              -- A tip is intentionally a separate assertion.  It never occupies or mutates
+              -- contest_entry.contest_participation_id, which remains the authoritative reveal.
+              CREATE TABLE tips_game (
+                id INTEGER PRIMARY KEY,
+                motto_show_id INTEGER NOT NULL,
+                contest_id INTEGER NOT NULL,
+                status TEXT NOT NULL CONSTRAINT ck_tips_game_status CHECK (status IN ('DRAFT', 'RESOLVED')),
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                resolved_at TEXT,
+                CONSTRAINT fk_tips_game_show_contest
+                  FOREIGN KEY (motto_show_id, contest_id) REFERENCES motto_show (id, contest_id) ON DELETE RESTRICT,
+                CONSTRAINT uq_tips_game_show UNIQUE (motto_show_id),
+                CONSTRAINT ck_tips_game_resolution_timestamp CHECK (
+                  (status = 'DRAFT' AND resolved_at IS NULL)
+                  OR (status = 'RESOLVED' AND resolved_at IS NOT NULL)
+                )
+              );
+              CREATE INDEX ix_tips_game_contest ON tips_game (contest_id);
+
+              CREATE TABLE tips_game_assignment (
+                id INTEGER PRIMARY KEY,
+                tips_game_id INTEGER NOT NULL,
+                contest_entry_id INTEGER NOT NULL,
+                guessed_participation_id INTEGER NOT NULL,
+                confidence TEXT CONSTRAINT ck_tips_game_assignment_confidence
+                  CHECK (confidence IS NULL OR confidence IN ('LOW', 'MEDIUM', 'HIGH')),
+                note TEXT CONSTRAINT ck_tips_game_assignment_note_length
+                  CHECK (note IS NULL OR length(note) <= 2000),
+                CONSTRAINT fk_tips_game_assignment_game
+                  FOREIGN KEY (tips_game_id) REFERENCES tips_game (id) ON DELETE RESTRICT,
+                CONSTRAINT fk_tips_game_assignment_entry
+                  FOREIGN KEY (contest_entry_id) REFERENCES contest_entry (id) ON DELETE RESTRICT,
+                CONSTRAINT fk_tips_game_assignment_participation
+                  FOREIGN KEY (guessed_participation_id) REFERENCES contest_participation (id) ON DELETE RESTRICT,
+                CONSTRAINT uq_tips_game_assignment_entry UNIQUE (tips_game_id, contest_entry_id),
+                CONSTRAINT uq_tips_game_assignment_participation UNIQUE (tips_game_id, guessed_participation_id)
+              );
+              CREATE INDEX ix_tips_game_assignment_entry ON tips_game_assignment (contest_entry_id);
+              CREATE INDEX ix_tips_game_assignment_participation ON tips_game_assignment (guessed_participation_id);
+
+              -- SQLite needs triggers for the relationships that span both the show and its
+              -- contest.  The service validates the complete replacement batch before this
+              -- last line of defence is reached.
+              CREATE TRIGGER trg_tips_game_assignment_matches_game_insert
+              BEFORE INSERT ON tips_game_assignment
+              WHEN NOT EXISTS (
+                SELECT 1
+                FROM tips_game game
+                JOIN contest_entry entry ON entry.id = NEW.contest_entry_id
+                JOIN contest_participation participation ON participation.id = NEW.guessed_participation_id
+                WHERE game.id = NEW.tips_game_id
+                  AND game.status = 'DRAFT'
+                  AND entry.motto_show_id = game.motto_show_id
+                  AND entry.contest_id = game.contest_id
+                  AND participation.contest_id = game.contest_id
+              )
+              BEGIN
+                SELECT RAISE(ABORT, 'A tip must connect an entry and participation from the same show contest while the game is open.');
+              END;
+
+              CREATE TRIGGER trg_tips_game_assignment_matches_game_update
+              BEFORE UPDATE ON tips_game_assignment
+              WHEN NOT EXISTS (
+                SELECT 1
+                FROM tips_game game
+                JOIN contest_entry entry ON entry.id = NEW.contest_entry_id
+                JOIN contest_participation participation ON participation.id = NEW.guessed_participation_id
+                WHERE game.id = NEW.tips_game_id
+                  AND game.status = 'DRAFT'
+                  AND entry.motto_show_id = game.motto_show_id
+                  AND entry.contest_id = game.contest_id
+                  AND participation.contest_id = game.contest_id
+              )
+              BEGIN
+                SELECT RAISE(ABORT, 'A tip must connect an entry and participation from the same show contest while the game is open.');
+              END;
+
+              CREATE TRIGGER trg_tips_game_assignment_delete_only_when_open
+              BEFORE DELETE ON tips_game_assignment
+              WHEN EXISTS (SELECT 1 FROM tips_game WHERE id = OLD.tips_game_id AND status = 'RESOLVED')
+              BEGIN
+                SELECT RAISE(ABORT, 'Resolve state is read-only until the tips game is explicitly reopened.');
+              END;

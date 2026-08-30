@@ -154,7 +154,8 @@ class MottoShowRepository {
                     OR EXISTS(SELECT 1 FROM legacy_result WHERE motto_show_id = ?)
                     OR EXISTS(SELECT 1 FROM ballot_snapshot WHERE motto_show_id = ?)
                     OR EXISTS(SELECT 1 FROM published_ballot WHERE motto_show_id = ?)
-                """, Boolean.class, showId, showId, showId, showId, showId, showId));
+                    OR EXISTS(SELECT 1 FROM tips_game WHERE motto_show_id = ?)
+                """, Boolean.class, showId, showId, showId, showId, showId, showId, showId));
     }
 
     boolean updateEntryListComplete(long showId, boolean complete) {

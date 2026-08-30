@@ -82,6 +82,57 @@ class HistoricalExportRestoreIntegrationTest {
     }
 
     @Test
+    void roundTripsAnIncompleteTipsDraftWithConfidenceAndMultilineNote() throws Exception {
+        jdbc.update("INSERT INTO participant (id,display_name,active,created_at,updated_at) VALUES (901,'Tippidentität',1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)");
+        jdbc.update("""
+                INSERT INTO contest_participation (id,contest_id,participant_id,country_code,active,created_at,updated_at)
+                VALUES (901,1,901,'DE',1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+                """);
+        jdbc.update("""
+                INSERT INTO contest_entry (id,motto_show_id,contest_id,artist,title,youtube_url,comment,assessment,assessment_confidence,
+                                           pool_position,ranking_position,contest_participation_id,created_at,updated_at)
+                VALUES (901,1,1,'Anonym','Entwurf','https://www.youtube.com/watch?v=dQw4w9WgXcQ',NULL,NULL,NULL,1,NULL,NULL,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+                """);
+        jdbc.update("""
+                INSERT INTO tips_game (id,motto_show_id,contest_id,status,created_at,updated_at,resolved_at)
+                VALUES (901,1,1,'DRAFT',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,NULL)
+                """);
+        jdbc.update("""
+                INSERT INTO tips_game_assignment (id,tips_game_id,contest_entry_id,guessed_participation_id,confidence,note)
+                VALUES (901,901,901,901,'HIGH','erste Zeile' || char(10) || 'zweite Zeile')
+                """);
+
+        Path source = temporaryDirectory.resolve("tips-v8.json");
+        Files.write(source, exports.exportJson());
+        Path restoredDatabase = temporaryDirectory.resolve("tips-restored.db");
+        exports.restoreInto(restoredDatabase, exports.readAndValidate(source));
+
+        JdbcTemplate restored = new JdbcTemplate(SqliteDataSourceFactory.create(restoredDatabase));
+        assertThat(restored.queryForObject("SELECT status FROM tips_game WHERE id = 901", String.class)).isEqualTo("DRAFT");
+        assertThat(restored.queryForObject("SELECT confidence FROM tips_game_assignment WHERE id = 901", String.class)).isEqualTo("HIGH");
+        assertThat(restored.queryForObject("SELECT note FROM tips_game_assignment WHERE id = 901", String.class)).isEqualTo("erste Zeile\nzweite Zeile");
+    }
+
+    @Test
+    void upgradesTheP13JsonShapeToAnEmptyTipsSection() throws Exception {
+        ExportFormat.FullExport current = exports.snapshot();
+        ExportFormat.Data data = current.data();
+        ExportFormat.FullExportV7 legacy = new ExportFormat.FullExportV7(ExportFormat.FORMAT, ExportFormat.VERSION_7,
+                current.exportedAt(), current.applicationVersion(), 13, new ExportFormat.DataV7(data.contests(), data.mottoShows(),
+                data.candidates(), data.participants(), data.contestParticipations(), data.participantAliases(), data.contestEntries(),
+                data.ballotSnapshots(), data.ballotSnapshotItems(), data.legacyResults(), data.legacyReceivedScores(),
+                data.publishedBallots(), data.publishedBallotPositions()));
+        Path source = temporaryDirectory.resolve("p13-v7.json");
+        Files.write(source, objectMapper.writeValueAsBytes(legacy));
+
+        ExportFormat.FullExport upgraded = exports.readAndValidate(source);
+
+        assertThat(upgraded.formatVersion()).isEqualTo(ExportFormat.VERSION);
+        assertThat(upgraded.data().tipsGames()).isEmpty();
+        assertThat(upgraded.data().tipsGameAssignments()).isEmpty();
+    }
+
+    @Test
     void upgradesFormatV4WithHistoricalCompletionDefaultingToOpen() throws Exception {
         ExportFormat.FullExport current = exports.snapshot();
         ExportFormat.Data data = current.data();

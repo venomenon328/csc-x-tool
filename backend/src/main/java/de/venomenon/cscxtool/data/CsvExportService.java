@@ -147,6 +147,39 @@ public class CsvExportService {
                 }));
     }
 
+    /** The exported guess remains separate from the authoritative entry assignment. */
+    public byte[] tipsGame() {
+        return csv(List.of("CSC-Ausgabe", "Show", "Interpret", "Titel", "Tipp", "Land Tipp", "Tatsächlicher Einreichender", "Land tatsächlich", "Sicherheit", "Notiz", "Tippstand", "Trefferstatus"),
+                jdbc.query("""
+                        SELECT contest.name,motto_show.show_number,motto_show.name,entry.artist,entry.title,
+                               guessed.display_name,guessed_participation.country_code,
+                               actual.display_name,actual_participation.country_code,
+                               assignment.confidence,assignment.note,game.status,
+                               entry.contest_participation_id,assignment.guessed_participation_id
+                        FROM tips_game game
+                        JOIN motto_show ON motto_show.id=game.motto_show_id
+                        JOIN contest ON contest.id=game.contest_id
+                        JOIN contest_entry entry ON entry.motto_show_id=motto_show.id
+                        LEFT JOIN tips_game_assignment assignment ON assignment.tips_game_id=game.id AND assignment.contest_entry_id=entry.id
+                        LEFT JOIN contest_participation guessed_participation ON guessed_participation.id=assignment.guessed_participation_id
+                        LEFT JOIN participant guessed ON guessed.id=guessed_participation.participant_id
+                        LEFT JOIN contest_participation actual_participation ON actual_participation.id=entry.contest_participation_id
+                        LEFT JOIN participant actual ON actual.id=actual_participation.participant_id
+                        ORDER BY contest.display_order,motto_show.show_number,entry.pool_position
+                        """, (r,n) -> {
+                    long actualParticipation = r.getLong(13);
+                    boolean actualKnown = !r.wasNull();
+                    long guessedParticipation = r.getLong(14);
+                    boolean guessed = !r.wasNull();
+                    String hit = !"RESOLVED".equals(r.getString(12)) ? "NOCH_NICHT_AUFGELOEST"
+                            : !actualKnown ? "TATSAECHLICH_UNBEKANNT"
+                            : !guessed ? "NICHT_GETIPPT"
+                            : actualParticipation == guessedParticipation ? "KORREKT" : "FALSCH";
+                    return List.of(r.getString(1),show(r.getInt(2),r.getString(3)),r.getString(4),r.getString(5),nullable(r,6),nullable(r,7),
+                            nullable(r,8),nullable(r,9),nullable(r,10),nullable(r,11),r.getString(12),hit);
+                }));
+    }
+
     private static byte[] csv(List<String> header, List<List<String>> rows) {
         StringBuilder value = new StringBuilder("\uFEFF");
         append(value, header);
