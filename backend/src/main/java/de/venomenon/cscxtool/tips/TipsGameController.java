@@ -50,7 +50,8 @@ record SaveTipsGameRequest(List<SaveTipsAssignmentRequest> assignments) { }
 record SaveTipsAssignmentRequest(Long entryId, Long guessedParticipationId, String confidence, String note) { }
 record TipsGameResponse(
         long showId, long contestId, boolean persisted, TipsGameStatus status, Instant createdAt, Instant updatedAt, Instant resolvedAt,
-        List<TipsParticipantResponse> participants, List<TipsEntryResponse> entries, TipsGameStatisticsResponse statistics
+        boolean actualAssignmentsComplete, List<TipsParticipantResponse> participants, List<TipsEntryResponse> entries,
+        TipsGameStatisticsResponse statistics
 ) { }
 record TipsParticipantResponse(long participationId, long participantId, String displayName, String countryCode, String countryName,
                                boolean active, boolean identityActive) { }

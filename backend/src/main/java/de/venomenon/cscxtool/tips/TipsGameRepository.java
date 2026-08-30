@@ -138,7 +138,19 @@ class TipsGameRepository {
                 JOIN contest ON contest.id = show.contest_id
                 WHERE focus_show.id = ? AND focus.id = ?
                   AND entry.motto_show_id <> focus_show.id
-                  AND (contest.is_current = 0 OR (contest.id = focus_show.contest_id AND show.show_number < focus_show.show_number))
+                  AND (
+                    contest.is_current = 0
+                    OR (
+                      contest.id = focus_show.contest_id
+                      AND show.show_number < focus_show.show_number
+                      AND EXISTS (SELECT 1 FROM contest_entry ready_entry WHERE ready_entry.motto_show_id = show.id)
+                      AND NOT EXISTS (
+                        SELECT 1 FROM contest_entry unassigned_entry
+                        WHERE unassigned_entry.motto_show_id = show.id
+                          AND unassigned_entry.contest_participation_id IS NULL
+                      )
+                    )
+                  )
                 ORDER BY contest.display_order DESC,show.show_number DESC,entry.pool_position
                 """, (result, row) -> new TipsSubmissionHistoryItem(
                 result.getLong(1), result.getLong(2), result.getInt(3), result.getString(4), result.getLong(5), result.getString(6),

@@ -63,6 +63,7 @@ export type TipsGame = {
   createdAt: string | null
   updatedAt: string | null
   resolvedAt: string | null
+  actualAssignmentsComplete: boolean
   participants: TipsParticipant[]
   entries: TipsEntry[]
   statistics: TipsGameStatistics | null

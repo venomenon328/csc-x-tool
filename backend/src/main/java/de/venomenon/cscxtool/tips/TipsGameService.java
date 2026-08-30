@@ -90,12 +90,14 @@ class TipsGameService {
                         participant.countryCode(), countryName(participant.countryCode()), participant.active(), participant.identityActive()))
                 .toList();
         List<TipsEntry> entries = repository.findEntries(facts.showId(), game == null ? null : game.id());
+        boolean resolved = game != null && game.status() == TipsGameStatus.RESOLVED;
+        boolean actualAssignmentsComplete = facts.entryCount() > 0 && facts.unassignedEntryCount() == 0;
         List<TipsEntryResponse> responseEntries = entries.stream().map(entry -> new TipsEntryResponse(
-                entry.id(), entry.artist(), entry.title(), entry.youtubeUrl(), actual(entry), tip(entry)
+                entry.id(), entry.artist(), entry.title(), entry.youtubeUrl(), resolved ? actual(entry) : null, tip(entry)
         )).toList();
         return new TipsGameResponse(facts.showId(), facts.contestId(), game != null, game == null ? TipsGameStatus.DRAFT : game.status(),
                 game == null ? null : game.createdAt(), game == null ? null : game.updatedAt(), game == null ? null : game.resolvedAt(),
-                participants, responseEntries, game != null && game.status() == TipsGameStatus.RESOLVED ? statistics(entries) : null);
+                actualAssignmentsComplete, participants, responseEntries, resolved ? statistics(entries) : null);
     }
 
     private List<TipsAssignmentCommand> validateAssignments(TipsShowFacts facts, SaveTipsGameRequest request) {

@@ -46,7 +46,7 @@ export function TipsGamePage() {
   const visibleEntries = useMemo(() => game?.entries.filter((entry) => visible(entry, participantsById, search, filter, game.status)) ?? [], [filter, game, participantsById, search])
   const unusedParticipants = useMemo(() => game?.participants.filter((participant) => !game.entries.some((entry) => entry.tip?.guessedParticipationId === participant.participationId)) ?? [], [game])
   const assignments = game?.entries.filter((entry) => entry.tip !== null).length ?? 0
-  const allActualAssignmentsKnown = game !== null && game.entries.length > 0 && game.entries.every((entry) => entry.actualAssignment !== null)
+  const allActualAssignmentsKnown = game?.actualAssignmentsComplete ?? false
   const editable = game?.status === 'DRAFT' && !saving
 
   async function persistEntries(previous: TipsGame, entries: TipsEntry[]) {
@@ -187,7 +187,7 @@ function TipsEntryCard({ entry, participants, participantsById, gameStatus, edit
         {guessed !== null && <ParticipantSummary label="Tipp" participant={guessed} onFocus={() => onFocusParticipant(guessed.participationId)} />}
         {gameStatus === 'RESOLVED' && <ActualSummary actual={entry.actualAssignment} />}
         {entry.tip !== null && editable && <TipMetadataEditor assignment={entry.tip} key={`${entry.id}-${entry.tip.confidence ?? ''}-${entry.tip.note ?? ''}`} onSave={(patch) => onSaveMetadata(entry.id, patch)} />}
-        {entry.youtubeUrl !== null && <Button component="a" href={entry.youtubeUrl} size="small" sx={{ alignSelf: 'start' }} target="_blank">Quelle öffnen</Button>}
+        {entry.youtubeUrl !== null && <Button component="a" href={entry.youtubeUrl} rel="noreferrer" size="small" sx={{ alignSelf: 'start' }} target="_blank">Quelle öffnen</Button>}
         {provided.placeholder}
       </Stack></CardContent>
     </Card>}
@@ -217,7 +217,7 @@ function ParticipantDragPanel({ participants, unusedParticipants, editable, onFo
 
 function SubmissionHistoryPanel({ participation, history, loading, search, onSearch }: { participation: TipsParticipant | null, history: TipsHistory | null, loading: boolean, search: string, onSearch: (search: string) => void }) {
   const visibleHistory = history?.entries.filter((entry) => `${entry.contestName} ${entry.showName} ${entry.countryName} ${entry.artist} ${entry.title}`.toLocaleLowerCase('de-DE').includes(search.toLocaleLowerCase('de-DE'))) ?? []
-  return <Paper component="aside" sx={{ p: 2 }}><Stack spacing={1.25}><Box><Typography component="h2" variant="h6">Einreichungshistorie</Typography><Typography color="text.secondary" variant="body2">{participation === null ? 'Einen Teilnehmer auswählen, um gepflegte frühere Einreichungen derselben Identität zu sehen.' : `${participation.displayName} · ${participation.countryName}`}</Typography></Box>{participation !== null && <TextField fullWidth label="Historie durchsuchen" onChange={(event) => onSearch(event.target.value)} size="small" value={search} />}{loading && <Skeleton height={80} variant="rounded" />}{!loading && participation !== null && visibleHistory.length === 0 && <Alert severity="info">{history === null ? 'Historie wird geladen …' : 'Keine gepflegten früheren Einreichungen gefunden.'}</Alert>}{!loading && visibleHistory.map((entry) => <Box key={entry.entryId} sx={{ borderLeft: 2, borderColor: 'secondary.main', pl: 1 }}><Typography color="text.secondary" variant="caption">{entry.contestName} · Show {entry.showNumber} · {entry.countryName}</Typography><Typography variant="body2">{entry.artist} – {entry.title}</Typography><Button component={RouterLink} size="small" to={entry.currentContest ? `/shows/${entry.showId}/voting` : `/historical-shows/${entry.showId}`}>Archiveintrag öffnen</Button></Box>)}</Stack></Paper>
+  return <Paper component="aside" sx={{ p: 2 }}><Stack spacing={1.25}><Box><Typography component="h2" variant="h6">Einreichungshistorie</Typography><Typography color="text.secondary" variant="body2">{participation === null ? 'Einen Teilnehmer auswählen, um gepflegte frühere Einreichungen derselben Identität zu sehen.' : `${participation.displayName} · ${participation.countryName}`}</Typography></Box>{participation !== null && <TextField fullWidth label="Historie durchsuchen" onChange={(event) => onSearch(event.target.value)} size="small" value={search} />}{loading && <Skeleton height={80} variant="rounded" />}{!loading && participation !== null && visibleHistory.length === 0 && <Alert severity="info">{history === null ? 'Historie wird geladen …' : 'Keine gepflegten früheren Einreichungen gefunden.'}</Alert>}{!loading && visibleHistory.map((entry) => <Box key={entry.entryId} sx={{ borderLeft: 2, borderColor: 'secondary.main', pl: 1 }}><Typography color="text.secondary" variant="caption">{entry.contestName} · Show {entry.showNumber} · {entry.countryName}</Typography><Typography variant="body2">{entry.artist} – {entry.title}</Typography><Stack direction="row" spacing={1}><Button component={RouterLink} size="small" to={entry.currentContest ? `/shows/${entry.showId}/voting` : `/historical-shows/${entry.showId}`}>Archiveintrag öffnen</Button>{entry.youtubeUrl !== null && <Button component="a" href={entry.youtubeUrl} rel="noreferrer" size="small" target="_blank">Quelle öffnen</Button>}</Stack></Box>)}</Stack></Paper>
 }
 
 function TipsStatistics({ statistics }: { statistics: NonNullable<TipsGame['statistics']> }) {
@@ -226,7 +226,7 @@ function TipsStatistics({ statistics }: { statistics: NonNullable<TipsGame['stat
 
 function visible(entry: TipsEntry, participants: Map<number, TipsParticipant>, search: string, filter: TipsFilter, status: TipsGameStatus) {
   const guessed = entry.tip === null ? null : participants.get(entry.tip.guessedParticipationId)?.displayName ?? ''
-  const actual = entry.actualAssignment?.displayName ?? ''
+  const actual = status === 'RESOLVED' ? entry.actualAssignment?.displayName ?? '' : ''
   const match = `${entry.artist} ${entry.title} ${guessed} ${actual}`.toLocaleLowerCase('de-DE').includes(search.trim().toLocaleLowerCase('de-DE'))
   if (!match) return false
   if (filter === 'UNASSIGNED') return entry.tip === null

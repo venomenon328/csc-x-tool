@@ -536,9 +536,9 @@ public class ExportService {
             ExportFormat.Contest contest = contestsById.get(game.contestId());
             boolean draft = "DRAFT".equals(game.status());
             boolean resolved = "RESOLVED".equals(game.status());
-            if (show == null || contest == null || show.contestId() != game.contestId() || !contest.current()
+            if (show == null || contest == null || show.contestId() != game.contestId()
                     || !tipsGameShows.add(game.mottoShowId()) || (!draft && !resolved)) {
-                throw invalid("Ein Tippstand verweist nicht eindeutig auf eine aktuelle Mottoshow.");
+                throw invalid("Ein Tippstand verweist nicht eindeutig auf seine Mottoshow.");
             }
             requireText(game.createdAt(), "Ein Tippstand ohne Erstellungszeitpunkt ist nicht gültig.");
             requireText(game.updatedAt(), "Ein Tippstand ohne Änderungszeitpunkt ist nicht gültig.");
