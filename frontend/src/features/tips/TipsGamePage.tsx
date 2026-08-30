@@ -73,7 +73,7 @@ export function TipsGamePage() {
     if (game === null || !editable) return
     const displaced = participationId === null ? null : game.entries.find((entry) => entry.id !== entryId && entry.tip?.guessedParticipationId === participationId)
     const participant = participationId === null ? null : participantsById.get(participationId)
-    if (displaced !== undefined && displaced !== null && participant !== undefined) {
+    if (displaced !== undefined && displaced !== null && participant !== null && participant !== undefined) {
       setMovedNotice(`${participant.displayName} wird von „${displaced.artist} – ${displaced.title}“ zu diesem Tipp verschoben.`)
     }
     void persistEntries(game, assignParticipant(game.entries, entryId, participationId))
