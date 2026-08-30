@@ -11,6 +11,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -23,10 +24,13 @@ import org.springframework.test.context.DynamicPropertySource;
 class PublishedBallotApiIntegrationTest {
 
     private static final Path STORAGE_ROOT = temporaryStorageRoot();
+    private static final AtomicInteger FIXTURE_SEQUENCE = new AtomicInteger();
     private final HttpClient client = HttpClient.newHttpClient();
 
     @LocalServerPort private int port;
     @Autowired private JdbcTemplate jdbc;
+    @Autowired private PublishedBallotImportParser parser;
+    @Autowired private PublishedBallotRepository ballotRepository;
 
     @DynamicPropertySource
     static void storageProperties(DynamicPropertyRegistry registry) {
@@ -78,8 +82,32 @@ class PublishedBallotApiIntegrationTest {
         assertThat(get("/api/shows/" + fixture.showId + "/published-ballots/" + fixture.voterParticipationId).body()).contains("\"status\":\"UNERFASST\"", "\"state\":\"UNKNOWN\"");
     }
 
+    @Test
+    void parsesTheFrolloFixtureFromMarkdownPlainTextHtmlAndConsecutiveBlocks() throws Exception {
+        Fixture fixture = fixture();
+        String markdown = FROLLO_FIXTURE.replaceFirst("\\[\\#3] Malta - -Frollo-", "**[#3] Malta - -Frollo-**")
+                .replaceFirst("1 punt", "**1 punt").replaceFirst("Layla", "Layla**");
+        List<PublishedBallotPreviewBlock> plain = parser.parse("", markdown,
+                ballotRepository.findParticipants(fixture.showId), ballotRepository.findEntries(fixture.showId), java.util.Set.of());
+        assertThat(plain).hasSize(1);
+        assertThat(plain.getFirst().participationId()).isEqualTo(fixture.voterParticipationId);
+        assertThat(plain.getFirst().positions()).extracting(PublishedBallotPreviewPosition::rank)
+                .containsExactly(15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1);
+        assertThat(plain.getFirst().positions().getFirst().entryId()).isEqualTo(fixture.rankedEntryIds.getFirst());
+        assertThat(plain.getFirst().positions().getLast().entryId()).isEqualTo(fixture.rankedEntryIds.getLast());
+
+        String html = FROLLO_FIXTURE.lines().map(line -> "<p>" + line + "</p>")
+                .collect(java.util.stream.Collectors.joining());
+        assertThat(parser.parse(html, "untrusted plain-text fallback",
+                ballotRepository.findParticipants(fixture.showId), ballotRepository.findEntries(fixture.showId), java.util.Set.of()))
+                .singleElement().satisfies(block -> assertThat(block.positions()).hasSize(15));
+        assertThat(parser.parse("", FROLLO_FIXTURE + "\n\n" + FROLLO_FIXTURE,
+                ballotRepository.findParticipants(fixture.showId), ballotRepository.findEntries(fixture.showId), java.util.Set.of()))
+                .hasSize(2);
+    }
+
     private Fixture fixture() throws Exception {
-        long contestId = id(post("/api/contests", "{\"name\":\"CSC IX\"}").body(), "id");
+        long contestId = id(post("/api/contests", "{\"name\":\"CSC IX Test " + FIXTURE_SEQUENCE.incrementAndGet() + "\"}").body(), "id");
         Participant voter = participant(contestId, "-Frollo-", "MT");
         List<Song> rankedSongs = List.of(
                 new Song("Eric Clapton", "Layla", "Contiomagus", "ZA"),

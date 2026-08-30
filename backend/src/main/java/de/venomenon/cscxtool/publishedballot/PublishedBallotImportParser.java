@@ -86,7 +86,7 @@ class PublishedBallotImportParser {
         List<Block> blocks = new ArrayList<>();
         Block current = null;
         for (SourceLine line : lines) {
-            Matcher header = HEADER.matcher(line.text());
+            Matcher header = HEADER.matcher(withoutMarkdownDecoration(line.text()));
             if (header.matches()) {
                 current = new Block(line.text(), compact(header.group(1)), compact(header.group(2)));
                 blocks.add(current);
@@ -215,6 +215,9 @@ class PublishedBallotImportParser {
                 || participant.aliases().stream().anyMatch(alias -> normalized(alias).equals(needle))).toList();
     }
     private static String compact(String value) { return value == null ? "" : value.replace('\u00a0', ' ').replaceAll("\\s+", " ").trim(); }
+    private static String withoutMarkdownDecoration(String value) {
+        return compact(value).replaceAll("(?<!\\w)[*_`]+|[*_`]+(?!\\w)", "");
+    }
     private static String normalized(String value) {
         return Normalizer.normalize(compact(value), Normalizer.Form.NFKC)
                 .replace('\u2010', '-').replace('\u2011', '-').replace('\u2012', '-').replace('\u2013', '-').replace('\u2014', '-')
