@@ -1,50 +1,38 @@
 package de.venomenon.cscxtool.result;
 
-import jakarta.validation.Valid;
+import de.venomenon.cscxtool.shared.ApiConflictException;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/shows/{showId}/results")
 class ResultController {
-
     private final ResultService service;
-
-    ResultController(ResultService service) {
-        this.service = service;
-    }
+    ResultController(ResultService service) { this.service = service; }
 
     @GetMapping
-    ResultResponse find(@PathVariable long showId) {
-        return service.find(showId);
-    }
+    ResultResponse find(@PathVariable long showId) { return service.find(showId); }
 
-    @PutMapping("/scores/{participantId}")
-    ResultResponse updateScore(
-            @PathVariable long showId,
-            @PathVariable long participantId,
-            @Valid @RequestBody UpdateReceivedScoreRequest request
-    ) {
-        return service.updateScore(showId, participantId, request);
-    }
+    /** A deliberately separate compatibility endpoint; normal result UI never calls it. */
+    @GetMapping("/legacy")
+    LegacyResultResponse legacy(@PathVariable long showId) { return service.legacy(showId); }
 
-    @PutMapping("/details")
-    ResultResponse updateDetails(@PathVariable long showId, @RequestBody UpdateResultDetailsRequest request) {
-        return service.updateDetails(showId, request);
-    }
-
-    @PostMapping("/close")
-    ResultResponse close(@PathVariable long showId) {
-        return service.close(showId);
-    }
-
-    @PostMapping("/reopen")
-    ResultResponse reopen(@PathVariable long showId) {
-        return service.reopen(showId);
+    /** Explicit cleanup action after the user has completed the new ballot-based migration. */
+    @DeleteMapping("/legacy")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void deleteLegacy(@PathVariable long showId, @RequestParam(defaultValue = "false") boolean confirm) {
+        if (!confirm) {
+            throw new ApiConflictException(
+                    "LEGACY_DELETE_CONFIRMATION_REQUIRED",
+                    "Legacy-Ergebnisdaten werden nur nach ausdrücklicher Bestätigung entfernt."
+            );
+        }
+        service.deleteLegacy(showId);
     }
 }

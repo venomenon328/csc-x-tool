@@ -10,7 +10,7 @@ export type BackupOverview = {
 export type RestorePreview = {
   token: string, sourceType: string, sourceName: string, createdAt: string, applicationVersion: string,
   schemaVersion: number, compatible: boolean,
-  counts: { mottoShows: number, candidates: number, participants: number, contestEntries: number, ballotSnapshots: number, receivedScores: number }
+  counts: { mottoShows: number, candidates: number, participants: number, contestEntries: number, ballotSnapshots: number, legacyReceivedScores: number }
 }
 export type RestoreResult = { message: string, safetyBackup: BackupSummary }
 

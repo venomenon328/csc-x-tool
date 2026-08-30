@@ -1,0 +1,115 @@
+databaseChangeLog:
+  - changeSet:
+      id: 013-derived-own-results
+      author: venomenon328
+      runInTransaction: false
+      changes:
+        - sql:
+            sql: |-
+              -- P12 deliberately archives the former isolated-result model before removing it
+              -- from the active schema.  An isolated received score identifies at most one rank;
+              -- it must never be expanded into a published Top 15 ballot.
+              ALTER TABLE contest ADD COLUMN own_participation_id INTEGER;
+
+              CREATE TABLE legacy_result (
+                id INTEGER PRIMARY KEY,
+                motto_show_id INTEGER NOT NULL UNIQUE,
+                results_closed_at TEXT,
+                final_place INTEGER,
+                final_place_tied INTEGER NOT NULL CONSTRAINT ck_legacy_result_final_place_tied_boolean CHECK (final_place_tied IN (0, 1)),
+                official_total_points INTEGER,
+                archived_at TEXT NOT NULL,
+                CONSTRAINT fk_legacy_result_show FOREIGN KEY (motto_show_id) REFERENCES motto_show (id) ON DELETE RESTRICT
+              );
+
+              CREATE TABLE legacy_received_score (
+                id INTEGER PRIMARY KEY,
+                motto_show_id INTEGER NOT NULL,
+                contest_id INTEGER NOT NULL,
+                contest_participation_id INTEGER NOT NULL,
+                status TEXT NOT NULL CONSTRAINT ck_legacy_received_score_status CHECK (status IN ('UNBEKANNT', 'NICHT_ABGESTIMMT', 'ABGESTIMMT')),
+                points INTEGER,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                archived_at TEXT NOT NULL,
+                CONSTRAINT fk_legacy_received_score_show FOREIGN KEY (motto_show_id) REFERENCES motto_show (id) ON DELETE RESTRICT,
+                CONSTRAINT fk_legacy_received_score_participation FOREIGN KEY (contest_participation_id) REFERENCES contest_participation (id) ON DELETE RESTRICT,
+                CONSTRAINT ck_legacy_received_score_status_points CHECK (
+                  (status = 'ABGESTIMMT' AND points IN (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 16, 20, 25))
+                  OR (status IN ('UNBEKANNT', 'NICHT_ABGESTIMMT') AND points IS NULL)
+                )
+              );
+              CREATE INDEX ix_legacy_received_score_show ON legacy_received_score (motto_show_id);
+              CREATE INDEX ix_legacy_received_score_participation ON legacy_received_score (contest_participation_id);
+
+              INSERT INTO legacy_result (
+                motto_show_id, results_closed_at, final_place, final_place_tied, official_total_points, archived_at
+              )
+              SELECT id, results_closed_at, final_place, final_place_tied, official_total_points, CURRENT_TIMESTAMP
+              FROM motto_show
+              WHERE results_closed_at IS NOT NULL
+                 OR final_place IS NOT NULL
+                 OR official_total_points IS NOT NULL;
+
+              INSERT INTO legacy_received_score (
+                id, motto_show_id, contest_id, contest_participation_id, status, points, created_at, updated_at, archived_at
+              )
+              SELECT id, motto_show_id, contest_id, contest_participation_id, status, points, created_at, updated_at, CURRENT_TIMESTAMP
+              FROM received_score;
+
+              -- Keep only actual active workflow information on a show.  The table rebuild is
+              -- intentionally after the archival copy so no official result field is discarded.
+              PRAGMA foreign_keys = OFF;
+              CREATE TABLE motto_show_new (
+                id INTEGER PRIMARY KEY,
+                contest_id INTEGER NOT NULL,
+                show_number INTEGER NOT NULL CONSTRAINT ck_motto_show_number_positive CHECK (show_number > 0),
+                name TEXT NOT NULL CONSTRAINT ck_motto_show_name_not_blank CHECK (length(trim(name)) > 0),
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                selected_candidate_id INTEGER CONSTRAINT fk_motto_show_selected_candidate REFERENCES candidate (id) ON DELETE RESTRICT,
+                ballot_closed_at TEXT,
+                entry_list_complete INTEGER NOT NULL DEFAULT 0
+                  CONSTRAINT ck_motto_show_entry_list_complete_boolean CHECK (entry_list_complete IN (0, 1)),
+                CONSTRAINT fk_motto_show_contest FOREIGN KEY (contest_id) REFERENCES contest (id) ON DELETE RESTRICT,
+                CONSTRAINT uq_motto_show_contest_number UNIQUE (contest_id, show_number),
+                CONSTRAINT uq_motto_show_id_contest UNIQUE (id, contest_id)
+              );
+              INSERT INTO motto_show_new (
+                id, contest_id, show_number, name, created_at, updated_at, selected_candidate_id, ballot_closed_at, entry_list_complete
+              )
+              SELECT id, contest_id, show_number, name, created_at, updated_at, selected_candidate_id, ballot_closed_at, entry_list_complete
+              FROM motto_show;
+              DROP TABLE motto_show;
+              ALTER TABLE motto_show_new RENAME TO motto_show;
+              CREATE INDEX ix_motto_show_contest ON motto_show (contest_id);
+              CREATE TRIGGER trg_motto_show_selected_candidate_matches_show
+              BEFORE UPDATE OF selected_candidate_id ON motto_show
+              WHEN NEW.selected_candidate_id IS NOT NULL
+                AND NOT EXISTS (SELECT 1 FROM candidate WHERE candidate.id = NEW.selected_candidate_id AND candidate.motto_show_id = NEW.id)
+              BEGIN
+                SELECT RAISE(ABORT, 'The selected candidate must belong to the same motto show.');
+              END;
+
+              DROP TABLE received_score;
+
+              -- A selected own identity is always an existing participation of the same contest.
+              CREATE TRIGGER trg_contest_own_participation_matches_contest
+              BEFORE UPDATE OF own_participation_id ON contest
+              WHEN NEW.own_participation_id IS NOT NULL
+                AND NOT EXISTS (
+                  SELECT 1 FROM contest_participation
+                  WHERE id = NEW.own_participation_id AND contest_id = NEW.id
+                )
+              BEGIN
+                SELECT RAISE(ABORT, 'The own participation must belong to the same contest.');
+              END;
+              CREATE TRIGGER trg_own_participation_cannot_be_deleted
+              BEFORE DELETE ON contest_participation
+              WHEN EXISTS (SELECT 1 FROM contest WHERE own_participation_id = OLD.id)
+              BEGIN
+                SELECT RAISE(ABORT, 'The selected own participation cannot be deleted.');
+              END;
+
+              PRAGMA foreign_key_check;
+              PRAGMA foreign_keys = ON;

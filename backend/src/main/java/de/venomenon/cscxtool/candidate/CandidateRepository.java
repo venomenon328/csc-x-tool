@@ -136,12 +136,6 @@ class CandidateRepository {
         return values.isEmpty() ? null : values.getFirst();
     }
 
-    boolean resultsClosed(long showId) {
-        return Boolean.TRUE.equals(jdbcTemplate.queryForObject(
-                "SELECT results_closed_at IS NOT NULL FROM motto_show WHERE id = ?", Boolean.class, showId
-        ));
-    }
-
     void selectSubmission(long showId, long candidateId) {
         jdbcTemplate.update("""
                 UPDATE motto_show

@@ -120,7 +120,6 @@ class CandidateService {
     @Transactional
     Candidate selectSubmission(long showId, long candidateId, boolean confirmReplacement) {
         requireShow(showId);
-        requireResultsOpenForSubmissionChange(showId);
         Candidate candidate = repository.findByIdAndShowId(candidateId, showId)
                 .orElseThrow(() -> new CandidateNotFoundException(candidateId, showId));
         Long currentlySelectedCandidateId = repository.selectedCandidateId(showId);
@@ -139,17 +138,7 @@ class CandidateService {
     @Transactional
     void clearSubmission(long showId) {
         requireShow(showId);
-        requireResultsOpenForSubmissionChange(showId);
         repository.clearSubmission(showId);
-    }
-
-    private void requireResultsOpenForSubmissionChange(long showId) {
-        if (repository.resultsClosed(showId)) {
-            throw new ApiConflictException(
-                    "RESULTS_REOPEN_REQUIRED_FOR_SUBMISSION_CHANGE",
-                    "Die abgeschlossene Ergebniserfassung muss vor dem Wechsel oder Aufheben der eigenen Einreichung bewusst wieder geöffnet werden."
-            );
-        }
     }
 
     private void requireShow(long showId) {

@@ -8,6 +8,7 @@ export type Contest = {
   current: boolean
   participantCount: number
   showCount: number
+  ownParticipationId: number | null
   createdAt: string
   updatedAt: string
 }
@@ -30,3 +31,8 @@ export function renameContest(id: number, name: string): Promise<Contest> {
   return request('/api/contests/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) })
 }
 export function makeCurrent(id: number): Promise<Contest> { return request('/api/contests/' + id + '/make-current', { method: 'POST' }) }
+export function setOwnParticipation(id: number, participationId: number | null, confirmChange = false): Promise<Contest> {
+  return request('/api/contests/' + id + '/own-participation', {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ participationId, confirmChange }),
+  })
+}

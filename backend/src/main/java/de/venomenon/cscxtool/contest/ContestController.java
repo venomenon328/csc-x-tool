@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -46,5 +47,13 @@ class ContestController {
     @PostMapping("/{contestId}/make-current")
     ContestResponse makeCurrent(@PathVariable long contestId) {
         return service.makeCurrent(contestId);
+    }
+
+    @PutMapping("/{contestId}/own-participation")
+    ContestResponse setOwnParticipation(
+            @PathVariable long contestId,
+            @RequestBody(required = false) SetOwnParticipationRequest request
+    ) {
+        return service.setOwnParticipation(contestId, request);
     }
 }

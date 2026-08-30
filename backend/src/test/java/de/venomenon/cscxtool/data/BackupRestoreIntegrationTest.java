@@ -128,9 +128,9 @@ class BackupRestoreIntegrationTest {
             jdbc.update("UPDATE contest_entry SET pool_position = ? WHERE id = ?", 16 - rank, 199 + rank);
         }
         byte[] json = exports.exportJson();
-        assertThat(new String(json, StandardCharsets.UTF_8)).contains("\"formatVersion\":6", "\"assessment\":3", "\"assessmentConfidence\":1")
+        assertThat(new String(json, StandardCharsets.UTF_8)).contains("\"formatVersion\":7", "\"assessment\":3", "\"assessmentConfidence\":1", "\"legacyReceivedScores\"")
                 .doesNotContain("\"listened\"", "\"relisten\"");
-        jdbc.update("DELETE FROM received_score");
+        jdbc.update("DELETE FROM legacy_received_score");
         jdbc.update("DELETE FROM ballot_snapshot_item");
         jdbc.update("DELETE FROM ballot_snapshot");
         jdbc.update("DELETE FROM contest_entry");
@@ -142,13 +142,13 @@ class BackupRestoreIntegrationTest {
 
         RestorePreview preview = restores.previewUploadedJson(new ByteArrayInputStream(json), "voll.json");
         assertThat(preview.counts()).extracting(RestoreDataCounts::candidates, RestoreDataCounts::participants,
-                RestoreDataCounts::contestEntries, RestoreDataCounts::ballotSnapshots, RestoreDataCounts::receivedScores)
+                RestoreDataCounts::contestEntries, RestoreDataCounts::ballotSnapshots, RestoreDataCounts::legacyReceivedScores)
                 .containsExactly(1, 1, 15, 1, 1);
         restores.restore(preview.token());
 
         assertThat(jdbc.queryForObject("SELECT comment FROM candidate WHERE id = 100", String.class)).isEqualTo("Ä; \"Zitat\"\nZeile");
         assertThat(jdbc.queryForObject("SELECT contest_entry_id FROM ballot_snapshot_item WHERE id = 400", Long.class)).isNull();
-        assertThat(jdbc.queryForObject("SELECT points FROM received_score WHERE id = 500", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT points FROM legacy_received_score WHERE id = 500", Integer.class)).isZero();
         assertThat(jdbc.queryForList("SELECT id FROM contest_entry WHERE motto_show_id = 1 ORDER BY pool_position", Long.class))
                 .containsExactly(214L, 213L, 212L, 211L, 210L, 209L, 208L, 207L, 206L, 205L, 204L, 203L, 202L, 201L, 200L);
         jdbc.update("""
@@ -173,7 +173,7 @@ class BackupRestoreIntegrationTest {
                 legacyDataV1(data, legacyEntries)
         );
         byte[] json = new ObjectMapper().writeValueAsBytes(legacy);
-        jdbc.update("DELETE FROM received_score");
+        jdbc.update("DELETE FROM legacy_received_score");
         jdbc.update("DELETE FROM ballot_snapshot_item");
         jdbc.update("DELETE FROM ballot_snapshot");
         jdbc.update("DELETE FROM contest_entry");
@@ -205,7 +205,7 @@ class BackupRestoreIntegrationTest {
                 legacyDataV2(data, legacyEntries)
         );
         byte[] json = new ObjectMapper().writeValueAsBytes(legacy);
-        jdbc.update("DELETE FROM received_score");
+        jdbc.update("DELETE FROM legacy_received_score");
         jdbc.update("DELETE FROM ballot_snapshot_item");
         jdbc.update("DELETE FROM ballot_snapshot");
         jdbc.update("DELETE FROM contest_entry");
@@ -239,9 +239,42 @@ class BackupRestoreIntegrationTest {
     }
 
     @Test
+    void upgradesP5AndP6JsonScoresOnlyIntoTheSeparateLegacyArchive() throws Exception {
+        insertFullData("Legacy P5/P6");
+        ExportFormat.FullExport current = exports.snapshot();
+        ExportFormat.Data data = current.data();
+        List<ExportFormat.ContestV6> contests = legacyContestsV6(data);
+        List<ExportFormat.MottoShowV6> shows = legacyShowsV6(data);
+        List<ExportFormat.ReceivedScore> scores = legacyScoresV6(data);
+        List<Object> oldExports = List.of(
+                new ExportFormat.FullExportV5(ExportFormat.FORMAT, ExportFormat.VERSION_5, current.exportedAt(), current.applicationVersion(), 11,
+                        new ExportFormat.DataV5(contests, shows, data.candidates(), data.participants(), data.contestParticipations(),
+                                data.participantAliases(), data.contestEntries(), data.ballotSnapshots(), data.ballotSnapshotItems(), scores)),
+                new ExportFormat.FullExportV6(ExportFormat.FORMAT, ExportFormat.VERSION_6, current.exportedAt(), current.applicationVersion(), 12,
+                        new ExportFormat.DataV6(contests, shows, data.candidates(), data.participants(), data.contestParticipations(),
+                                data.participantAliases(), data.contestEntries(), data.ballotSnapshots(), data.ballotSnapshotItems(), scores,
+                                data.publishedBallots(), data.publishedBallotPositions()))
+        );
+
+        for (int index = 0; index < oldExports.size(); index++) {
+            Path source = temporaryDirectory.resolve("legacy-v" + (index + 5) + ".json");
+            Files.write(source, new ObjectMapper().writeValueAsBytes(oldExports.get(index)));
+            ExportFormat.FullExport upgraded = exports.readAndValidate(source);
+            Path restoredDatabase = temporaryDirectory.resolve("legacy-v" + (index + 5) + ".db");
+            exports.restoreInto(restoredDatabase, upgraded);
+            JdbcTemplate restored = new JdbcTemplate(SqliteDataSourceFactory.create(restoredDatabase));
+
+            assertThat(upgraded.formatVersion()).isEqualTo(ExportFormat.VERSION);
+            assertThat(upgraded.data().legacyReceivedScores()).extracting(ExportFormat.LegacyReceivedScore::points).contains(0);
+            assertThat(restored.queryForObject("SELECT points FROM legacy_received_score WHERE id=500", Integer.class)).isZero();
+            assertThat(restored.queryForObject("SELECT COUNT(*) FROM published_ballot", Integer.class)).isZero();
+        }
+    }
+
+    @Test
     void rejectsUnknownNewerJsonWithoutChangingLiveDatabase() throws Exception {
         insertFullData("Live");
-        String newer = new String(exports.exportJson(), StandardCharsets.UTF_8).replace("\"formatVersion\":6", "\"formatVersion\":7");
+        String newer = new String(exports.exportJson(), StandardCharsets.UTF_8).replace("\"formatVersion\":7", "\"formatVersion\":8");
         assertThatThrownBy(() -> restores.previewUploadedJson(new ByteArrayInputStream(newer.getBytes(StandardCharsets.UTF_8)), "new.json"))
                 .isInstanceOf(BackupFileException.class).hasMessageContaining("nicht unterst");
         assertThat(jdbc.queryForObject("SELECT comment FROM candidate WHERE id = 100", String.class)).isEqualTo("Live");
@@ -258,7 +291,7 @@ class BackupRestoreIntegrationTest {
                 participation.createdAt(), participation.updatedAt()
         );
         ExportFormat.Data invalidCountryData = dataWith(data, data.contests(), data.contestEntries(),
-                List.of(invalidParticipation), data.ballotSnapshots(), data.ballotSnapshotItems(), data.receivedScores());
+                List.of(invalidParticipation), data.ballotSnapshots(), data.ballotSnapshotItems(), data.legacyReceivedScores());
         ExportFormat.ContestEntry assessed = data.contestEntries().getFirst();
         ExportFormat.ContestEntry invalidAssessment = new ExportFormat.ContestEntry(
                 assessed.id(), assessed.mottoShowId(), assessed.contestId(), assessed.artist(), assessed.title(), assessed.youtubeUrl(), assessed.comment(),
@@ -266,11 +299,11 @@ class BackupRestoreIntegrationTest {
         );
         ExportFormat.Data invalidAssessmentData = dataWith(data, data.contests(),
                 java.util.stream.Stream.concat(java.util.stream.Stream.of(invalidAssessment), data.contestEntries().stream().skip(1)).toList(),
-                data.contestParticipations(), data.ballotSnapshots(), data.ballotSnapshotItems(), data.receivedScores());
+                data.contestParticipations(), data.ballotSnapshots(), data.ballotSnapshotItems(), data.legacyReceivedScores());
         List<ExportFormat.FullExport> invalidExports = List.of(
                 new ExportFormat.FullExport(valid.format(), valid.formatVersion(), "not-an-instant", valid.applicationVersion(), valid.schemaVersion(), data),
                 new ExportFormat.FullExport(valid.format(), valid.formatVersion(), valid.exportedAt(), valid.applicationVersion(), valid.schemaVersion(),
-                        dataWith(data, List.of(), data.contestEntries(), data.contestParticipations(), data.ballotSnapshots(), data.ballotSnapshotItems(), data.receivedScores())),
+                        dataWith(data, List.of(), data.contestEntries(), data.contestParticipations(), data.ballotSnapshots(), data.ballotSnapshotItems(), data.legacyReceivedScores())),
                 new ExportFormat.FullExport(valid.format(), valid.formatVersion(), valid.exportedAt(), valid.applicationVersion(), valid.schemaVersion(), invalidCountryData),
                 new ExportFormat.FullExport(valid.format(), valid.formatVersion(), valid.exportedAt(), valid.applicationVersion(), valid.schemaVersion(), invalidAssessmentData)
         );
@@ -294,24 +327,12 @@ class BackupRestoreIntegrationTest {
                 firstEntry.youtubeUrl(), firstEntry.comment(), firstEntry.assessment(), firstEntry.assessmentConfidence(), 16,
                 firstEntry.rankingPosition(), firstEntry.contestParticipationId(), firstEntry.createdAt(), firstEntry.updatedAt()
         );
-        ExportFormat.ContestParticipation firstParticipation = data.contestParticipations().getFirst();
-        ExportFormat.ContestParticipation activeParticipation = new ExportFormat.ContestParticipation(
-                firstParticipation.id(), firstParticipation.contestId(), firstParticipation.participantId(), firstParticipation.countryCode(), true,
-                firstParticipation.createdAt(), firstParticipation.updatedAt()
-        );
-        ExportFormat.ReceivedScore score = data.receivedScores().getFirst();
-        ExportFormat.ReceivedScore unknownScore = new ExportFormat.ReceivedScore(
-                score.id(), score.mottoShowId(), score.contestId(), score.contestParticipationId(), "UNBEKANNT", null,
-                score.createdAt(), score.updatedAt()
-        );
         List<ExportFormat.FullExport> malformed = List.of(
                 new ExportFormat.FullExport(valid.format(), valid.formatVersion(), valid.exportedAt(), valid.applicationVersion(), valid.schemaVersion(),
                         dataWith(data, data.contests(), java.util.stream.Stream.concat(java.util.stream.Stream.of(poolGap), data.contestEntries().stream().skip(1)).toList(),
-                                data.contestParticipations(), data.ballotSnapshots(), data.ballotSnapshotItems(), data.receivedScores())),
+                                data.contestParticipations(), data.ballotSnapshots(), data.ballotSnapshotItems(), data.legacyReceivedScores())),
                 new ExportFormat.FullExport(valid.format(), valid.formatVersion(), valid.exportedAt(), valid.applicationVersion(), valid.schemaVersion(),
-                        dataWith(data, data.contests(), data.contestEntries(), data.contestParticipations(), List.of(), List.of(), data.receivedScores())),
-                new ExportFormat.FullExport(valid.format(), valid.formatVersion(), valid.exportedAt(), valid.applicationVersion(), valid.schemaVersion(),
-                        dataWith(data, data.contests(), data.contestEntries(), List.of(activeParticipation), data.ballotSnapshots(), data.ballotSnapshotItems(), List.of(unknownScore)))
+                        dataWith(data, data.contests(), data.contestEntries(), data.contestParticipations(), List.of(), List.of(), data.legacyReceivedScores()))
         );
 
         ObjectMapper mapper = new ObjectMapper();
@@ -429,7 +450,9 @@ class BackupRestoreIntegrationTest {
         assertThat(new String(csv.contestEntries(), StandardCharsets.UTF_8))
                 .contains("Einschätzung (1–5);Sicherheit (1–5)", ";3;1;")
                 .doesNotContain("Gehört", "Wiedervorlage");
-        assertThat(new String(csv.results(), StandardCharsets.UTF_8)).contains("Aktiv;UNBEKANNT;");
+        assertThat(new String(csv.results(), StandardCharsets.UTF_8))
+                .contains("Abgeleitete Punkte")
+                .doesNotContain("Aktiv;UNBEKANNT;");
     }
 
     @Test
@@ -528,10 +551,11 @@ class BackupRestoreIntegrationTest {
     private static ExportFormat.Data dataWith(
             ExportFormat.Data data, List<ExportFormat.Contest> contests, List<ExportFormat.ContestEntry> entries,
             List<ExportFormat.ContestParticipation> participations, List<ExportFormat.BallotSnapshot> snapshots,
-            List<ExportFormat.BallotSnapshotItem> snapshotItems, List<ExportFormat.ReceivedScore> scores
+            List<ExportFormat.BallotSnapshotItem> snapshotItems, List<ExportFormat.LegacyReceivedScore> scores
     ) {
         return new ExportFormat.Data(contests, data.mottoShows(), data.candidates(), data.participants(), participations,
-                data.participantAliases(), entries, snapshots, snapshotItems, scores);
+                data.participantAliases(), entries, snapshots, snapshotItems, data.legacyResults(), scores,
+                data.publishedBallots(), data.publishedBallotPositions());
     }
 
     private static ExportFormat.DataV1 legacyDataV1(ExportFormat.Data data, List<ExportFormat.ContestEntryV1> entries) {
@@ -549,9 +573,39 @@ class BackupRestoreIntegrationTest {
     }
 
     private static List<ExportFormat.MottoShowV3> legacyShows(ExportFormat.Data data) {
-        return data.mottoShows().stream().map(show -> new ExportFormat.MottoShowV3(
-                show.id(), show.showNumber(), show.name(), show.selectedCandidateId(), show.ballotClosedAt(), show.resultsClosedAt(),
-                show.finalPlace(), show.finalPlaceTied(), show.officialTotalPoints(), show.createdAt(), show.updatedAt()
+        return data.mottoShows().stream().map(show -> {
+            ExportFormat.LegacyResult legacy = data.legacyResults().stream()
+                    .filter(value -> value.mottoShowId() == show.id()).findFirst().orElse(null);
+            return new ExportFormat.MottoShowV3(
+                    show.id(), show.showNumber(), show.name(), show.selectedCandidateId(), show.ballotClosedAt(),
+                    legacy == null ? null : legacy.resultsClosedAt(), legacy == null ? null : legacy.finalPlace(),
+                    legacy != null && legacy.finalPlaceTied(), legacy == null ? null : legacy.officialTotalPoints(), show.createdAt(), show.updatedAt()
+            );
+        }).toList();
+    }
+
+    private static List<ExportFormat.ContestV6> legacyContestsV6(ExportFormat.Data data) {
+        return data.contests().stream().map(contest -> new ExportFormat.ContestV6(
+                contest.id(), contest.name(), contest.displayOrder(), contest.current(), contest.createdAt(), contest.updatedAt()
+        )).toList();
+    }
+
+    private static List<ExportFormat.MottoShowV6> legacyShowsV6(ExportFormat.Data data) {
+        return data.mottoShows().stream().map(show -> {
+            ExportFormat.LegacyResult legacy = data.legacyResults().stream()
+                    .filter(value -> value.mottoShowId() == show.id()).findFirst().orElse(null);
+            return new ExportFormat.MottoShowV6(
+                    show.id(), show.contestId(), show.showNumber(), show.name(), show.entryListComplete(), show.selectedCandidateId(), show.ballotClosedAt(),
+                    legacy == null ? null : legacy.resultsClosedAt(), legacy == null ? null : legacy.finalPlace(),
+                    legacy != null && legacy.finalPlaceTied(), legacy == null ? null : legacy.officialTotalPoints(), show.createdAt(), show.updatedAt()
+            );
+        }).toList();
+    }
+
+    private static List<ExportFormat.ReceivedScore> legacyScoresV6(ExportFormat.Data data) {
+        return data.legacyReceivedScores().stream().map(score -> new ExportFormat.ReceivedScore(
+                score.id(), score.mottoShowId(), score.contestId(), score.contestParticipationId(), score.status(), score.points(),
+                score.createdAt(), score.updatedAt()
         )).toList();
     }
 
@@ -565,7 +619,7 @@ class BackupRestoreIntegrationTest {
     }
 
     private static List<ExportFormat.ReceivedScoreV3> legacyScores(ExportFormat.Data data) {
-        return data.receivedScores().stream().map(score -> {
+        return data.legacyReceivedScores().stream().map(score -> {
             ExportFormat.ContestParticipation participation = data.contestParticipations().stream()
                     .filter(value -> value.id() == score.contestParticipationId()).findFirst().orElseThrow();
             return new ExportFormat.ReceivedScoreV3(score.id(), score.mottoShowId(), participation.participantId(),
@@ -605,7 +659,7 @@ class BackupRestoreIntegrationTest {
                 INSERT INTO candidate (id,motto_show_id,artist,title,youtube_url,comment,status,manual_position,created_at,updated_at)
                 VALUES (100,1,'Künstler','Titel','https://www.youtube.com/watch?v=dQw4w9WgXcQ',?,'FINALIST',1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
                 """, comment);
-        jdbc.update("UPDATE motto_show SET selected_candidate_id=100,ballot_closed_at=CURRENT_TIMESTAMP,results_closed_at=CURRENT_TIMESTAMP,official_total_points=0,final_place=1,final_place_tied=1 WHERE id=1");
+        jdbc.update("UPDATE motto_show SET selected_candidate_id=100,ballot_closed_at=CURRENT_TIMESTAMP WHERE id=1");
         for (int rank = 1; rank <= 15; rank++) {
             jdbc.update("""
                     INSERT INTO contest_entry (id,motto_show_id,contest_id,artist,title,youtube_url,comment,assessment,assessment_confidence,pool_position,ranking_position,contest_participation_id,created_at,updated_at)
@@ -621,8 +675,12 @@ class BackupRestoreIntegrationTest {
                     rank == 1 ? "Historisch" : "Beitrag " + rank, rank == 1 ? "Snapshot" : "Song " + rank);
         }
         jdbc.update("""
-                INSERT INTO received_score (id,motto_show_id,contest_id,contest_participation_id,status,points,created_at,updated_at)
-                VALUES (500,1,1,10,'ABGESTIMMT',0,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+                INSERT INTO legacy_received_score (id,motto_show_id,contest_id,contest_participation_id,status,points,created_at,updated_at,archived_at)
+                VALUES (500,1,1,10,'ABGESTIMMT',0,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+                """);
+        jdbc.update("""
+                INSERT INTO legacy_result (id,motto_show_id,results_closed_at,final_place,final_place_tied,official_total_points,archived_at)
+                VALUES (1,1,CURRENT_TIMESTAMP,1,1,0,CURRENT_TIMESTAMP)
                 """);
     }
 

@@ -72,12 +72,6 @@ class BallotService {
         if (!repository.isClosed(showId)) {
             throw new ApiConflictException("BALLOT_NOT_CLOSED", "Die Abstimmung ist nicht abgeschlossen.");
         }
-        if (repository.resultsClosed(showId)) {
-            throw new ApiConflictException(
-                    "RESULTS_REOPEN_REQUIRED_BEFORE_BALLOT_REOPEN",
-                    "Die abgeschlossene Ergebniserfassung muss vor dem Wiederöffnen der Top 15 bewusst wieder geöffnet werden."
-            );
-        }
         if (repository.findCurrentSnapshot(showId).isEmpty()) {
             throw new IllegalStateException("A closed ballot must have a current snapshot.");
         }
