@@ -41,7 +41,7 @@ class TipsGameApiIntegrationTest {
         HttpResponse<String> readOnlyDraft = get("/api/shows/" + fixture.showId + "/tips");
         assertThat(readOnlyDraft.statusCode()).isEqualTo(200);
         assertThat(readOnlyDraft.body()).contains("\"persisted\":false", "\"status\":\"DRAFT\"");
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM tips_game", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM tips_game WHERE motto_show_id = ?", Integer.class, fixture.showId)).isZero();
 
         String partial = assignments(fixture.firstEntryId, fixture.firstParticipationId, "HIGH", "mehrzeilige\nNotiz");
         HttpResponse<String> saved = put("/api/shows/" + fixture.showId + "/tips", partial);
