@@ -3,7 +3,7 @@ import {
   Alert, Box, Button, Card, CardContent, Chip, Dialog, DialogActions, DialogContent, DialogTitle,
   FormControl, InputAdornment, InputLabel, MenuItem, Paper, Select, Skeleton, Stack, TextField, Tooltip, Typography,
 } from '@mui/material'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link as RouterLink, useParams } from 'react-router-dom'
 import { ApiErrorNotice } from '../../components/ApiErrorNotice'
 import { CheckIcon, DragIcon, FilterIcon, SearchIcon } from '../../components/AppIcons'
@@ -30,26 +30,17 @@ export function TipsGamePage() {
   const [historySearch, setHistorySearch] = useState('')
   const [resolutionAction, setResolutionAction] = useState<'resolve' | 'reopen' | null>(null)
   const [movedNotice, setMovedNotice] = useState<string | null>(null)
-
-  const load = useCallback(async () => {
-    if (showId === null) return
-    setError(null)
-    try { setGame(await fetchTipsGame(showId)) } catch (caught) { setGame(null); setError(asTipsError(caught, `/api/shows/${showId}/tips`)) }
-  }, [showId])
-
-  const loadHistory = useCallback(async (participationId: number) => {
-    if (showId === null) return
-    setHistoryLoading(true)
-    try { setHistory(await fetchTipsHistory(showId, participationId)) }
-    catch (caught) { setError(asTipsError(caught, `/api/shows/${showId}/tips/participants/${participationId}/history`)) }
-    finally { setHistoryLoading(false) }
-  }, [showId])
-
-  useEffect(() => { void load() }, [load])
+  const [loadRevision, setLoadRevision] = useState(0)
+  const historyRequestId = useRef(0)
 
   useEffect(() => {
-    if (selectedParticipationId !== null) void loadHistory(selectedParticipationId)
-  }, [loadHistory, selectedParticipationId])
+    if (showId === null) return
+    let cancelled = false
+    void fetchTipsGame(showId)
+      .then((nextGame) => { if (!cancelled) { setError(null); setGame(nextGame) } })
+      .catch((caught) => { if (!cancelled) { setGame(null); setError(asTipsError(caught, `/api/shows/${showId}/tips`)) } })
+    return () => { cancelled = true }
+  }, [loadRevision, showId])
 
   const participantsById = useMemo(() => new Map(game?.participants.map((participant) => [participant.participationId, participant]) ?? []), [game])
   const visibleEntries = useMemo(() => game?.entries.filter((entry) => visible(entry, participantsById, search, filter, game.status)) ?? [], [filter, game, participantsById, search])
@@ -79,6 +70,19 @@ export function TipsGamePage() {
     void persistEntries(game, assignParticipant(game.entries, entryId, participationId))
   }
 
+  function focusParticipant(participationId: number) {
+    if (showId === null) return
+    const requestId = historyRequestId.current + 1
+    historyRequestId.current = requestId
+    setSelectedParticipationId(participationId)
+    setHistory(null)
+    setHistoryLoading(true)
+    void fetchTipsHistory(showId, participationId)
+      .then((nextHistory) => { if (historyRequestId.current === requestId) setHistory(nextHistory) })
+      .catch((caught) => { if (historyRequestId.current === requestId) setError(asTipsError(caught, `/api/shows/${showId}/tips/participants/${participationId}/history`)) })
+      .finally(() => { if (historyRequestId.current === requestId) setHistoryLoading(false) })
+  }
+
   function saveMetadata(entryId: number, patch: Pick<TipsAssignment, 'confidence' | 'note'>) {
     if (game === null || !editable) return
     void persistEntries(game, changeTipMetadata(game.entries, entryId, patch))
@@ -100,7 +104,7 @@ export function TipsGamePage() {
     } catch (caught) { setError(asTipsError(caught, `/api/shows/${showId}/tips/${resolutionAction}`)) } finally { setSaving(false) }
   }
 
-  if (game === null) return error === null ? <TipsLoading /> : <Stack spacing={2}><ApiErrorNotice error={error.apiError} /><Button onClick={() => void load()}>Erneut versuchen</Button></Stack>
+  if (game === null) return error === null ? <TipsLoading /> : <Stack spacing={2}><ApiErrorNotice error={error.apiError} /><Button onClick={() => setLoadRevision((value) => value + 1)}>Erneut versuchen</Button></Stack>
 
   return <Stack spacing={3}>
     <Box>
@@ -131,11 +135,11 @@ export function TipsGamePage() {
         <Stack aria-label="Anonyme Beiträge" spacing={1.25}>
           {visibleEntries.length === 0 ? <Alert severity="info">Keine Beiträge für Suche oder Filter.</Alert> : visibleEntries.map((entry) => <TipsEntryCard
             editable={editable} entry={entry} gameStatus={game.status} key={entry.id} participants={game.participants}
-            participantsById={participantsById} onAssign={changeAssignment} onFocusParticipant={setSelectedParticipationId} onSaveMetadata={saveMetadata}
+            participantsById={participantsById} onAssign={changeAssignment} onFocusParticipant={focusParticipant} onSaveMetadata={saveMetadata}
           />)}
         </Stack>
         <Stack spacing={2} sx={{ position: { lg: 'sticky' }, top: { lg: 24 } }}>
-          <ParticipantDragPanel editable={editable} participants={game.participants} unusedParticipants={unusedParticipants} onFocus={setSelectedParticipationId} />
+          <ParticipantDragPanel editable={editable} participants={game.participants} unusedParticipants={unusedParticipants} onFocus={focusParticipant} />
           <SubmissionHistoryPanel history={history} loading={historyLoading} participation={selectedParticipationId === null ? null : participantsById.get(selectedParticipationId) ?? null} search={historySearch} onSearch={setHistorySearch} />
         </Stack>
       </Box>
