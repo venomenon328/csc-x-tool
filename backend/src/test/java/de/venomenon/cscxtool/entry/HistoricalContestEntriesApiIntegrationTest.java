@@ -72,6 +72,24 @@ class HistoricalContestEntriesApiIntegrationTest {
                 "SELECT id FROM contest_entry WHERE motto_show_id = ? AND contest_participation_id = (SELECT id FROM contest_participation WHERE contest_id = ? AND participant_id = ?)",
                 Long.class, showId, contestId, alice
         );
+        long bobEntryId = jdbc.queryForObject(
+                "SELECT id FROM contest_entry WHERE motto_show_id = ? AND contest_participation_id = (SELECT id FROM contest_participation WHERE contest_id = ? AND participant_id = ?)",
+                Long.class, showId, contestId, bob
+        );
+
+        HttpResponse<String> duplicateManualCreate = post("/api/shows/" + showId + "/entries", """
+                {"artist":"Duplicate","title":"Manual","youtubeUrl":null,"participantId":%d}
+                """.formatted(alice));
+        assertThat(duplicateManualCreate.statusCode()).isEqualTo(409);
+        assertThat(duplicateManualCreate.body()).contains("PARTICIPANT_ALREADY_ASSIGNED_IN_SHOW");
+
+        HttpResponse<String> duplicateManualUpdate = patch("/api/shows/" + showId + "/entries/" + bobEntryId, """
+                {"artist":"Artist Two","title":"Second Song","youtubeUrl":"https://source.example/song","comment":null,"participantId":%d}
+                """.formatted(alice));
+        assertThat(duplicateManualUpdate.statusCode()).isEqualTo(409);
+        assertThat(duplicateManualUpdate.body()).contains("PARTICIPANT_ALREADY_ASSIGNED_IN_SHOW");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM contest_entry WHERE motto_show_id = ?", Integer.class, showId)).isEqualTo(2);
+
         HttpResponse<String> repeatPreview = post("/api/shows/" + showId + "/entries/historical-import-preview", """
                 {"html":"","text":"Artist One Revised - Replacement (Deutschland/Alice)"}
                 """);
@@ -96,6 +114,7 @@ class HistoricalContestEntriesApiIntegrationTest {
 
     private HttpResponse<String> get(String path) throws Exception { return request("GET", path, null); }
     private HttpResponse<String> post(String path, String body) throws Exception { return request("POST", path, body); }
+    private HttpResponse<String> patch(String path, String body) throws Exception { return request("PATCH", path, body); }
     private HttpResponse<String> request(String method, String path, String body) throws Exception {
         HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + path));
         if (body == null) builder.method(method, HttpRequest.BodyPublishers.noBody());
