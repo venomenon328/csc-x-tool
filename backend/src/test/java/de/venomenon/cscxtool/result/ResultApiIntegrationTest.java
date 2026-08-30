@@ -8,196 +8,192 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class ResultApiIntegrationTest {
 
     private static final Path STORAGE_ROOT = temporaryStorageRoot();
     private final HttpClient client = HttpClient.newHttpClient();
-
-    @LocalServerPort
-    private int port;
-
-    @Autowired
-    private JdbcTemplate jdbcTemplate;
+    @LocalServerPort private int port;
+    @Autowired private JdbcTemplate jdbc;
 
     @DynamicPropertySource
     static void storageProperties(DynamicPropertyRegistry registry) {
         registry.add("csc-x-tool.storage.root", () -> STORAGE_ROOT.toString());
     }
 
+    @BeforeEach
+    void resetFixture() {
+        jdbc.update("UPDATE contest SET own_participation_id = NULL WHERE id = 1");
+        jdbc.update("DELETE FROM published_ballot_position WHERE published_ballot_id IN (SELECT id FROM published_ballot WHERE motto_show_id = 1)");
+        jdbc.update("DELETE FROM published_ballot WHERE motto_show_id = 1");
+        jdbc.update("DELETE FROM legacy_received_score WHERE motto_show_id = 1");
+        jdbc.update("DELETE FROM ballot_snapshot_item WHERE ballot_snapshot_id IN (SELECT id FROM ballot_snapshot WHERE motto_show_id = 1)");
+        jdbc.update("DELETE FROM ballot_snapshot WHERE motto_show_id = 1");
+        jdbc.update("DELETE FROM contest_entry WHERE motto_show_id = 1");
+        jdbc.update("DELETE FROM contest_participation WHERE contest_id = 1");
+        jdbc.update("DELETE FROM participant WHERE id BETWEEN 1 AND 20");
+        jdbc.update("UPDATE motto_show SET entry_list_complete = 0, ballot_closed_at = NULL WHERE id = 1");
+    }
+
     @Test
-    void completesTheP6FlowWithServerSideLocksAndHistoricalScores() throws Exception {
-        long alpha = createParticipant("Alpha", true);
-        long beta = createParticipant("Beta", true);
-        long historic = createParticipant("Historisch", true);
-        long inactive = createParticipant("Inaktiv", false);
-        List<Long> entries = createEntries(1, 15);
+    void derivesEveryOwnResultStateFromPublishedBallotsOnly() throws Exception {
+        insertContestFixture();
 
-        HttpResponse<String> mappingTooEarly = put("/api/shows/1/entries/" + entries.getFirst() + "/participant", "{\"participantId\":" + alpha + "}");
-        assertThat(mappingTooEarly.statusCode()).isEqualTo(409);
-        assertThat(mappingTooEarly.body()).contains("PARTICIPANT_ASSIGNMENT_REQUIRES_CLOSED_BALLOT");
-        assertThat(put("/api/shows/3/results/scores/" + alpha, "{\"status\":\"ABGESTIMMT\",\"points\":0}").body())
-                .contains("RESULTS_REQUIRE_CLOSED_BALLOT");
+        HttpResponse<String> response = get("/api/shows/1/results");
 
-        put("/api/shows/1/ballot/reorder", reorderJson(entries, List.of()));
-        assertThat(post("/api/shows/1/ballot/close", null).statusCode()).isEqualTo(200);
-
-        long contestForeign = createIdentity("Nur Archiv", true);
-        long archiveContestId = firstId(post("/api/contests", "{\"name\":\"Archiv " + contestForeign + "\"}").body());
-        assertThat(post("/api/contests/" + archiveContestId + "/participants",
-                "{\"participantId\":" + contestForeign + ",\"countryCode\":\"AT\",\"active\":true}").statusCode()).isEqualTo(201);
-        assertThat(put("/api/shows/1/entries/" + entries.getFirst() + "/participant", "{\"participantId\":" + contestForeign + "}").body())
-                .contains("PARTICIPANT_NOT_IN_CONTEST");
-        assertThat(put("/api/shows/1/results/scores/" + contestForeign, "{\"status\":\"ABGESTIMMT\",\"points\":0}").body())
-                .contains("PARTICIPANT_NOT_IN_CONTEST");
-
-        assertThat(put("/api/shows/1/entries/" + entries.getFirst() + "/participant", "{\"participantId\":" + alpha + "}").statusCode())
-                .isEqualTo(200);
-        HttpResponse<String> duplicateAssignment = put("/api/shows/1/entries/" + entries.get(1) + "/participant", "{\"participantId\":" + alpha + "}");
-        assertThat(duplicateAssignment.statusCode()).isEqualTo(409);
-        assertThat(duplicateAssignment.body()).contains("PARTICIPANT_ALREADY_ASSIGNED_IN_SHOW");
-        assertThat(put("/api/shows/1/entries/" + entries.get(1) + "/participant", "{\"participantId\":" + beta + "}").statusCode())
-                .isEqualTo(200);
-        HttpResponse<String> inactiveAssignment = put("/api/shows/1/entries/" + entries.get(2) + "/participant", "{\"participantId\":" + inactive + "}");
-        assertThat(inactiveAssignment.statusCode()).isEqualTo(409);
-        assertThat(inactiveAssignment.body()).contains("INACTIVE_PARTICIPANT_CANNOT_BE_ASSIGNED");
-        jdbcTemplate.update("UPDATE motto_show SET ballot_closed_at = CURRENT_TIMESTAMP WHERE id = 2");
-        long otherShowEntry = createEntries(2, 1).getFirst();
-        assertThat(put("/api/shows/2/entries/" + otherShowEntry + "/participant", "{\"participantId\":" + alpha + "}").statusCode())
-                .isEqualTo(200);
-
-        HttpResponse<String> firstRead = get("/api/shows/1/results");
-        assertThat(firstRead.statusCode()).isEqualTo(200);
-        assertThat(firstRead.body()).contains("\"displayName\":\"Alpha\"", "\"status\":\"UNBEKANNT\"", "\"persisted\":false");
-        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM received_score WHERE motto_show_id = 1", Integer.class)).isZero();
-        createAndSelectSubmission(1);
-        HttpResponse<String> closeWithUnknownActiveParticipant = post("/api/shows/1/results/close", null);
-        assertThat(closeWithUnknownActiveParticipant.statusCode()).isEqualTo(409);
-        assertThat(closeWithUnknownActiveParticipant.body()).contains("RESULTS_CLOSE_REQUIRES_KNOWN_ACTIVE_SCORES");
-        assertThat(put("/api/shows/1/results/details", "{\"officialTotalPoints\":null,\"finalPlace\":null,\"finalPlaceTied\":true}").body())
-                .contains("TIED_FINAL_PLACE_REQUIRES_FINAL_PLACE");
-        assertThat(put("/api/shows/1/results/scores/" + alpha, "{\"status\":\"UNBEKANNT\",\"points\":0}").statusCode()).isEqualTo(400);
-        assertThat(put("/api/shows/1/results/scores/" + alpha, "{\"status\":\"ABGESTIMMT\",\"points\":12}").statusCode()).isEqualTo(400);
-        assertThat(put("/api/shows/1/results/scores/" + alpha, "{\"status\":\"ABGESTIMMT\",\"points\":0}").statusCode()).isEqualTo(200);
-        assertThat(put("/api/shows/1/results/scores/" + beta, "{\"status\":\"NICHT_ABGESTIMMT\",\"points\":null}").statusCode()).isEqualTo(200);
-        assertThat(put("/api/shows/1/results/scores/" + historic, "{\"status\":\"ABGESTIMMT\",\"points\":5}").statusCode()).isEqualTo(200);
-        jdbcTemplate.update("UPDATE contest_participation SET active = 0 WHERE contest_id = 1 AND participant_id = ?", historic);
-        jdbcTemplate.update("UPDATE contest_participation SET active = 0 WHERE contest_id = 1 AND participant_id = ?", beta);
-        assertThat(get("/api/shows/1/entries").body()).contains("\"id\":" + entries.get(1), "\"participantId\":" + beta);
-        assertThat(put("/api/shows/1/entries/" + entries.get(1) + "/participant", "{\"participantId\":null}").statusCode()).isEqualTo(200);
-
-        HttpResponse<String> scored = get("/api/shows/1/results");
-        assertThat(scored.body()).contains("\"status\":\"ABGESTIMMT\",\"points\":0", "\"status\":\"NICHT_ABGESTIMMT\",\"points\":null");
-        assertThat(scored.body()).contains("\"displayName\":\"Historisch\"", "\"active\":false", "\"calculatedTotalPoints\":5");
-        assertThat(delete("/api/participants/" + historic).body()).contains("PARTICIPANT_IN_USE");
-
-        assertThat(post("/api/shows/1/results/close", null).body()).contains("RESULTS_CLOSE_REQUIRES_FINAL_PLACE");
-        HttpResponse<String> details = put("/api/shows/1/results/details", "{\"officialTotalPoints\":7,\"finalPlace\":3,\"finalPlaceTied\":true}");
-        assertThat(details.statusCode()).isEqualTo(200);
-        assertThat(details.body()).contains("\"calculatedTotalPoints\":5", "\"officialTotalPoints\":7", "\"officialTotalDifference\":2", "\"finalPlace\":3", "\"finalPlaceTied\":true");
-
-        HttpResponse<String> closed = post("/api/shows/1/results/close", null);
-        assertThat(closed.statusCode()).isEqualTo(200);
-        assertThat(closed.body()).contains("\"resultsClosedAt\":");
-        assertThat(put("/api/shows/1/results/scores/" + alpha, "{\"status\":\"ABGESTIMMT\",\"points\":1}").body())
-                .contains("RESULTS_REOPEN_REQUIRED");
-        assertThat(delete("/api/shows/1/submission").body()).contains("RESULTS_REOPEN_REQUIRED_FOR_SUBMISSION_CHANGE");
-        assertThat(post("/api/shows/1/ballot/reopen", null).body()).contains("RESULTS_REOPEN_REQUIRED_BEFORE_BALLOT_REOPEN");
-
-        HttpResponse<String> reopenedResults = post("/api/shows/1/results/reopen", null);
-        assertThat(reopenedResults.statusCode()).isEqualTo(200);
-        assertThat(reopenedResults.body()).contains("\"resultsClosedAt\":null", "\"calculatedTotalPoints\":5", "\"officialTotalPoints\":7", "\"finalPlace\":3");
-        assertThat(post("/api/shows/1/ballot/reopen", null).statusCode()).isEqualTo(200);
-        assertThat(put("/api/shows/1/results/scores/" + alpha, "{\"status\":\"ABGESTIMMT\",\"points\":1}").body())
-                .contains("RESULTS_REQUIRE_CLOSED_BALLOT");
+        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat(response.body()).contains(
+                "\"prerequisite\":\"READY\"", "\"state\":\"OWN_ENTRY\"", "\"state\":\"RANKED\"",
+                "\"rank\":1", "\"points\":25", "\"state\":\"OUTSIDE_TOP_15\"", "\"points\":0",
+                "\"state\":\"NO_BALLOT\"", "\"state\":\"UNKNOWN\"", "\"derivedTotalPoints\":25"
+        );
+        assertThat(response.body()).doesNotContain("officialTotalPoints", "finalPlace", "resultsClosedAt");
     }
 
-    private long createParticipant(String displayName, boolean active) throws Exception {
-        long participantId = createIdentity(displayName, active);
-        assertThat(post("/api/contests/1/participants", "{\"participantId\":" + participantId + ",\"countryCode\":\"DE\",\"active\":" + active + "}").statusCode())
-                .isEqualTo(201);
-        return participantId;
+    @Test
+    void leavesAnOldZeroScoreUnknownAndDoesNotCreateABallot() throws Exception {
+        insertContestFixture();
+        jdbc.update("""
+                INSERT INTO legacy_received_score (id,motto_show_id,contest_id,contest_participation_id,status,points,created_at,updated_at,archived_at)
+                VALUES (900,1,1,4,'ABGESTIMMT',0,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+                """);
+
+        HttpResponse<String> response = get("/api/shows/1/results");
+
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM published_ballot WHERE contest_participation_id = 4", Integer.class)).isZero();
+        assertThat(response.body()).contains("\"displayName\":\"Unbekannt\"", "\"state\":\"UNKNOWN\"");
+        assertThat(get("/api/shows/1/results/legacy").body()).contains("\"status\":\"ABGESTIMMT\"", "\"points\":0");
+        assertThat(response.body()).doesNotContain("\"displayName\":\"Unbekannt\",\"countryCode\":\"DK\",\"countryName\":\"Dänemark\",\"ballotStatus\":\"ABGESTIMMT\"");
     }
 
-    private long createIdentity(String displayName, boolean active) throws Exception {
-        HttpResponse<String> response = post("/api/participants", "{\"displayName\":\"" + displayName + "\",\"active\":" + active + "}");
-        assertThat(response.statusCode()).isEqualTo(201);
-        return firstId(response.body());
+    @Test
+    void reportsMissingOwnParticipationAndOwnEntryExplicitly() throws Exception {
+        assertThat(get("/api/shows/1/results").body()).contains("\"prerequisite\":\"OWN_PARTICIPATION_MISSING\"");
+        insertParticipant(1, "Ich", "DE");
+        jdbc.update("UPDATE contest SET own_participation_id = 1 WHERE id = 1");
+        jdbc.update("UPDATE motto_show SET entry_list_complete = 1 WHERE id = 1");
+        assertThat(get("/api/shows/1/results").body()).contains("\"prerequisite\":\"OWN_ENTRY_MISSING\"");
     }
 
-    private List<Long> createEntries(long showId, int count) throws Exception {
-        List<Long> ids = new ArrayList<>();
-        for (int index = 1; index <= count; index++) {
-            HttpResponse<String> response = post("/api/shows/" + showId + "/entries", """
-                    {"artist":"Artist %d","title":"Song %d","youtubeUrl":"https://youtu.be/dQw4w9WgXcQ","comment":null}
-                    """.formatted(index, index));
-            assertThat(response.statusCode()).isEqualTo(201);
-            ids.add(firstId(response.body()));
+    @Test
+    void requiresEveryRevealedCurrentEntryToBeAssignedBeforeDerivingOwnResults() throws Exception {
+        insertParticipant(1, "Ich", "DE");
+        jdbc.update("UPDATE contest SET own_participation_id = 1 WHERE id = 1");
+        jdbc.update("""
+                INSERT INTO contest_entry (id,motto_show_id,contest_id,artist,title,youtube_url,pool_position,contest_participation_id,created_at,updated_at)
+                VALUES (100,1,1,'Band','Song','https://example.test/100',1,1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP),
+                       (101,1,1,'Other Band','Other Song','https://example.test/101',2,NULL,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+                """);
+
+        assertThat(get("/api/shows/1/results").body()).contains("\"prerequisite\":\"ENTRY_LIST_INCOMPLETE\"");
+
+        insertParticipant(2, "Andere", "AT");
+        jdbc.update("UPDATE contest_entry SET contest_participation_id = 2 WHERE id = 101");
+
+        assertThat(get("/api/shows/1/results").body()).contains("\"prerequisite\":\"READY\"");
+    }
+
+    @Test
+    void keepsRevealedCurrentSongListReadyAfterOwnBallotIsReopened() throws Exception {
+        insertCurrentRevealedFixture();
+
+        assertThat(get("/api/shows/1/results").body()).contains("\"prerequisite\":\"READY\"", "\"state\":\"RANKED\"");
+        assertThat(get("/api/shows/1/published-ballots").body()).contains("\"entryListReady\":true");
+
+        HttpResponse<String> reopened = post("/api/shows/1/ballot/reopen", null);
+        assertThat(reopened.statusCode()).isEqualTo(200);
+        assertThat(jdbc.queryForObject("SELECT ballot_closed_at FROM motto_show WHERE id=1", String.class)).isNull();
+
+        assertThat(get("/api/shows/1/results").body()).contains("\"prerequisite\":\"READY\"", "\"state\":\"RANKED\"");
+        assertThat(get("/api/shows/1/published-ballots").body()).contains("\"entryListReady\":true");
+        assertThat(get("/api/data/export/results.csv").body()).contains("Band 100 – Song 100", "RANG_1_BIS_15", ";1;25");
+
+        HttpResponse<String> statusUpdate = put("/api/shows/1/published-ballots/2/status", "{\"status\":\"NICHT_ABGESTIMMT\"}");
+        assertThat(statusUpdate.statusCode()).isEqualTo(204);
+        assertThat(get("/api/shows/1/results").body()).contains("\"prerequisite\":\"READY\"", "\"state\":\"NO_BALLOT\"");
+
+        HttpResponse<String> changeOwnParticipation = put("/api/contests/1/own-participation", "{\"participationId\":2}");
+        assertThat(changeOwnParticipation.statusCode()).isEqualTo(409);
+        assertThat(changeOwnParticipation.body()).contains("OWN_PARTICIPATION_CHANGE_CONFIRMATION_REQUIRED");
+    }
+
+    private void insertContestFixture() {
+        insertParticipant(1, "Ich", "DE");
+        insertParticipant(2, "Rang", "AT");
+        insertParticipant(3, "Keine Stimme", "BE");
+        insertParticipant(4, "Unbekannt", "DK");
+        insertParticipant(5, "Außerhalb", "CH");
+        jdbc.update("UPDATE contest SET own_participation_id = 1 WHERE id = 1");
+        jdbc.update("UPDATE motto_show SET entry_list_complete = 1 WHERE id = 1");
+        for (int id = 100; id <= 115; id++) {
+            Long participation = id == 100 ? Long.valueOf(1) : id == 101 ? Long.valueOf(2) : null;
+            jdbc.update("""
+                    INSERT INTO contest_entry (id,motto_show_id,contest_id,artist,title,youtube_url,pool_position,contest_participation_id,created_at,updated_at)
+                    VALUES (?,1,1,?,?,?, ?, ?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+                    """, id, "Band " + id, "Song " + id, "https://example.test/" + id, id - 99, participation);
         }
-        return ids;
+        jdbc.update("""
+                INSERT INTO published_ballot (id,motto_show_id,contest_id,contest_participation_id,status,created_at,updated_at)
+                VALUES (200,1,1,2,'ABGESTIMMT',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP),
+                       (201,1,1,3,'NICHT_ABGESTIMMT',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP),
+                       (202,1,1,5,'ABGESTIMMT',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+                """);
+        for (int rank = 1; rank <= 15; rank++) {
+            long entryId = rank == 1 ? 100 : 100 + rank;
+            jdbc.update("INSERT INTO published_ballot_position (published_ballot_id,contest_entry_id,rank) VALUES (200,?,?)", entryId, rank);
+        }
     }
 
-    private void createAndSelectSubmission(long showId) throws Exception {
-        jdbcTemplate.update("""
-                INSERT INTO candidate (motto_show_id, artist, title, youtube_url, status, manual_position, created_at, updated_at)
-                VALUES (?, 'Eigene Einreichung', 'Mein Song', 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', 'FINALIST', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                """, showId);
-        long candidateId = jdbcTemplate.queryForObject("SELECT id FROM candidate WHERE motto_show_id = ?", Long.class, showId);
-        assertThat(put("/api/shows/" + showId + "/submission", "{\"candidateId\":" + candidateId + ",\"confirmReplacement\":false}").statusCode())
-                .isEqualTo(200);
+    private void insertCurrentRevealedFixture() {
+        for (int id = 1; id <= 16; id++) insertParticipant(id, id == 1 ? "Ich" : "Teilnehmer " + id, "DE");
+        jdbc.update("UPDATE contest SET own_participation_id = 1 WHERE id = 1");
+        for (int id = 100; id <= 115; id++) {
+            int participationId = id - 99;
+            jdbc.update("""
+                    INSERT INTO contest_entry (id,motto_show_id,contest_id,artist,title,youtube_url,pool_position,contest_participation_id,created_at,updated_at)
+                    VALUES (?,1,1,?,?,?, ?, ?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+                    """, id, "Band " + id, "Song " + id, "https://example.test/" + id, id - 99, participationId);
+        }
+        jdbc.update("UPDATE motto_show SET entry_list_complete=0,ballot_closed_at=CURRENT_TIMESTAMP WHERE id=1");
+        jdbc.update("INSERT INTO ballot_snapshot (id,motto_show_id,snapshot_number,created_at,is_current) VALUES (500,1,1,CURRENT_TIMESTAMP,1)");
+        jdbc.update("""
+                INSERT INTO published_ballot (id,motto_show_id,contest_id,contest_participation_id,status,created_at,updated_at)
+                VALUES (600,1,1,2,'ABGESTIMMT',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+                """);
+        for (int rank = 1; rank <= 15; rank++) {
+            long entryId = rank == 1 ? 100 : 100 + rank;
+            jdbc.update("INSERT INTO published_ballot_position (published_ballot_id,contest_entry_id,rank) VALUES (600,?,?)", entryId, rank);
+        }
     }
 
-    private static String reorderJson(List<Long> rankedEntryIds, List<Long> unrankedEntryIds) {
-        return "{\"rankedEntryIds\":" + rankedEntryIds + ",\"unrankedEntryIds\":" + unrankedEntryIds + "}";
+    private void insertParticipant(long id, String name, String country) {
+        jdbc.update("INSERT INTO participant (id,display_name,active,created_at,updated_at) VALUES (?,?,1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", id, name);
+        jdbc.update("INSERT INTO contest_participation (id,contest_id,participant_id,country_code,active,created_at,updated_at) VALUES (?,1,?,?,1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", id, id, country);
     }
 
-    private static long firstId(String body) {
-        int start = body.indexOf("\"id\":") + 5;
-        int end = body.indexOf(',', start);
-        return Long.parseLong(body.substring(start, end));
-    }
-
-    private HttpResponse<String> get(String path) throws Exception {
-        return request("GET", path, null);
-    }
-
-    private HttpResponse<String> post(String path, String body) throws Exception {
-        return request("POST", path, body);
-    }
-
-    private HttpResponse<String> put(String path, String body) throws Exception {
-        return request("PUT", path, body);
-    }
-
-    private HttpResponse<String> delete(String path) throws Exception {
-        return request("DELETE", path, null);
-    }
-
+    private HttpResponse<String> get(String path) throws Exception { return request("GET", path, null); }
+    private HttpResponse<String> post(String path, String body) throws Exception { return request("POST", path, body); }
+    private HttpResponse<String> put(String path, String body) throws Exception { return request("PUT", path, body); }
     private HttpResponse<String> request(String method, String path, String body) throws Exception {
         HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + path));
-        if (body == null) {
-            builder.method(method, HttpRequest.BodyPublishers.noBody());
-        } else {
-            builder.header("Content-Type", "application/json").method(method, HttpRequest.BodyPublishers.ofString(body));
-        }
+        if (body == null) builder.method(method, HttpRequest.BodyPublishers.noBody());
+        else builder.header("Content-Type", "application/json").method(method, HttpRequest.BodyPublishers.ofString(body));
         return client.send(builder.build(), HttpResponse.BodyHandlers.ofString());
     }
 
     private static Path temporaryStorageRoot() {
-        try {
-            return Files.createTempDirectory("csc-x-tool-result-api-");
-        } catch (Exception exception) {
-            throw new IllegalStateException("Temporäres SQLite-Testverzeichnis konnte nicht angelegt werden.", exception);
-        }
+        try { return Files.createTempDirectory("csc-x-tool-result-"); }
+        catch (Exception exception) { throw new IllegalStateException(exception); }
     }
 }

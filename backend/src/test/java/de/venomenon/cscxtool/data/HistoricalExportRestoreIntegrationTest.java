@@ -58,7 +58,7 @@ class HistoricalExportRestoreIntegrationTest {
     void roundTripsACompletedHistoricalSongListWithAMissingSourceUrl() throws Exception {
         insertCompletedHistoricalSongListWithoutUrl();
 
-        Path jsonFile = temporaryDirectory.resolve("historical-v5.json");
+        Path jsonFile = temporaryDirectory.resolve("historical-v7.json");
         Files.write(jsonFile, exports.exportJson());
         ExportFormat.FullExport validated = exports.readAndValidate(jsonFile);
         Path restoredDatabase = temporaryDirectory.resolve("historical-restored.db");
@@ -92,11 +92,12 @@ class HistoricalExportRestoreIntegrationTest {
                 current.applicationVersion(),
                 10,
                 new ExportFormat.DataV4(
-                        data.contests(),
+                        data.contests().stream().map(contest -> new ExportFormat.ContestV6(
+                                contest.id(), contest.name(), contest.displayOrder(), contest.current(), contest.createdAt(), contest.updatedAt()
+                        )).toList(),
                         data.mottoShows().stream().map(show -> new ExportFormat.MottoShowV4(
                                 show.id(), show.contestId(), show.showNumber(), show.name(), show.selectedCandidateId(),
-                                show.ballotClosedAt(), show.resultsClosedAt(), show.finalPlace(), show.finalPlaceTied(),
-                                show.officialTotalPoints(), show.createdAt(), show.updatedAt()
+                                show.ballotClosedAt(), null, null, false, null, show.createdAt(), show.updatedAt()
                         )).toList(),
                         data.candidates(),
                         data.participants(),
@@ -105,7 +106,10 @@ class HistoricalExportRestoreIntegrationTest {
                         data.contestEntries(),
                         data.ballotSnapshots(),
                         data.ballotSnapshotItems(),
-                        data.receivedScores()
+                        data.legacyReceivedScores().stream().map(score -> new ExportFormat.ReceivedScore(
+                                score.id(), score.mottoShowId(), score.contestId(), score.contestParticipationId(), score.status(),
+                                score.points(), score.createdAt(), score.updatedAt()
+                        )).toList()
                 )
         );
         Path jsonFile = temporaryDirectory.resolve("legacy-v4.json");

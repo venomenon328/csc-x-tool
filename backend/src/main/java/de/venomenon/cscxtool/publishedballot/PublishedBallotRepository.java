@@ -2,6 +2,7 @@ package de.venomenon.cscxtool.publishedballot;
 
 import de.venomenon.cscxtool.participant.Country;
 import de.venomenon.cscxtool.participant.CountryCatalog;
+import de.venomenon.cscxtool.shared.EntryListReadiness;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Statement;
@@ -30,7 +31,6 @@ class PublishedBallotRepository {
     Optional<ShowFacts> findShowFacts(long showId) {
         return jdbc.query("""
                 SELECT show.id, show.contest_id, contest.is_current, show.entry_list_complete,
-                       show.ballot_closed_at IS NOT NULL,
                        EXISTS(SELECT 1 FROM contest_entry entry WHERE entry.motto_show_id = show.id),
                        NOT EXISTS(
                          SELECT 1 FROM contest_entry entry
@@ -39,7 +39,7 @@ class PublishedBallotRepository {
                 FROM motto_show show JOIN contest ON contest.id = show.contest_id
                 WHERE show.id = ?
                 """, (r, n) -> new ShowFacts(
-                r.getLong(1), r.getLong(2), r.getBoolean(3), r.getBoolean(4), r.getBoolean(5), r.getBoolean(6), r.getBoolean(7)
+                r.getLong(1), r.getLong(2), r.getBoolean(3), r.getBoolean(4), r.getBoolean(5), r.getBoolean(6)
         ), showId).stream().findFirst();
     }
 
@@ -178,12 +178,11 @@ class PublishedBallotRepository {
             long contestId,
             boolean currentContest,
             boolean entryListComplete,
-            boolean ownBallotClosed,
             boolean hasEntries,
             boolean allEntriesAssigned
     ) {
         boolean entryListReady() {
-            return entryListComplete || (currentContest && ownBallotClosed && hasEntries && allEntriesAssigned);
+            return EntryListReadiness.isReady(entryListComplete, currentContest, hasEntries, allEntriesAssigned);
         }
     }
 }

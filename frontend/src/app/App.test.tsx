@@ -5,23 +5,21 @@ import { App } from './App'
 
 const shows = [
   {
-    id: 1, showNumber: 1, name: 'Super Men', candidateCount: 2,
+    id: 1, contestId: 1, showNumber: 1, name: 'Super Men', entryListComplete: false, candidateCount: 2,
     selectedCandidate: { id: 101, artist: 'Artist', title: 'Titel', youtubeUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' },
     contestEntryCount: 18, assessedEntryCount: 16, rankedEntryCount: 15,
-    assignedEntryCount: 0, activeParticipantCount: 0, knownActiveResultCount: 0,
-    ballotClosedAt: null, resultsClosedAt: null, calculatedTotalPoints: 0,
-    officialTotalPoints: null, officialTotalDifference: null, finalPlace: null, finalPlaceTied: false,
+    assignedEntryCount: 0, activeParticipantCount: 0, publishedBallotVotedCount: 0, publishedBallotNotVotedCount: 0, publishedBallotUnrecordedCount: 0,
+    ballotClosedAt: null,
   },
   {
-    id: 9, showNumber: 9, name: 'TBA', candidateCount: 0, selectedCandidate: null,
+    id: 9, contestId: 1, showNumber: 9, name: 'TBA', entryListComplete: false, candidateCount: 0, selectedCandidate: null,
     contestEntryCount: 0, assessedEntryCount: 0, rankedEntryCount: 0,
-    assignedEntryCount: 0, activeParticipantCount: 0, knownActiveResultCount: 0,
-    ballotClosedAt: null, resultsClosedAt: null, calculatedTotalPoints: 0,
-    officialTotalPoints: null, officialTotalDifference: null, finalPlace: null, finalPlaceTied: false,
+    assignedEntryCount: 0, activeParticipantCount: 0, publishedBallotVotedCount: 0, publishedBallotNotVotedCount: 0, publishedBallotUnrecordedCount: 0,
+    ballotClosedAt: null,
   },
 ]
 
-const currentContest = { id: 1, name: 'CSC X', displayOrder: 1, current: true, participantCount: 0, showCount: 12, createdAt: '', updatedAt: '' }
+const currentContest = { id: 1, name: 'CSC X', displayOrder: 1, current: true, participantCount: 0, showCount: 12, ownParticipationId: null, createdAt: '', updatedAt: '' }
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -44,7 +42,7 @@ describe('App', () => {
   })
 
   it('loads a compact accessible show overview and keeps the prepared work-area navigation', async () => {
-    fetchMock.mockResolvedValue(jsonResponse(shows))
+    fetchMock.mockImplementation(async (input) => jsonResponse(String(input) === '/api/contests' ? [currentContest] : shows))
     render(<App />)
 
     expect(screen.getByLabelText('Mottoshows werden geladen')).toBeVisible()
@@ -71,7 +69,7 @@ describe('App', () => {
     expect(within(rankedMetric).getByText('Gerankt')).toBeVisible()
 
     expect(card.getByLabelText('Top 15: Offen')).toBeVisible()
-    expect(card.getByLabelText('Ergebnis: Wartet auf Top 15')).toBeVisible()
+    expect(card.getByLabelText('Einzelwertungen: 0 abgegeben · 0 nicht abgestimmt · 0 unerfasst')).toBeVisible()
     expect(card.getByRole('link', { name: 'Kandidaten' })).toHaveAttribute('href', '/shows/1/candidates')
     expect(card.getByRole('link', { name: 'Abstimmung' })).toHaveAttribute('href', '/shows/1/voting')
     expect(card.getByRole('link', { name: 'Ergebnis' })).toHaveAttribute('href', '/shows/1/result')
@@ -90,7 +88,7 @@ describe('App', () => {
   })
 
   it('renders a clear empty state when the API has no shows', async () => {
-    fetchMock.mockResolvedValue(jsonResponse([]))
+    fetchMock.mockImplementation(async (input) => jsonResponse(String(input) === '/api/contests' ? [currentContest] : []))
     render(<App />)
 
     expect(await screen.findByText('Noch keine Mottoshows verfügbar.')).toBeVisible()
@@ -111,35 +109,28 @@ describe('App', () => {
     expect(window.location.pathname).toBe('/')
   })
 
-  it('shows the closed Top-15 workflow and every later result detail on the overview', async () => {
-    fetchMock.mockResolvedValue(jsonResponse([{
-      ...shows[0], assignedEntryCount: 17, activeParticipantCount: 20, knownActiveResultCount: 18,
+  it('shows published-ballot progress without official result fields on the overview', async () => {
+    fetchMock.mockImplementation(async (input) => jsonResponse(String(input) === '/api/contests' ? [currentContest] : [{
+      ...shows[0], assignedEntryCount: 17, activeParticipantCount: 20, publishedBallotVotedCount: 18, publishedBallotNotVotedCount: 1, publishedBallotUnrecordedCount: 1,
       ballotClosedAt: '2026-08-27T12:00:00Z',
-      calculatedTotalPoints: 42, officialTotalPoints: 40, officialTotalDifference: -2,
-      finalPlace: 7, finalPlaceTied: true,
     }]))
     render(<App />)
 
     expect(await screen.findByLabelText('Top 15: Abgeschlossen')).toBeVisible()
     expect(screen.getByLabelText('Zugeordnet: 17 / 18 Beiträge')).toBeVisible()
-    expect(screen.getByLabelText('Ergebnis: In Arbeit · 18 / 20 erfasst')).toBeVisible()
-    expect(screen.getByText('42 Punkte')).toBeVisible()
-    expect(screen.getByText('Berechnet')).toBeVisible()
-    expect(screen.getByText('40 Punkte')).toBeVisible()
-    expect(screen.getByText('Offiziell')).toBeVisible()
-    expect(screen.getByRole('alert')).toHaveTextContent('Die offizielle Summe weicht um 2 Punkte ab.')
-    expect(screen.getByText('Endplatzierung: 7. Platz (geteilt)')).toBeVisible()
+    expect(screen.getByLabelText('Einzelwertungen: 18 abgegeben · 1 nicht abgestimmt · 1 unerfasst')).toBeVisible()
+    expect(screen.queryByText('Offiziell')).not.toBeInTheDocument()
+    expect(screen.queryByText(/Endplatzierung/)).not.toBeInTheDocument()
   })
 
-  it('identifies a completed result independently from a completed Top 15', async () => {
-    fetchMock.mockResolvedValue(jsonResponse([{
-      ...shows[0], ballotClosedAt: '2026-08-27T12:00:00Z', resultsClosedAt: '2026-08-28T12:00:00Z',
+  it('keeps the own Top-15 lifecycle separate from published-ballot progress', async () => {
+    fetchMock.mockImplementation(async (input) => jsonResponse(String(input) === '/api/contests' ? [currentContest] : [{
+      ...shows[0], ballotClosedAt: '2026-08-27T12:00:00Z', publishedBallotVotedCount: 3, publishedBallotNotVotedCount: 2, publishedBallotUnrecordedCount: 4,
     }]))
     render(<App />)
 
-    expect(await screen.findAllByText('Abgeschlossen')).toHaveLength(2)
-    expect(screen.getByLabelText('Top 15: Abgeschlossen')).toBeVisible()
-    expect(screen.getByLabelText('Ergebnis: Abgeschlossen')).toBeVisible()
+    expect(await screen.findByLabelText('Top 15: Abgeschlossen')).toBeVisible()
+    expect(screen.getByLabelText('Einzelwertungen: 3 abgegeben · 2 nicht abgestimmt · 4 unerfasst')).toBeVisible()
   })
 
   it('persists a renamed show and updates the overview from the direct edit action', async () => {

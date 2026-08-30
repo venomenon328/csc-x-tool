@@ -34,7 +34,7 @@ describe('DataManagementPage', () => {
       if (path === '/api/data/restore/preview/backups/manual.cscbackup' && init?.method === 'POST') return jsonResponse({
         token: 'preview-token', sourceType: 'Sicherung', sourceName: 'manual.cscbackup', createdAt: '2026-08-28T10:00:00Z',
         applicationVersion: '0.0.1', schemaVersion: 7, compatible: true,
-        counts: { mottoShows: 12, candidates: 3, participants: 2, contestEntries: 15, ballotSnapshots: 1, receivedScores: 2 },
+        counts: { mottoShows: 12, candidates: 3, participants: 2, contestEntries: 15, ballotSnapshots: 1, legacyReceivedScores: 2 },
       })
       throw new Error(`Unexpected request ${path}`)
     })

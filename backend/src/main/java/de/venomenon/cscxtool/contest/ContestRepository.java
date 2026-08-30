@@ -1,5 +1,6 @@
 package de.venomenon.cscxtool.contest;
 
+import de.venomenon.cscxtool.shared.EntryListReadiness;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -139,14 +140,35 @@ public class ContestRepository {
         return jdbcTemplate.update("DELETE FROM contest_participation WHERE contest_id = ? AND participant_id = ?", contestId, participantId) == 1;
     }
 
+    public boolean updateOwnParticipation(long contestId, Long participationId) {
+        return jdbcTemplate.update("UPDATE contest SET own_participation_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", participationId, contestId) == 1;
+    }
+
+    public boolean hasDerivedOwnResults(long contestId, long participationId) {
+        return jdbcTemplate.query("""
+                SELECT show.entry_list_complete, contest.is_current,
+                       EXISTS(SELECT 1 FROM contest_entry entry WHERE entry.motto_show_id = show.id),
+                       NOT EXISTS(SELECT 1 FROM contest_entry entry WHERE entry.motto_show_id = show.id
+                                  AND entry.contest_participation_id IS NULL)
+                FROM motto_show show
+                JOIN contest ON contest.id = show.contest_id
+                JOIN contest_entry own_entry
+                  ON own_entry.motto_show_id = show.id AND own_entry.contest_participation_id = ?
+                WHERE show.contest_id = ?
+                """, (resultSet, rowNumber) -> EntryListReadiness.isReady(
+                resultSet.getBoolean(1), resultSet.getBoolean(2), resultSet.getBoolean(3), resultSet.getBoolean(4)
+        ), participationId, contestId).stream().anyMatch(Boolean::booleanValue);
+    }
+
     public boolean participationIsReferenced(long contestId, long participantId) {
         return Boolean.TRUE.equals(jdbcTemplate.queryForObject("""
                 SELECT EXISTS(
                   SELECT 1 FROM contest_participation participation
                   WHERE participation.contest_id = ? AND participation.participant_id = ?
                     AND (EXISTS (SELECT 1 FROM contest_entry entry WHERE entry.contest_participation_id = participation.id)
-                      OR EXISTS (SELECT 1 FROM received_score score WHERE score.contest_participation_id = participation.id)
-                      OR EXISTS (SELECT 1 FROM published_ballot ballot WHERE ballot.contest_participation_id = participation.id))
+                      OR EXISTS (SELECT 1 FROM legacy_received_score score WHERE score.contest_participation_id = participation.id)
+                      OR EXISTS (SELECT 1 FROM published_ballot ballot WHERE ballot.contest_participation_id = participation.id)
+                      OR EXISTS (SELECT 1 FROM contest WHERE own_participation_id = participation.id))
                 )
                 """, Boolean.class, contestId, participantId));
     }
@@ -156,6 +178,7 @@ public class ContestRepository {
                 SELECT contest.id, contest.name, contest.display_order, contest.is_current,
                        (SELECT COUNT(*) FROM contest_participation WHERE contest_id = contest.id) AS participant_count,
                        (SELECT COUNT(*) FROM motto_show WHERE contest_id = contest.id) AS show_count,
+                       contest.own_participation_id,
                        contest.created_at, contest.updated_at
                 FROM contest
                 """ + suffix;
@@ -165,6 +188,7 @@ public class ContestRepository {
         return new Contest(
                 resultSet.getLong("id"), resultSet.getString("name"), resultSet.getInt("display_order"),
                 resultSet.getBoolean("is_current"), resultSet.getInt("participant_count"), resultSet.getInt("show_count"),
+                nullableLong(resultSet, "own_participation_id"),
                 resultSet.getTimestamp("created_at").toInstant(), resultSet.getTimestamp("updated_at").toInstant()
         );
     }
@@ -175,5 +199,10 @@ public class ContestRepository {
                 resultSet.getString("country_code"), resultSet.getBoolean("active"),
                 resultSet.getTimestamp("created_at").toInstant(), resultSet.getTimestamp("updated_at").toInstant()
         );
+    }
+
+    private static Long nullableLong(ResultSet resultSet, String column) throws SQLException {
+        long value = resultSet.getLong(column);
+        return resultSet.wasNull() ? null : value;
     }
 }

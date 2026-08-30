@@ -61,6 +61,29 @@ class ContestService {
         return ContestResponse.from(repository.findById(contestId).orElseThrow(() -> new ContestNotFoundException(contestId)));
     }
 
+    @Transactional
+    ContestResponse setOwnParticipation(long contestId, SetOwnParticipationRequest request) {
+        Contest contest = repository.findById(contestId).orElseThrow(() -> new ContestNotFoundException(contestId));
+        Long nextParticipationId = request == null ? null : request.participationId();
+        if (nextParticipationId != null && repository.findParticipations(contestId).stream().noneMatch(participation -> participation.id() == nextParticipationId)) {
+            throw new ApiConflictException(
+                    "OWN_PARTICIPATION_NOT_IN_CONTEST",
+                    "Die eigene Teilnahme muss zu dieser CSC-Ausgabe gehören."
+            );
+        }
+        if (!java.util.Objects.equals(contest.ownParticipationId(), nextParticipationId)
+                && contest.ownParticipationId() != null
+                && repository.hasDerivedOwnResults(contestId, contest.ownParticipationId())
+                && (request == null || !request.isConfirmed())) {
+            throw new ApiConflictException(
+                    "OWN_PARTICIPATION_CHANGE_CONFIRMATION_REQUIRED",
+                    "Die eigene Teilnahme wird bereits für abgeleitete Ergebnisse verwendet und muss bewusst geändert werden."
+            );
+        }
+        repository.updateOwnParticipation(contestId, nextParticipationId);
+        return ContestResponse.from(repository.findById(contestId).orElseThrow(() -> new ContestNotFoundException(contestId)));
+    }
+
     void requireContest(long contestId) {
         if (!repository.exists(contestId)) {
             throw new ContestNotFoundException(contestId);

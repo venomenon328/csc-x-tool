@@ -35,3 +35,6 @@ databaseChangeLog:
   - include:
       file: 012-published-ballots.yaml
       relativeToChangelogFile: true
+  - include:
+      file: 013-derived-own-results.yaml
+      relativeToChangelogFile: true

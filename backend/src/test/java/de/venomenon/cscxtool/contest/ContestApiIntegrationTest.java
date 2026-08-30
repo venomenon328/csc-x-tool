@@ -56,9 +56,36 @@ class ContestApiIntegrationTest {
                 .isInstanceOf(DataAccessException.class);
     }
 
+    @Test
+    void selectsOnlyAnExplicitParticipationFromTheSameContestAndConfirmsDerivedResultChanges() throws Exception {
+        jdbcTemplate.update("INSERT INTO participant (id,display_name,active,created_at,updated_at) VALUES (10,'Ich',1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)");
+        jdbcTemplate.update("INSERT INTO participant (id,display_name,active,created_at,updated_at) VALUES (11,'Andere',1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)");
+        jdbcTemplate.update("INSERT INTO contest_participation (id,contest_id,participant_id,country_code,active,created_at,updated_at) VALUES (10,1,10,'DE',1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)");
+        jdbcTemplate.update("INSERT INTO contest_participation (id,contest_id,participant_id,country_code,active,created_at,updated_at) VALUES (11,1,11,'AT',1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)");
+        long otherContestId = firstId(post("/api/contests", "{\"name\":\"CSC Fremd\"}").body());
+        jdbcTemplate.update("INSERT INTO contest_participation (id,contest_id,participant_id,country_code,active,created_at,updated_at) VALUES (12,?,11,'AT',1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", otherContestId);
+
+        HttpResponse<String> selected = put("/api/contests/1/own-participation", "{\"participationId\":10}");
+        assertThat(selected.statusCode()).isEqualTo(200);
+        assertThat(selected.body()).contains("\"ownParticipationId\":10");
+        assertThat(put("/api/contests/1/own-participation", "{\"participationId\":12}").statusCode()).isEqualTo(409);
+
+        jdbcTemplate.update("UPDATE motto_show SET entry_list_complete = 1 WHERE id = 1");
+        jdbcTemplate.update("""
+                INSERT INTO contest_entry (motto_show_id,contest_id,artist,title,youtube_url,pool_position,contest_participation_id,created_at,updated_at)
+                VALUES (1,1,'Eigene Band','Eigener Song','https://example.test/eigen',1,10,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+                """);
+        HttpResponse<String> unconfirmed = put("/api/contests/1/own-participation", "{\"participationId\":11}");
+        assertThat(unconfirmed.statusCode()).isEqualTo(409);
+        assertThat(unconfirmed.body()).contains("OWN_PARTICIPATION_CHANGE_CONFIRMATION_REQUIRED");
+        assertThat(put("/api/contests/1/own-participation", "{\"participationId\":11,\"confirmChange\":true}").body())
+                .contains("\"ownParticipationId\":11");
+    }
+
     private HttpResponse<String> get(String path) throws Exception { return request("GET", path, null); }
     private HttpResponse<String> post(String path, String body) throws Exception { return request("POST", path, body); }
     private HttpResponse<String> patch(String path, String body) throws Exception { return request("PATCH", path, body); }
+    private HttpResponse<String> put(String path, String body) throws Exception { return request("PUT", path, body); }
 
     private HttpResponse<String> request(String method, String path, String body) throws Exception {
         HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + path));

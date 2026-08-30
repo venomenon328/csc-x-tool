@@ -1,8 +1,8 @@
 # Technische Architektur – CSC X Tool
 
-**Version:** 0.2  
-**Stand:** 27.08.2026  
-**Status:** technische Baseline; konkrete Dependency-Versionen werden beim Bootstrap fest gepinnt
+**Version:** 0.3
+**Stand:** 30.08.2026
+**Status:** technische Baseline; die fachlichen Erweiterungen P10--P12 ergänzen und korrigieren ältere Modellskizzen in diesem Dokument.
 
 ## 1. Architekturziele
 
@@ -286,7 +286,7 @@ Die Show-Detailansicht darf diese Routen optisch als Tabs innerhalb eines gemein
 - `Top15Boundary`
 - `YoutubePlayerPanel`
 - `ParticipantSelect`
-- `ReceivedScoreGrid`
+- `PublishedBallotsPanel`
 - `ClipboardImportArea`
 - `ImportPreview`
 - `CompletionDialog`
@@ -298,6 +298,14 @@ Komponentenbezeichnungen sind orientierend und kein API-Vertrag.
 
 Das folgende Modell beschreibt die fachlichen Beziehungen. Spaltennamen und technische Detailtypen werden im ersten Datenbank-Issue endgültig festgelegt.
 
+### `contest`
+
+- `id`
+- `name`, eindeutig
+- `display_order`
+- `is_current`, genau eine Ausgabe
+- `own_participation_id`, optional und nur für dieselbe Ausgabe
+
 ### `motto_show`
 
 - `id`
@@ -305,10 +313,7 @@ Das folgende Modell beschreibt die fachlichen Beziehungen. Spaltennamen und tech
 - `name`
 - `selected_candidate_id`, optional
 - `ballot_closed_at`, optional
-- `results_closed_at`, optional
-- `final_place`, optional
-- `final_place_tied`
-- `official_total_points`, optional
+- `entry_list_complete`
 - `created_at`
 - `updated_at`
 
@@ -325,14 +330,15 @@ Das folgende Modell beschreibt die fachlichen Beziehungen. Spaltennamen und tech
 - `created_at`
 - `updated_at`
 
-### `participant`
+### `participant` und `contest_participation`
 
 - `id`
 - `display_name`
-- `country_code`
 - `active`
 - `created_at`
 - `updated_at`
+
+Das Land und die aktive Teilnahme gehören in `contest_participation` und nicht dauerhaft in den Teilnehmerstammsatz.
 
 ### `participant_alias`
 
@@ -352,7 +358,7 @@ Das folgende Modell beschreibt die fachlichen Beziehungen. Spaltennamen und tech
 - `assessment_confidence`, optional 1 bis 5 und nur gemeinsam mit `assessment` gesetzt
 - `pool_position`
 - `ranking_position`, optional
-- `participant_id`, optional
+- `contest_participation_id`, optional für den aktuellen anonymen Workflow, verbindlich für bestätigte historische Songlisten
 - `created_at`
 - `updated_at`
 
@@ -374,17 +380,22 @@ Das folgende Modell beschreibt die fachlichen Beziehungen. Spaltennamen und tech
 - `title_snapshot`
 - `youtube_url_snapshot`
 
-### `received_score`
+### `published_ballot` und `published_ballot_position`
 
 - `id`
 - `motto_show_id`
-- `participant_id`
+- `contest_participation_id`
 - `status`
-- `points`, optional
 - `created_at`
 - `updated_at`
 
 Eindeutiger Schlüssel: `motto_show_id + participant_id`.
+
+Ein veröffentlichter Stimmzettel mit Status `ABGESTIMMT` besitzt genau 15 Positionen mit einem Rang von 1 bis 15. Punkte und der Zustand „außerhalb Top 15“ werden ausschließlich daraus abgeleitet.
+
+### `legacy_result` und `legacy_received_score`
+
+Diese Read-only-Archivtabellen bewahren die vor P12 gespeicherten offiziellen Ergebnisangaben und isolierten Punktwerte unverändert. Sie sind weder Teil des aktiven Ergebnismodells noch eine Quelle für veröffentlichte Stimmzettel; insbesondere darf kein alter Wert `0` zu einer erfundenen vollständigen Bewertung werden.
 
 ### Mögliche technische Ergänzungen
 
@@ -402,10 +413,8 @@ Soweit SQLite dies sinnvoll unterstützt, werden folgende Regeln zusätzlich in 
 - Kandidatenstatus aus der definierten Wertemenge
 - positive manuelle Positionen
 - höchstens eine Teilnehmerzuordnung je Teilnehmer und Show
-- höchstens ein Ergebniseintrag je Teilnehmer und Show
-- Ergebnisstatus aus der definierten Wertemenge
-- zulässige Punktwerte
-- Endplatzierung positiv, sofern vorhanden
+- eine eigene Ergebnisansicht setzt explizit gewählte eigene Contest-Teilnahme, vollständige Songzuordnung und veröffentlichte Stimmzettel voraus
+- offizielle Gesamtpunkte, Endplatzierung, Gleichstand und Ergebnisabschluss gehören nicht zum aktiven Modell
 - Snapshot-Ränge 1 bis 15 und innerhalb des Snapshots eindeutig
 - aktivierte Foreign-Key-Prüfung für jede Verbindung
 

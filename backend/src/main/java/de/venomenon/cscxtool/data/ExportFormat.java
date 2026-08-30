@@ -6,12 +6,13 @@ import java.util.List;
 public final class ExportFormat {
 
     public static final String FORMAT = "csc-x-tool-full-export";
-    public static final int VERSION = 6;
+    public static final int VERSION = 7;
     public static final int LEGACY_VERSION = 1;
     public static final int VERSION_2 = 2;
     public static final int VERSION_3 = 3;
     public static final int VERSION_4 = 4;
     public static final int VERSION_5 = 5;
+    public static final int VERSION_6 = 6;
 
     private ExportFormat() { }
 
@@ -21,31 +22,25 @@ public final class ExportFormat {
                        List<Participant> participants, List<ContestParticipation> contestParticipations,
                        List<ParticipantAlias> participantAliases, List<ContestEntry> contestEntries,
                        List<BallotSnapshot> ballotSnapshots, List<BallotSnapshotItem> ballotSnapshotItems,
-                       List<ReceivedScore> receivedScores, List<PublishedBallot> publishedBallots,
+                       List<LegacyResult> legacyResults, List<LegacyReceivedScore> legacyReceivedScores, List<PublishedBallot> publishedBallots,
                        List<PublishedBallotPosition> publishedBallotPositions) {
-        /** P10 full exports are a valid P11 input and intentionally start without published ballots. */
+        /** Active P12 data normally has no legacy values. */
         public Data(List<Contest> contests, List<MottoShow> mottoShows, List<Candidate> candidates,
                     List<Participant> participants, List<ContestParticipation> contestParticipations,
                     List<ParticipantAlias> participantAliases, List<ContestEntry> contestEntries,
                     List<BallotSnapshot> ballotSnapshots, List<BallotSnapshotItem> ballotSnapshotItems,
-                    List<ReceivedScore> receivedScores) {
+                    List<PublishedBallot> publishedBallots, List<PublishedBallotPosition> publishedBallotPositions) {
             this(contests, mottoShows, candidates, participants, contestParticipations, participantAliases, contestEntries,
-                    ballotSnapshots, ballotSnapshotItems, receivedScores, List.of(), List.of());
-        }
-        /** Source-compatible helper for callers that still build an already-upgraded single-contest export. */
-        public Data(List<MottoShow> mottoShows, List<Candidate> candidates, List<Participant> participants,
-                    List<ParticipantAlias> participantAliases, List<ContestEntry> contestEntries,
-                    List<BallotSnapshot> ballotSnapshots, List<BallotSnapshotItem> ballotSnapshotItems,
-                    List<ReceivedScore> receivedScores) {
-            this(List.of(new Contest(1, "CSC X", 1, true, "1970-01-01T00:00:00Z", "1970-01-01T00:00:00Z")),
-                    mottoShows, candidates, participants, List.of(), participantAliases, contestEntries,
-                    ballotSnapshots, ballotSnapshotItems, receivedScores, List.of(), List.of());
+                    ballotSnapshots, ballotSnapshotItems, List.of(), List.of(), publishedBallots, publishedBallotPositions);
         }
     }
-    public record Contest(long id, String name, int displayOrder, boolean current, String createdAt, String updatedAt) { }
-    public record MottoShow(long id, long contestId, int showNumber, String name, boolean entryListComplete, Long selectedCandidateId, String ballotClosedAt,
-                            String resultsClosedAt, Integer finalPlace, boolean finalPlaceTied,
-                            Integer officialTotalPoints, String createdAt, String updatedAt) { }
+    public record Contest(long id, String name, int displayOrder, boolean current, Long ownParticipationId, String createdAt, String updatedAt) {
+        public Contest(long id, String name, int displayOrder, boolean current, String createdAt, String updatedAt) {
+            this(id, name, displayOrder, current, null, createdAt, updatedAt);
+        }
+    }
+    public record MottoShow(long id, long contestId, int showNumber, String name, boolean entryListComplete, Long selectedCandidateId,
+                            String ballotClosedAt, String createdAt, String updatedAt) { }
     public record Candidate(long id, long mottoShowId, String artist, String title, String youtubeUrl, String comment,
                             String status, int manualPosition, String createdAt, String updatedAt) { }
     public record Participant(long id, String displayName, boolean active, String createdAt, String updatedAt) {
@@ -72,16 +67,35 @@ public final class ExportFormat {
     public record BallotSnapshot(long id, long mottoShowId, int snapshotNumber, String createdAt, boolean current) { }
     public record BallotSnapshotItem(long id, long ballotSnapshotId, int rank, Long contestEntryId,
                                      String artistSnapshot, String titleSnapshot, String youtubeUrlSnapshot) { }
-    public record ReceivedScore(long id, long mottoShowId, long contestId, long contestParticipationId, String status,
-                                Integer points, String createdAt, String updatedAt) { }
+    /** Read-only import archive.  These values are deliberately not a ballot source. */
+    public record LegacyResult(long id, long mottoShowId, String resultsClosedAt, Integer finalPlace, boolean finalPlaceTied,
+                               Integer officialTotalPoints, String archivedAt) { }
+    public record LegacyReceivedScore(long id, long mottoShowId, long contestId, long contestParticipationId, String status,
+                                      Integer points, String createdAt, String updatedAt, String archivedAt) { }
     public record PublishedBallot(long id, long mottoShowId, long contestId, long contestParticipationId, String status,
                                   String createdAt, String updatedAt) { }
     public record PublishedBallotPosition(long id, long publishedBallotId, long contestEntryId, int rank) { }
 
+    /** Schema-12/P11 input is retained so old received scores are archived, never promoted to ballots. */
+    public record FullExportV6(String format, int formatVersion, String exportedAt, String applicationVersion,
+                               int schemaVersion, DataV6 data) { }
+    public record DataV6(List<ContestV6> contests, List<MottoShowV6> mottoShows, List<Candidate> candidates,
+                         List<Participant> participants, List<ContestParticipation> contestParticipations,
+                         List<ParticipantAlias> participantAliases, List<ContestEntry> contestEntries,
+                         List<BallotSnapshot> ballotSnapshots, List<BallotSnapshotItem> ballotSnapshotItems,
+                         List<ReceivedScore> receivedScores, List<PublishedBallot> publishedBallots,
+                         List<PublishedBallotPosition> publishedBallotPositions) { }
+    public record ContestV6(long id, String name, int displayOrder, boolean current, String createdAt, String updatedAt) { }
+    public record MottoShowV6(long id, long contestId, int showNumber, String name, boolean entryListComplete, Long selectedCandidateId, String ballotClosedAt,
+                              String resultsClosedAt, Integer finalPlace, boolean finalPlaceTied,
+                              Integer officialTotalPoints, String createdAt, String updatedAt) { }
+    public record ReceivedScore(long id, long mottoShowId, long contestId, long contestParticipationId, String status,
+                                Integer points, String createdAt, String updatedAt) { }
+
     /** Schema-11/P10 input is retained so a full export without personal ballots remains importable. */
     public record FullExportV5(String format, int formatVersion, String exportedAt, String applicationVersion,
                                int schemaVersion, DataV5 data) { }
-    public record DataV5(List<Contest> contests, List<MottoShow> mottoShows, List<Candidate> candidates,
+    public record DataV5(List<ContestV6> contests, List<MottoShowV6> mottoShows, List<Candidate> candidates,
                          List<Participant> participants, List<ContestParticipation> contestParticipations,
                          List<ParticipantAlias> participantAliases, List<ContestEntry> contestEntries,
                          List<BallotSnapshot> ballotSnapshots, List<BallotSnapshotItem> ballotSnapshotItems,
@@ -90,7 +104,7 @@ public final class ExportFormat {
     /** Schema-10 input is retained so a P9 full export remains importable after adding historical list completion. */
     public record FullExportV4(String format, int formatVersion, String exportedAt, String applicationVersion,
                                int schemaVersion, DataV4 data) { }
-    public record DataV4(List<Contest> contests, List<MottoShowV4> mottoShows, List<Candidate> candidates,
+    public record DataV4(List<ContestV6> contests, List<MottoShowV4> mottoShows, List<Candidate> candidates,
                          List<Participant> participants, List<ContestParticipation> contestParticipations,
                          List<ParticipantAlias> participantAliases, List<ContestEntry> contestEntries,
                          List<BallotSnapshot> ballotSnapshots, List<BallotSnapshotItem> ballotSnapshotItems,

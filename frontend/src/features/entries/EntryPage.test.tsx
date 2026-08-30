@@ -221,7 +221,7 @@ describe('EntryPage', () => {
     let entries = [first, second]
     fetchMock.mockImplementation(async (input, init) => {
       const path = String(input)
-      if (path === '/api/shows/1') return jsonResponse({ ...show, ballotClosedAt: closedBallot.ballotClosedAt, assignedEntryCount: 0, activeParticipantCount: 1, knownActiveResultCount: 0, resultsClosedAt: null })
+      if (path === '/api/shows/1') return jsonResponse({ ...show, ballotClosedAt: closedBallot.ballotClosedAt, assignedEntryCount: 0, activeParticipantCount: 1, publishedBallotVotedCount: 0, publishedBallotNotVotedCount: 0, publishedBallotUnrecordedCount: 1 })
       if (path === '/api/shows/1/ballot') return jsonResponse(closedBallot)
       if (path === '/api/contests/1/participants?includeInactive=true') return jsonResponse([participant])
       if (path === '/api/shows/1/entries/11/participant' && init?.method === 'PUT') {

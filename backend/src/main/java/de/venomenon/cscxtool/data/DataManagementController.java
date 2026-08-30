@@ -74,7 +74,9 @@ class DataManagementController {
     @GetMapping("/export/participants.csv")
     ResponseEntity<byte[]> participants() { return csv("teilnehmer.csv", this.csv.participants()); }
     @GetMapping("/export/results.csv")
-    ResponseEntity<byte[]> results() { return csv("ergebnisse.csv", this.csv.results()); }
+    ResponseEntity<byte[]> results() { return csv("abgeleitete-eigene-ergebnisse.csv", this.csv.results()); }
+    @GetMapping("/export/legacy-results.csv")
+    ResponseEntity<byte[]> legacyResults() { return csv("legacy-ergebnisse.csv", this.csv.legacyResults()); }
     @GetMapping("/export/published-ballots.csv")
     ResponseEntity<byte[]> publishedBallots() { return csv("veroeffentlichte-einzelwertungen.csv", this.csv.publishedBallots()); }
 

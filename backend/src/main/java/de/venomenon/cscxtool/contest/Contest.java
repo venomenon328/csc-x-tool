@@ -9,6 +9,7 @@ public record Contest(
         boolean current,
         int participantCount,
         int showCount,
+        Long ownParticipationId,
         Instant createdAt,
         Instant updatedAt
 ) {

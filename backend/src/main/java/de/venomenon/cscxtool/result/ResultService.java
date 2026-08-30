@@ -1,11 +1,7 @@
 package de.venomenon.cscxtool.result;
 
 import de.venomenon.cscxtool.participant.CountryCatalog;
-import de.venomenon.cscxtool.participant.ParticipantNotFoundException;
-import de.venomenon.cscxtool.shared.ApiBadRequestException;
-import de.venomenon.cscxtool.shared.ApiConflictException;
 import de.venomenon.cscxtool.shared.CscPoints;
-import de.venomenon.cscxtool.contest.ContestRepository;
 import de.venomenon.cscxtool.show.ShowNotFoundException;
 import java.util.List;
 import org.springframework.stereotype.Service;
@@ -13,171 +9,72 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 class ResultService {
-
     private final ResultRepository repository;
-    private final CountryCatalog countryCatalog;
-    private final ContestRepository contests;
+    private final CountryCatalog countries;
 
-    ResultService(ResultRepository repository, CountryCatalog countryCatalog, ContestRepository contests) {
+    ResultService(ResultRepository repository, CountryCatalog countries) {
         this.repository = repository;
-        this.countryCatalog = countryCatalog;
-        this.contests = contests;
+        this.countries = countries;
     }
 
     ResultResponse find(long showId) {
-        requireShow(showId);
-        return response(showId);
-    }
-
-    @Transactional
-    ResultResponse updateScore(long showId, long participantId, UpdateReceivedScoreRequest request) {
-        requireShow(showId);
-        requireEditable(showId);
-        if (!repository.participantExists(participantId)) {
-            throw new ParticipantNotFoundException(participantId);
+        ResultRepository.ShowFacts show = repository.findShow(showId).orElseThrow(() -> new ShowNotFoundException(showId));
+        if (show.ownParticipationId() == null) {
+            return new ResultResponse(showId, "OWN_PARTICIPATION_MISSING", null, null, false, 0, 0, 0, 0, List.of());
         }
-        var participation = contests.findParticipationForShow(showId, participantId).orElseThrow(() -> new ApiConflictException(
-                "PARTICIPANT_NOT_IN_CONTEST",
-                "Der Teilnehmer nimmt nicht an der CSC-Ausgabe dieser Mottoshow teil."
-        ));
-        if (!repository.mayReceiveScore(showId, participation.id())) {
-            throw new ApiConflictException(
-                    "INACTIVE_PARTICIPANT_WITHOUT_RESULT",
-                    "Für einen inaktiven Teilnehmer ohne vorhandenen Ergebniseintrag kann kein neues Ergebnis angelegt werden."
-            );
-        }
-        Integer points = validatedPoints(request.status(), request.points());
-        repository.saveScore(showId, participation.id(), request.status(), points);
-        return response(showId);
-    }
-
-    @Transactional
-    ResultResponse updateDetails(long showId, UpdateResultDetailsRequest request) {
-        requireShow(showId);
-        requireEditable(showId);
-        Integer officialTotalPoints = request.officialTotalPoints();
-        Integer finalPlace = request.finalPlace();
-        if (officialTotalPoints != null && officialTotalPoints < 0) {
-            throw new ApiBadRequestException("INVALID_OFFICIAL_TOTAL_POINTS", "Die offizielle Gesamtpunktzahl darf nicht negativ sein.");
-        }
-        if (finalPlace != null && finalPlace < 1) {
-            throw new ApiBadRequestException("INVALID_FINAL_PLACE", "Die Endplatzierung muss eine positive ganze Zahl sein.");
-        }
-        boolean finalPlaceTied = Boolean.TRUE.equals(request.finalPlaceTied());
-        if (finalPlaceTied && finalPlace == null) {
-            throw new ApiBadRequestException(
-                    "TIED_FINAL_PLACE_REQUIRES_FINAL_PLACE",
-                    "Eine geteilte Platzierung benötigt eine positive numerische Endplatzierung."
-            );
-        }
-        repository.updateDetails(showId, officialTotalPoints, finalPlace, finalPlaceTied);
-        return response(showId);
-    }
-
-    @Transactional
-    ResultResponse close(long showId) {
-        requireShow(showId);
-        ResultRepository.ResultState state = repository.findState(showId);
-        if (state.resultsClosedAt() != null) {
-            throw new ApiConflictException("RESULTS_ALREADY_CLOSED", "Die Ergebniserfassung ist bereits abgeschlossen.");
-        }
-        requireBallotClosed(state);
-        if (state.selectedCandidateId() == null) {
-            throw new ApiConflictException(
-                    "RESULTS_CLOSE_REQUIRES_SUBMISSION",
-                    "Zum Abschließen der Ergebniserfassung muss eine eigene Einreichung gewählt sein."
-            );
-        }
-        if (repository.hasUnknownActiveParticipant(showId)) {
-            throw new ApiConflictException(
-                    "RESULTS_CLOSE_REQUIRES_KNOWN_ACTIVE_SCORES",
-                    "Alle aktiven Teilnehmer müssen vor dem Abschluss als abgestimmt oder nicht abgestimmt erfasst sein."
-            );
-        }
-        if (state.finalPlace() == null || state.finalPlace() < 1) {
-            throw new ApiConflictException(
-                    "RESULTS_CLOSE_REQUIRES_FINAL_PLACE",
-                    "Zum Abschließen der Ergebniserfassung muss eine positive Endplatzierung gepflegt sein."
-            );
-        }
-        repository.close(showId);
-        return response(showId);
-    }
-
-    @Transactional
-    ResultResponse reopen(long showId) {
-        requireShow(showId);
-        ResultRepository.ResultState state = repository.findState(showId);
-        if (state.resultsClosedAt() == null) {
-            throw new ApiConflictException("RESULTS_NOT_CLOSED", "Die Ergebniserfassung ist nicht abgeschlossen.");
-        }
-        repository.reopen(showId);
-        return response(showId);
-    }
-
-    private ResultResponse response(long showId) {
-        ResultRepository.ResultState state = repository.findState(showId);
-        List<ReceivedScoreLineResponse> lines = repository.findLines(showId).stream().map(line -> new ReceivedScoreLineResponse(
-                line.participantId(), line.displayName(), line.countryCode(), countryCatalog.findRequired(line.countryCode()).name(),
-                line.active(), line.status(), line.points(), line.persisted()
-        )).toList();
-        int calculatedTotalPoints = repository.calculatedTotalPoints(showId);
-        return new ResultResponse(
-                showId,
-                state.ballotClosedAt(),
-                state.resultsClosedAt(),
-                repository.findSelectedCandidate(showId).orElse(null),
-                lines,
-                calculatedTotalPoints,
-                state.officialTotalPoints(),
-                state.officialTotalPoints() == null ? null : state.officialTotalPoints() - calculatedTotalPoints,
-                state.finalPlace(),
-                state.finalPlaceTied()
+        ResultRepository.OwnParticipation ownParticipation = repository.findOwnParticipation(show.contestId(), show.ownParticipationId())
+                .orElseThrow(() -> new IllegalStateException("The contest own participation must exist."));
+        OwnParticipationResponse own = new OwnParticipationResponse(
+                ownParticipation.id(), ownParticipation.participantId(), ownParticipation.displayName(), ownParticipation.countryCode()
         );
+        if (!show.entryListReady()) {
+            return new ResultResponse(showId, "ENTRY_LIST_INCOMPLETE", own, null, false, 0, 0, 0, 0, List.of());
+        }
+        ResultRepository.OwnEntry ownEntry = repository.findOwnEntry(showId, ownParticipation.id()).orElse(null);
+        if (ownEntry == null) {
+            return new ResultResponse(showId, "OWN_ENTRY_MISSING", own, null, false, 0, 0, 0, 0, List.of());
+        }
+        List<DerivedResultLineResponse> lines = repository.findDerivedLines(showId, ownParticipation.id(), ownEntry.id()).stream()
+                .map(line -> derive(line, ownParticipation.id())).toList();
+        int derivedTotal = lines.stream().map(DerivedResultLineResponse::points).filter(java.util.Objects::nonNull).mapToInt(Integer::intValue).sum();
+        int voted = (int) lines.stream().filter(line -> "ABGESTIMMT".equals(line.ballotStatus())).count();
+        int notVoted = (int) lines.stream().filter(line -> "NICHT_ABGESTIMMT".equals(line.ballotStatus())).count();
+        int unrecorded = (int) lines.stream().filter(line -> "UNERFASST".equals(line.ballotStatus())).count();
+        return new ResultResponse(showId, "READY", own, new OwnEntryResponse(ownEntry.id(), ownEntry.artist(), ownEntry.title(), ownEntry.youtubeUrl()),
+                repository.selectedCandidateDiffers(showId, ownEntry), voted, notVoted, unrecorded, derivedTotal, lines);
     }
 
-    private void requireEditable(long showId) {
-        ResultRepository.ResultState state = repository.findState(showId);
-        requireBallotClosed(state);
-        if (state.resultsClosedAt() != null) {
-            throw new ApiConflictException(
-                    "RESULTS_REOPEN_REQUIRED",
-                    "Die abgeschlossene Ergebniserfassung muss vor Änderungen bewusst wieder geöffnet werden."
-            );
-        }
+    LegacyResultResponse legacy(long showId) {
+        repository.findShow(showId).orElseThrow(() -> new ShowNotFoundException(showId));
+        ResultRepository.LegacyResult legacy = repository.findLegacy(showId);
+        return new LegacyResultResponse(showId, legacy.details(), legacy.scores());
     }
 
-    private static Integer validatedPoints(ReceivedScoreStatus status, Integer points) {
-        if (status == ReceivedScoreStatus.ABGESTIMMT) {
-            if (points == null || !CscPoints.isAllowedReceivedScore(points)) {
-                throw new ApiBadRequestException(
-                        "INVALID_RECEIVED_SCORE_POINTS",
-                        "Bei abgestimmt sind nur die CSC-Punktwerte 0, 1 bis 11, 13, 16, 20 oder 25 zulässig."
-                );
-            }
-            return points;
-        }
-        if (points != null) {
-            throw new ApiBadRequestException(
-                    "UNEXPECTED_RECEIVED_SCORE_POINTS",
-                    "Bei unbekannt oder nicht abgestimmt darf keine Punktzahl gespeichert sein."
-            );
-        }
-        return null;
+    @Transactional
+    void deleteLegacy(long showId) {
+        repository.findShow(showId).orElseThrow(() -> new ShowNotFoundException(showId));
+        repository.deleteLegacy(showId);
     }
 
-    private static void requireBallotClosed(ResultRepository.ResultState state) {
-        if (state.ballotClosedAt() == null) {
-            throw new ApiConflictException(
-                    "RESULTS_REQUIRE_CLOSED_BALLOT",
-                    "Ergebnisse können erst nach dem Abschluss der eigenen Top 15 bearbeitet werden."
-            );
+    private DerivedResultLineResponse derive(ResultRepository.DerivedLine line, long ownParticipationId) {
+        String countryName = countries.findRequired(line.countryCode()).name();
+        if (line.participationId() == ownParticipationId) {
+            return new DerivedResultLineResponse(line.participationId(), line.participantId(), line.displayName(), line.countryCode(), countryName,
+                    "EIGENE_TEILNAHME", "OWN_ENTRY", null, null);
         }
-    }
-
-    private void requireShow(long showId) {
-        if (!repository.showExists(showId)) {
-            throw new ShowNotFoundException(showId);
+        if (line.ballotStatus() == null) {
+            return new DerivedResultLineResponse(line.participationId(), line.participantId(), line.displayName(), line.countryCode(), countryName,
+                    "UNERFASST", "UNKNOWN", null, null);
         }
+        if ("NICHT_ABGESTIMMT".equals(line.ballotStatus())) {
+            return new DerivedResultLineResponse(line.participationId(), line.participantId(), line.displayName(), line.countryCode(), countryName,
+                    line.ballotStatus(), "NO_BALLOT", null, null);
+        }
+        if (line.rank() != null) {
+            return new DerivedResultLineResponse(line.participationId(), line.participantId(), line.displayName(), line.countryCode(), countryName,
+                    line.ballotStatus(), "RANKED", line.rank(), CscPoints.pointsForRank(line.rank()));
+        }
+        return new DerivedResultLineResponse(line.participationId(), line.participantId(), line.displayName(), line.countryCode(), countryName,
+                line.ballotStatus(), "OUTSIDE_TOP_15", null, 0);
     }
 }

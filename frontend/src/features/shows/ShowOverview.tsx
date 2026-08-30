@@ -165,12 +165,7 @@ function ShowCard({ show, onRename }: { show: MottoShow, onRename: () => void })
   const assessedEntryCount = show.assessedEntryCount ?? 0
   const rankedEntryCount = show.rankedEntryCount ?? 0
   const ballotClosed = show.ballotClosedAt !== null && show.ballotClosedAt !== undefined
-  const resultsClosed = show.resultsClosedAt !== null && show.resultsClosedAt !== undefined
-  const resultStatus = !ballotClosed
-    ? 'Wartet auf Top 15'
-    : resultsClosed
-    ? 'Abgeschlossen'
-    : `In Arbeit · ${show.knownActiveResultCount ?? 0} / ${show.activeParticipantCount ?? 0} erfasst`
+  const resultStatus = `${show.publishedBallotVotedCount ?? 0} abgegeben · ${show.publishedBallotNotVotedCount ?? 0} nicht abgestimmt · ${show.publishedBallotUnrecordedCount ?? 0} unerfasst`
 
   return (
     <Card component="section" elevation={0} sx={{ border: 1, borderColor: 'divider', display: 'flex', flexDirection: 'column' }}>
@@ -223,15 +218,11 @@ function ShowCard({ show, onRename }: { show: MottoShow, onRename: () => void })
               />
             )}
             <WorkflowStatus
-              icon={resultsClosed ? <CheckIcon fontSize="small" /> : <ResultIcon fontSize="small" />}
-              label="Ergebnis"
+              icon={<ResultIcon fontSize="small" />}
+              label="Einzelwertungen"
               status={resultStatus}
-              tone={resultsClosed ? 'success.main' : undefined}
             />
           </Stack>
-
-          {ballotClosed && <ResultDetails show={show} />}
-          {show.finalPlace !== null && <Typography color="text.secondary" sx={{ mt: ballotClosed ? 1.5 : 1 }} variant="body2">Endplatzierung: {show.finalPlace}. Platz{show.finalPlaceTied ? ' (geteilt)' : ''}</Typography>}
         </Box>
       </CardContent>
       <CardActions sx={{ borderTop: 1, borderColor: 'divider', p: 1.5 }}>
@@ -358,28 +349,6 @@ function WorkflowStatus({ icon, label, status, tone = 'text.primary' }: { icon: 
       <Typography sx={{ flex: 1, minWidth: 0 }} variant="body2">{label}</Typography>
       <Typography color={tone} sx={{ maxWidth: '62%', overflowWrap: 'anywhere', textAlign: 'right' }} variant="body2">{status}</Typography>
     </Stack>
-  )
-}
-
-function ResultDetails({ show }: { show: MottoShow }) {
-  return (
-    <Box sx={{ backgroundColor: 'action.hover', borderRadius: 1, mt: 1.5, p: 1.5 }}>
-      <Typography color="text.secondary" variant="overline">Punkte</Typography>
-      <Stack direction="row" spacing={3} sx={{ mt: 0.25 }}>
-        <ScoreSummary label="Berechnet" value={show.calculatedTotalPoints ?? 0} />
-        {show.officialTotalPoints !== null && show.officialTotalPoints !== undefined && <ScoreSummary label="Offiziell" value={show.officialTotalPoints} />}
-      </Stack>
-      {show.officialTotalDifference != null && show.officialTotalDifference !== 0 && <Alert severity="warning" sx={{ mt: 1 }}>Die offizielle Summe weicht um {Math.abs(show.officialTotalDifference)} Punkte ab.</Alert>}
-    </Box>
-  )
-}
-
-function ScoreSummary({ label, value }: { label: string, value: number }) {
-  return (
-    <Box>
-      <Typography sx={{ fontVariantNumeric: 'tabular-nums', lineHeight: 1.2 }} variant="h6">{value} Punkte</Typography>
-      <Typography color="text.secondary" variant="caption">{label}</Typography>
-    </Box>
   )
 }
 

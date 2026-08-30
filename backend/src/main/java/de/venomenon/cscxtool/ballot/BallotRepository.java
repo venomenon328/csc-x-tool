@@ -37,12 +37,6 @@ class BallotRepository {
         ));
     }
 
-    boolean resultsClosed(long showId) {
-        return Boolean.TRUE.equals(jdbcTemplate.queryForObject(
-                "SELECT results_closed_at IS NOT NULL FROM motto_show WHERE id = ?", Boolean.class, showId
-        ));
-    }
-
     Instant ballotClosedAt(long showId) {
         return jdbcTemplate.queryForObject("SELECT ballot_closed_at FROM motto_show WHERE id = ?", (resultSet, rowNumber) -> {
             java.sql.Timestamp value = resultSet.getTimestamp(1);

@@ -313,10 +313,7 @@ export function EntryPage() {
         <Typography component="h1" variant="h4">{show.name} – Abstimmung</Typography>
         <Typography color="text.secondary" sx={{ mt: 1 }}>Wettbewerbsbeiträge importieren, anhören, bewerten und als eindeutige Top 15 abschließen.</Typography>
         {show.ballotClosedAt != null && <Stack spacing={0.5} sx={{ mt: 1 }}>
-          <Typography color="text.secondary" variant="body2">Teilnehmerzuordnung: {show.assignedEntryCount}/{show.contestEntryCount} · Ergebnis: {show.resultsClosedAt === null ? `${show.knownActiveResultCount}/${show.activeParticipantCount} aktive Teilnehmer erfasst` : 'abgeschlossen'}</Typography>
-          <Typography color="text.secondary" variant="body2">Berechnet: {show.calculatedTotalPoints ?? 0} Punkte{show.officialTotalPoints != null ? ` · Offiziell: ${show.officialTotalPoints} Punkte` : ''}</Typography>
-          {show.officialTotalDifference != null && show.officialTotalDifference !== 0 && <Alert severity="warning">Die offizielle Summe weicht um {Math.abs(show.officialTotalDifference)} Punkte ab.</Alert>}
-          {show.finalPlace != null && <Typography color="text.secondary" variant="body2">Endplatzierung: {show.finalPlace}. Platz{show.finalPlaceTied ? ' (geteilt)' : ''}</Typography>}
+          <Typography color="text.secondary" variant="body2">Teilnehmerzuordnung: {show.assignedEntryCount}/{show.contestEntryCount} · Einzelwertungen: {show.publishedBallotVotedCount} abgegeben, {show.publishedBallotNotVotedCount} nicht abgestimmt, {show.publishedBallotUnrecordedCount} unerfasst</Typography>
         </Stack>}
       </Box>}
       {error !== null && <ApiErrorNotice error={error.apiError} />}

@@ -30,7 +30,7 @@ class PublishedBallotReviewRegressionTest {
     }
 
     @Test
-    void currentShowRequiresClosedOwnBallotAndEveryEntryAssignedBeforePublishedBallots() {
+    void currentShowRequiresEveryEntryAssignedButNotAClosedOwnBallotBeforePublishedBallots() {
         int sequence = SEQUENCE.incrementAndGet();
         long contestId = jdbc.queryForObject("SELECT id FROM contest WHERE is_current = 1", Long.class);
         int showNumber = 50_000 + sequence;
@@ -72,10 +72,12 @@ class PublishedBallotReviewRegressionTest {
                 participationId, showId
         );
 
-        assertThat(repository.findShowFacts(showId).orElseThrow().entryListReady()).isFalse();
+        assertThat(repository.findShowFacts(showId).orElseThrow().entryListReady()).isTrue();
 
         jdbc.update("UPDATE motto_show SET ballot_closed_at = CURRENT_TIMESTAMP WHERE id = ?", showId);
+        assertThat(repository.findShowFacts(showId).orElseThrow().entryListReady()).isTrue();
 
+        jdbc.update("UPDATE motto_show SET ballot_closed_at = NULL WHERE id = ?", showId);
         assertThat(repository.findShowFacts(showId).orElseThrow().entryListReady()).isTrue();
     }
 
