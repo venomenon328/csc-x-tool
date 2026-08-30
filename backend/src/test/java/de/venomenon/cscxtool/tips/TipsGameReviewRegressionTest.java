@@ -96,12 +96,14 @@ class TipsGameReviewRegressionTest {
         long nextContestId = createContest("Folgecontest " + SEQUENCE.get());
         Path exportFile = Files.createTempFile(STORAGE_ROOT, "tips-former-current-", ".json");
         try {
-            jdbc.update("UPDATE contest SET is_current = CASE WHEN id = ? THEN 1 ELSE 0 END", nextContestId);
+            jdbc.update("UPDATE contest SET is_current = 0 WHERE id = ?", fixture.contestId());
+            jdbc.update("UPDATE contest SET is_current = 1 WHERE id = ?", nextContestId);
             Files.write(exportFile, exports.exportJson());
             ExportFormat.FullExport validated = exports.readAndValidate(exportFile);
             assertThat(validated.data().tipsGames()).anySatisfy(game -> assertThat(game.mottoShowId()).isEqualTo(fixture.showId()));
         } finally {
-            jdbc.update("UPDATE contest SET is_current = CASE WHEN id = ? THEN 1 ELSE 0 END", fixture.contestId());
+            jdbc.update("UPDATE contest SET is_current = 0 WHERE id = ?", nextContestId);
+            jdbc.update("UPDATE contest SET is_current = 1 WHERE id = ?", fixture.contestId());
             Files.deleteIfExists(exportFile);
         }
     }
