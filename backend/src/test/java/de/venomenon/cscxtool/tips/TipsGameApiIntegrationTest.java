@@ -48,20 +48,23 @@ class TipsGameApiIntegrationTest {
         assertThat(saved.statusCode()).isEqualTo(200);
         assertThat(saved.body()).contains("\"persisted\":true", "\"confidence\":\"HIGH\"", "mehrzeilige\\nNotiz");
         assertThat(jdbc.queryForObject("SELECT contest_participation_id FROM contest_entry WHERE id = ?", Long.class, fixture.firstEntryId)).isNull();
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM tips_game_assignment", Integer.class)).isEqualTo(1);
+        assertThat(tipAssignmentCount(fixture.showId)).isEqualTo(1);
 
         HttpResponse<String> duplicateParticipant = put("/api/shows/" + fixture.showId + "/tips", "{\"assignments\":["
                 + assignment(fixture.firstEntryId, fixture.firstParticipationId, null, null) + ","
                 + assignment(fixture.secondEntryId, fixture.firstParticipationId, null, null) + "]}");
         assertThat(duplicateParticipant.statusCode()).isEqualTo(409);
         assertThat(duplicateParticipant.body()).contains("DUPLICATE_TIP_PARTICIPANT");
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM tips_game_assignment", Integer.class)).isEqualTo(1);
-        assertThat(jdbc.queryForObject("SELECT guessed_participation_id FROM tips_game_assignment", Long.class)).isEqualTo(fixture.firstParticipationId);
+        assertThat(tipAssignmentCount(fixture.showId)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("""
+                SELECT guessed_participation_id FROM tips_game_assignment
+                WHERE tips_game_id = (SELECT id FROM tips_game WHERE motto_show_id = ?)
+                """, Long.class, fixture.showId)).isEqualTo(fixture.firstParticipationId);
 
         HttpResponse<String> foreignEntry = put("/api/shows/" + fixture.showId + "/tips", assignments(fixture.foreignEntryId, fixture.secondParticipationId, null, null));
         assertThat(foreignEntry.statusCode()).isEqualTo(409);
         assertThat(foreignEntry.body()).contains("TIP_ENTRY_NOT_IN_SHOW");
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM tips_game_assignment", Integer.class)).isEqualTo(1);
+        assertThat(tipAssignmentCount(fixture.showId)).isEqualTo(1);
 
         assertThatThrownBy(() -> jdbc.update("""
                 INSERT INTO tips_game_assignment (tips_game_id,contest_entry_id,guessed_participation_id,confidence,note)
@@ -120,6 +123,13 @@ class TipsGameApiIntegrationTest {
         assertThat(csv.body()).contains("Tippspiel", "keine Genreannahme", "NOCH_NICHT_AUFGELOEST");
         HttpResponse<String> full = get("/api/data/export/full");
         assertThat(full.body()).contains("\"formatVersion\":8", "\"tipsGames\"", "\"tipsGameAssignments\"", "keine Genreannahme");
+    }
+
+    private int tipAssignmentCount(long showId) {
+        return jdbc.queryForObject("""
+                SELECT COUNT(*) FROM tips_game_assignment
+                WHERE tips_game_id = (SELECT id FROM tips_game WHERE motto_show_id = ?)
+                """, Integer.class, showId);
     }
 
     private Fixture fixture() throws Exception {
