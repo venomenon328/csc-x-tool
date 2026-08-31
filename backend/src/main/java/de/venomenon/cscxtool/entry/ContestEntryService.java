@@ -159,7 +159,7 @@ class ContestEntryService {
             if (Long.valueOf(participation.id()).equals(ownState.currentOwnParticipationId())) {
                 throw new ApiConflictException(
                         "OWN_ENTRY_CHANGE_REQUIRES_REOPEN",
-                        "Die eigene Einreichung wird vor dem Abschluss bewusst aufgelÃ¶st. Eine geschlossene Abstimmung muss dafÃ¼r zuerst wieder geÃ¶ffnet werden."
+                        "Die eigene Einreichung wird vor dem Abschluss bewusst aufgelöst. Eine geschlossene Abstimmung muss dafür zuerst wieder geöffnet werden."
                 );
             }
             if (!participation.active() && !participantId.equals(entry.participantId())) {
@@ -175,10 +175,7 @@ class ContestEntryService {
                     });
             participationId = participation.id();
             if (publishedBallots.assignmentWouldMakeOwnEntry(entryId, participationId)) {
-                throw new ApiConflictException(
-                        "PUBLISHED_BALLOT_OWN_ENTRY_CONFLICT",
-                        "Die Teilnehmerzuordnung würde einen bestehenden veröffentlichten Stimmzettel fachlich ungültig machen."
-                );
+                throw publishedBallotOwnEntryConflict();
             }
         }
         try {
@@ -202,7 +199,7 @@ class ContestEntryService {
                 || (request.resolution() != OwnEntryResolution.OWN_ENTRY && request.resolution() != OwnEntryResolution.NO_OWN_ENTRY)) {
             throw new ApiBadRequestException(
                     "INVALID_OWN_ENTRY_RESOLUTION",
-                    "Lege bewusst die eigene Einreichung fest oder bestÃ¤tige, dass keine eigene Einreichung existiert."
+                    "Lege bewusst die eigene Einreichung fest oder bestätige, dass keine eigene Einreichung existiert."
             );
         }
         ContestEntryRepository.OwnEntryState state = ownEntryState(showId);
@@ -216,13 +213,13 @@ class ContestEntryService {
         if (repository.isBallotClosed(showId)) {
             throw new ApiConflictException(
                     "OWN_ENTRY_CHANGE_REQUIRES_REOPEN",
-                    "Die abgeschlossene Abstimmung muss vor einer Ã„nderung der eigenen Einreichung bewusst wieder geÃ¶ffnet werden."
+                    "Die abgeschlossene Abstimmung muss vor einer Änderung der eigenen Einreichung bewusst wieder geöffnet werden."
             );
         }
         if (request.resolution() == OwnEntryResolution.NO_OWN_ENTRY) {
             if (request.entryId() != null) {
                 throw new ApiBadRequestException(
-                        "INVALID_OWN_ENTRY_RESOLUTION", "Die BestÃ¤tigung ohne eigene Einreichung darf keinen Beitrag enthalten."
+                        "INVALID_OWN_ENTRY_RESOLUTION", "Die Bestätigung ohne eigene Einreichung darf keinen Beitrag enthalten."
                 );
             }
             clearResolvedOwnEntry(showId, state);
@@ -233,7 +230,7 @@ class ContestEntryService {
 
         if (request.entryId() == null) {
             throw new ApiBadRequestException(
-                    "OWN_ENTRY_REQUIRED", "WÃ¤hle den vorhandenen Wettbewerbsbeitrag aus, der deine eigene Einreichung ist."
+                    "OWN_ENTRY_REQUIRED", "Wähle den vorhandenen Wettbewerbsbeitrag aus, der deine eigene Einreichung ist."
             );
         }
         ContestEntry target = repository.findByIdAndShowId(request.entryId(), showId)
@@ -245,10 +242,13 @@ class ContestEntryService {
                     "Ein bereits anders zugeordneter Beitrag kann nicht als eigene Einreichung markiert werden."
             );
         }
+        if (publishedBallots.assignmentWouldMakeOwnEntry(target.id(), ownParticipationId)) {
+            throw publishedBallotOwnEntryConflict();
+        }
         if (target.rankingPosition() != null && !request.confirmsRankingRemoval()) {
             throw new ApiConflictException(
                     "OWN_ENTRY_RANKING_REMOVAL_CONFIRMATION_REQUIRED",
-                    "Der Beitrag ist bereits gerankt. BestÃ¤tige bewusst, dass er atomar aus deiner Rangliste entfernt wird."
+                    "Der Beitrag ist bereits gerankt. Bestätige bewusst, dass er atomar aus deiner Rangliste entfernt wird."
             );
         }
         clearResolvedOwnEntry(showId, state);
@@ -571,10 +571,7 @@ class ContestEntryService {
             long entryId, long showId, String artist, String title, String youtubeUrl, String comment, long participationId
     ) {
         if (publishedBallots.assignmentWouldMakeOwnEntry(entryId, participationId)) {
-            throw new ApiConflictException(
-                    "PUBLISHED_BALLOT_OWN_ENTRY_CONFLICT",
-                    "Die Teilnehmerzuordnung würde einen bestehenden veröffentlichten Stimmzettel fachlich ungültig machen."
-            );
+            throw publishedBallotOwnEntryConflict();
         }
         repository.findEntryIdByParticipation(showId, participationId)
                 .filter(existingEntryId -> existingEntryId != entryId)
@@ -611,6 +608,13 @@ class ContestEntryService {
                     "INVALID_HISTORICAL_SOURCE_URL", "Der optionale Quelllink muss eine HTTP- oder HTTPS-Adresse sein."
             );
         }
+    }
+
+    private static ApiConflictException publishedBallotOwnEntryConflict() {
+        return new ApiConflictException(
+                "PUBLISHED_BALLOT_OWN_ENTRY_CONFLICT",
+                "Die Teilnehmerzuordnung würde einen bestehenden veröffentlichten Stimmzettel fachlich ungültig machen."
+        );
     }
 
     private static ApiConflictException duplicateParticipantAssignment() {
