@@ -37,7 +37,7 @@ describe('own-entry evaluation', () => {
 
     await screen.findByRole('heading', { name: 'Show Eins – Auswertung' })
     expect(screen.getByRole('tab', { name: 'Meine Einreichung', selected: true })).toBeVisible()
-    expect(screen.getByText('Eigene Band – Eigener Song')).toBeVisible()
+    expect(await screen.findByText('Eigene Band – Eigener Song')).toBeVisible()
     expect(screen.getByText('Eigene Einreichung · nicht wählbar')).toBeVisible()
     expect(screen.getByText('In Top 15')).toBeVisible()
     expect(screen.getByText('Außerhalb Top 15')).toBeVisible()

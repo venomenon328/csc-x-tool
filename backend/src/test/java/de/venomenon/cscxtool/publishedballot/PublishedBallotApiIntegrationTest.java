@@ -45,11 +45,11 @@ class PublishedBallotApiIntegrationTest {
                 "{\"html\":\"\",\"text\":\"" + json(FROLLO_FIXTURE) + "\"}");
         assertThat(preview.statusCode()).isEqualTo(200);
         assertThat(preview.body()).contains("\"rank\":15", "Eric Clapton", "Layla", "\"rank\":1", "John Denver", "Take Me Home, Country Roads");
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM published_ballot", Integer.class)).isZero();
+        assertThat(ballotCount(fixture.showId)).isZero();
 
         String validImport = ballotImport(fixture.voterParticipationId, fixture.rankedEntryIds, false);
         assertThat(post("/api/shows/" + fixture.showId + "/published-ballots/import", validImport).statusCode()).isEqualTo(200);
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM published_ballot_position", Integer.class)).isEqualTo(15);
+        assertThat(positionCount(fixture.showId)).isEqualTo(15);
         assertThat(get("/api/data/export/full").body()).contains("\"formatVersion\":9", "\"publishedBallots\"", "\"publishedBallotPositions\"", "\"status\":\"ABGESTIMMT\"");
         assertThat(get("/api/data/export/published-ballots.csv").body()).contains("Stimmzettelstatus", "RANKED", "ABGESTIMMT", "Eric Clapton");
 
@@ -58,7 +58,7 @@ class PublishedBallotApiIntegrationTest {
 
         assertThat(post("/api/shows/" + fixture.showId + "/published-ballots/import",
                 ballotImport(fixture.voterParticipationId, fixture.rankedEntryIds.subList(0, 14), true)).statusCode()).isEqualTo(400);
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM published_ballot_position", Integer.class)).isEqualTo(15);
+        assertThat(positionCount(fixture.showId)).isEqualTo(15);
 
         List<Long> ownEntry = new ArrayList<>(fixture.rankedEntryIds);
         ownEntry.set(0, fixture.ownEntryId);
@@ -66,7 +66,7 @@ class PublishedBallotApiIntegrationTest {
                 ballotImport(fixture.voterParticipationId, ownEntry, true));
         assertThat(ownImport.statusCode()).isEqualTo(409);
         assertThat(ownImport.body()).contains("OWN_ENTRY_IN_BALLOT");
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM published_ballot_position", Integer.class)).isEqualTo(15);
+        assertThat(positionCount(fixture.showId)).isEqualTo(15);
 
         assertThat(post("/api/shows/" + fixture.showId + "/entries/entry-list/reopen", "").statusCode()).isEqualTo(409);
         assertThatThrownBy(() -> jdbc.update("DELETE FROM contest_entry WHERE id = ?", fixture.rankedEntryIds.getFirst()))
@@ -74,12 +74,60 @@ class PublishedBallotApiIntegrationTest {
 
         assertThat(put("/api/shows/" + fixture.showId + "/published-ballots/" + fixture.voterParticipationId + "/status",
                 "{\"status\":\"NICHT_ABGESTIMMT\"}").statusCode()).isEqualTo(204);
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM published_ballot_position", Integer.class)).isZero();
+        assertThat(positionCount(fixture.showId)).isZero();
         assertThat(get("/api/shows/" + fixture.showId + "/published-ballots/" + fixture.voterParticipationId).body()).contains("\"state\":\"NO_BALLOT\"");
         assertThat(put("/api/shows/" + fixture.showId + "/published-ballots/" + fixture.voterParticipationId + "/status",
                 "{\"status\":\"UNERFASST\"}").statusCode()).isEqualTo(204);
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM published_ballot", Integer.class)).isZero();
+        assertThat(ballotCount(fixture.showId)).isZero();
         assertThat(get("/api/shows/" + fixture.showId + "/published-ballots/" + fixture.voterParticipationId).body()).contains("\"status\":\"UNERFASST\"", "\"state\":\"UNKNOWN\"");
+    }
+
+    @Test
+    void derivesShowStandingsOnlyFromCurrentVotedBallotsWithoutTieBreaksOrPersistence() throws Exception {
+        Fixture fixture = fixture();
+        List<Long> firstBallot = new ArrayList<>();
+        firstBallot.add(fixture.outsideEntryId());
+        firstBallot.addAll(fixture.rankedEntryIds().subList(2, 15));
+        firstBallot.add(fixture.rankedEntryIds().getFirst());
+        List<Long> secondBallot = new ArrayList<>();
+        secondBallot.add(fixture.ownEntryId());
+        secondBallot.addAll(fixture.rankedEntryIds().subList(2, 15));
+        secondBallot.add(fixture.rankedEntryIds().get(1));
+
+        assertThat(post("/api/shows/" + fixture.showId + "/published-ballots/import",
+                ballotImport(fixture.voterParticipationId, firstBallot, false)).statusCode()).isEqualTo(200);
+        assertThat(post("/api/shows/" + fixture.showId + "/published-ballots/import",
+                ballotImport(fixture.secondVoterParticipationId(), secondBallot, false)).statusCode()).isEqualTo(200);
+        assertThat(put("/api/shows/" + fixture.showId + "/published-ballots/" + fixture.notVoterParticipationId() + "/status",
+                "{\"status\":\"NICHT_ABGESTIMMT\"}").statusCode()).isEqualTo(204);
+
+        HttpResponse<String> initial = get("/api/shows/" + fixture.showId + "/published-ballots/standings");
+        assertThat(initial.statusCode()).isEqualTo(200);
+        assertThat(initial.body()).contains("\"votedCount\":2", "\"notVotedCount\":1", "\"unrecordedCount\":16");
+        assertStanding(initial.body(), fixture.rankedEntryIds().getLast(), 1, 40, 2);
+        assertStanding(initial.body(), fixture.rankedEntryIds().getFirst(), 4, 25, 1);
+        assertStanding(initial.body(), fixture.rankedEntryIds().get(1), 4, 25, 1);
+        assertStanding(initial.body(), fixture.ownEntryId(), 16, 1, 1);
+        assertStanding(initial.body(), fixture.zeroEntryId(), 18, 0, 0);
+
+        List<Long> replacement = new ArrayList<>(fixture.rankedEntryIds());
+        assertThat(post("/api/shows/" + fixture.showId + "/published-ballots/import",
+                ballotImport(fixture.secondVoterParticipationId(), replacement, true)).statusCode()).isEqualTo(200);
+        HttpResponse<String> replaced = get("/api/shows/" + fixture.showId + "/published-ballots/standings");
+        assertStanding(replaced.body(), fixture.rankedEntryIds().get(1), 15, 2, 1);
+
+        assertThat(put("/api/shows/" + fixture.showId + "/published-ballots/" + fixture.secondVoterParticipationId() + "/status",
+                "{\"status\":\"UNERFASST\"}").statusCode()).isEqualTo(204);
+        HttpResponse<String> reset = get("/api/shows/" + fixture.showId + "/published-ballots/standings");
+        assertThat(reset.body()).contains("\"votedCount\":1", "\"notVotedCount\":1", "\"unrecordedCount\":17");
+        assertStanding(reset.body(), fixture.ownEntryId(), 16, 0, 0);
+
+        Fixture otherShow = fixture();
+        assertThat(post("/api/shows/" + otherShow.showId + "/published-ballots/import",
+                ballotImport(otherShow.voterParticipationId, otherShow.rankedEntryIds, false)).statusCode()).isEqualTo(200);
+        HttpResponse<String> isolated = get("/api/shows/" + fixture.showId + "/published-ballots/standings");
+        assertThat(isolated.body()).contains("\"mottoShowId\":" + fixture.showId, "\"votedCount\":1");
+        assertStanding(isolated.body(), fixture.rankedEntryIds().getLast(), 2, 20, 1);
     }
 
     @Test
@@ -196,6 +244,8 @@ class PublishedBallotApiIntegrationTest {
         List<Participant> submitters = new ArrayList<>();
         for (Song song : rankedSongs) submitters.add(participant(contestId, song.submitter(), song.countryCode()));
         Participant outside = participant(contestId, "OutsideUser", "FI");
+        Participant secondVoter = participant(contestId, "SecondVoter", "SE");
+        Participant notVoter = participant(contestId, "NotVoter", "NO");
         long showId = id(post("/api/contests/" + contestId + "/shows", "{\"showNumber\":3,\"name\":\"Archivthema\"}").body(), "id");
 
         StringBuilder entries = new StringBuilder("{\"entries\":[");
@@ -206,14 +256,17 @@ class PublishedBallotApiIntegrationTest {
                     .append("\",\"youtubeUrl\":null,\"participantId\":").append(submitters.get(index).participantId()).append('}');
         }
         entries.append(",{\"artist\":\"Own Artist\",\"title\":\"Own Song\",\"youtubeUrl\":null,\"participantId\":").append(voter.participantId()).append('}');
-        entries.append(",{\"artist\":\"Outside Artist\",\"title\":\"Outside Song\",\"youtubeUrl\":null,\"participantId\":").append(outside.participantId()).append("}]}");
+        entries.append(",{\"artist\":\"Outside Artist\",\"title\":\"Outside Song\",\"youtubeUrl\":null,\"participantId\":").append(outside.participantId()).append('}');
+        entries.append(",{\"artist\":\"Zero Artist\",\"title\":\"Zero Song\",\"youtubeUrl\":null,\"participantId\":").append(notVoter.participantId()).append("}]}");
         assertThat(post("/api/shows/" + showId + "/entries/historical-import", entries.toString()).statusCode()).isEqualTo(200);
         assertThat(post("/api/shows/" + showId + "/entries/entry-list/complete", "").statusCode()).isEqualTo(204);
         List<Long> entryIds = rankedSongs.stream().map(song -> jdbc.queryForObject(
                 "SELECT id FROM contest_entry WHERE motto_show_id = ? AND artist = ? AND title = ?", Long.class, showId, song.artist(), song.title()
         )).toList();
         long ownEntryId = jdbc.queryForObject("SELECT id FROM contest_entry WHERE motto_show_id = ? AND artist = 'Own Artist'", Long.class, showId);
-        return new Fixture(showId, voter.participationId(), entryIds, ownEntryId);
+        long outsideEntryId = jdbc.queryForObject("SELECT id FROM contest_entry WHERE motto_show_id = ? AND artist = 'Outside Artist'", Long.class, showId);
+        long zeroEntryId = jdbc.queryForObject("SELECT id FROM contest_entry WHERE motto_show_id = ? AND artist = 'Zero Artist'", Long.class, showId);
+        return new Fixture(showId, voter.participationId(), secondVoter.participationId(), notVoter.participationId(), entryIds, ownEntryId, outsideEntryId, zeroEntryId);
     }
 
     private static List<PublishedBallotParticipant> japanParticipants() {
@@ -291,6 +344,30 @@ class PublishedBallotApiIntegrationTest {
         return json.append("]}]} ").toString();
     }
 
+    private static void assertStanding(String body, long entryId, int interimRank, int points, int mentions) {
+        int entryStart = body.indexOf("\"entryId\":" + entryId + ',');
+        int objectStart = body.lastIndexOf('{', entryStart);
+        int objectEnd = body.indexOf('}', entryStart);
+        assertThat(entryStart).isGreaterThanOrEqualTo(0);
+        assertThat(body.substring(objectStart, objectEnd + 1)).contains(
+                "\"interimRank\":" + interimRank,
+                "\"points\":" + points,
+                "\"mentions\":" + mentions
+        );
+    }
+
+    private int ballotCount(long showId) {
+        return jdbc.queryForObject("SELECT COUNT(*) FROM published_ballot WHERE motto_show_id = ?", Integer.class, showId);
+    }
+
+    private int positionCount(long showId) {
+        return jdbc.queryForObject("""
+                SELECT COUNT(*) FROM published_ballot_position position
+                JOIN published_ballot ballot ON ballot.id = position.published_ballot_id
+                WHERE ballot.motto_show_id = ?
+                """, Integer.class, showId);
+    }
+
     private HttpResponse<String> get(String path) throws Exception { return request("GET", path, null); }
     private HttpResponse<String> post(String path, String body) throws Exception { return request("POST", path, body); }
     private HttpResponse<String> put(String path, String body) throws Exception { return request("PUT", path, body); }
@@ -314,7 +391,10 @@ class PublishedBallotApiIntegrationTest {
 
     private record Participant(long participationId, long participantId) { }
     private record Song(String artist, String title, String submitter, String countryCode) { }
-    private record Fixture(long showId, long voterParticipationId, List<Long> rankedEntryIds, long ownEntryId) { }
+    private record Fixture(
+            long showId, long voterParticipationId, long secondVoterParticipationId, long notVoterParticipationId,
+            List<Long> rankedEntryIds, long ownEntryId, long outsideEntryId, long zeroEntryId
+    ) { }
 
     private static final List<Song> JAPAN_SONGS = List.of(
             new Song("Nik Kershaw", "The Riddle", "Fletcher Cox", "NR"),
