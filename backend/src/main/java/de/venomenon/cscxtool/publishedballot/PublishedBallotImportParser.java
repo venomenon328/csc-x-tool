@@ -29,7 +29,7 @@ class PublishedBallotImportParser {
     private static final Pattern STANDARD_HEADER = Pattern.compile("^\\s*\\[\\s*#?\\s*\\d+\\s*]\\s*(.*?)\\s*$");
     private static final Pattern ENCLOSED_HEADER = Pattern.compile("^\\s*\\[\\s*#?\\s*\\d+\\s+(.+?)\\s*]\\s*$");
     private static final Pattern EXPLICIT_RANKED_LINE = Pattern.compile(
-            "^\\s*(\\d{1,2})\\.\\s+(.+?)\\s+(\\d+)\\s*([^\\s\\d]+)\\s*$"
+            "^\\s*(\\d{1,2})\\.\\s+(.+?)\\s+(?:[*_`~]+\\s*)?(\\d+)\\s*([^\\s\\d]+)\\s*$"
     );
     private static final Pattern PARENTHETICAL_ASSIGNMENT = Pattern.compile(
             "\\(([^()]+?)\\s+[-–—]\\s+([^()]+?)\\)"
