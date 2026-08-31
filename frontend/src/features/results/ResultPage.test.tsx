@@ -64,7 +64,7 @@ describe('own-entry evaluation', () => {
 
   it.each([
     ['OWN_ENTRY_UNRESOLVED', 'Bestätige vor der Ergebnisableitung'],
-    ['OWN_ENTRY_NONE', 'keine eigene Einreichung hat'],
+    ['OWN_ENTRY_NONE', 'ausdrücklich bestätigt, dass du keine eigene Einreichung hast'],
     ['ENTRY_LIST_INCOMPLETE', 'vollständige Songzuordnung dieser Show ist noch nicht bestätigt'],
     ['OWN_ENTRY_MISSING', 'noch keine tatsächliche Einreichung zugeordnet'],
   ])('renders the clear %s empty state', async (prerequisite, message) => {

@@ -50,10 +50,10 @@ export function evaluationStatusForShow(show: MottoShow): string {
     return 'Nach Enthüllung Einreichende zuordnen'
   }
 
-  const processedCount = show.publishedBallotVotedCount + show.publishedBallotNotVotedCount
+  const capturedBallotCount = show.publishedBallotVotedCount
   const participantCount = show.activeParticipantCount
   if (show.publishedBallotUnrecordedCount > 0) {
-    return `${processedCount} von ${participantCount} Stimmzetteln erfasst`
+    return `${capturedBallotCount} von ${participantCount} Stimmzetteln erfasst`
   }
 
   return `${show.publishedBallotVotedCount} abgegeben · ${show.publishedBallotNotVotedCount} nicht abgestimmt`

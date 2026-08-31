@@ -60,7 +60,7 @@ describe('show-card workflow', () => {
     expect(evaluationStatusForShow(baseShow)).toBe('Auswertung noch nicht verfügbar')
     expect(evaluationStatusForShow({ ...baseShow, ballotClosedAt: '2026-08-31T00:00:00Z', assignedEntryCount: 19 })).toBe('Nach Enthüllung Einreichende zuordnen')
     expect(evaluationStatusForShow({ ...baseShow, ballotClosedAt: '2026-08-31T00:00:00Z', assignedEntryCount: 20 })).toBe('0 von 20 Stimmzetteln erfasst')
-    expect(evaluationStatusForShow({ ...baseShow, ballotClosedAt: '2026-08-31T00:00:00Z', assignedEntryCount: 20, publishedBallotVotedCount: 17, publishedBallotNotVotedCount: 1, publishedBallotUnrecordedCount: 2 })).toBe('18 von 20 Stimmzetteln erfasst')
+    expect(evaluationStatusForShow({ ...baseShow, ballotClosedAt: '2026-08-31T00:00:00Z', assignedEntryCount: 20, publishedBallotVotedCount: 17, publishedBallotNotVotedCount: 1, publishedBallotUnrecordedCount: 2 })).toBe('17 von 20 Stimmzetteln erfasst')
     expect(evaluationAvailabilityForShow({ ...baseShow, ballotClosedAt: '2026-08-31T00:00:00Z', assignedEntryCount: 20 })).toBe('AVAILABLE')
   })
 })

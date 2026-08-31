@@ -1,9 +1,9 @@
 import { Alert, Box, Stack, Typography } from '@mui/material'
 import { useEffect, useState } from 'react'
 import { ApiErrorNotice } from '../../components/ApiErrorNotice'
-import { fetchEntries, type ContestEntry, type EntryApiError } from '../entries/api'
-import { fetchParticipants, type Participant, type ParticipantApiError } from '../participants/api'
-import type { MottoShow, ShowApiError } from '../shows/api'
+import { EntryApiError, fetchEntries, type ContestEntry } from '../entries/api'
+import { fetchParticipants, ParticipantApiError, type Participant } from '../participants/api'
+import { ShowApiError, type MottoShow } from '../shows/api'
 import { PublishedBallotsPanel } from './PublishedBallotsPanel'
 
 type PageError = EntryApiError | ParticipantApiError | ShowApiError
@@ -20,7 +20,7 @@ export function PublishedBallotsEvaluation({ show, showId }: { show: MottoShow, 
       fetchParticipants({ contestId: show.contestId, includeInactive: true }),
     ]).then(([loadedEntries, loadedParticipants]) => {
       if (!cancelled) { setEntries(loadedEntries); setParticipants(loadedParticipants); setError(null) }
-    }).catch((caught: unknown) => { if (!cancelled) setError(caught as PageError) })
+    }).catch((caught: unknown) => { if (!cancelled) setError(asPageError(caught)) })
     return () => { cancelled = true }
   }, [show.contestId, showId])
 
@@ -34,4 +34,9 @@ export function PublishedBallotsEvaluation({ show, showId }: { show: MottoShow, 
       ? <Alert severity="info">Veröffentlichte Stimmzettel können nach dem Abschluss der eigenen Top 15 gepflegt werden.</Alert>
       : <PublishedBallotsPanel entries={entries} headingLevel="h3" participants={participants} showId={showId} />}
   </Stack>
+}
+
+function asPageError(error: unknown): PageError {
+  if (error instanceof EntryApiError || error instanceof ParticipantApiError || error instanceof ShowApiError) return error
+  return new ShowApiError({ timestamp: new Date().toISOString(), status: 0, code: 'NETWORK_ERROR', message: 'Die veröffentlichten Stimmzettel konnten nicht geladen werden.', path: '/api/shows' })
 }
