@@ -41,7 +41,8 @@ public class CsvExportService {
                         SELECT contest.name,motto_show.show_number,motto_show.name,motto_show.entry_list_complete,contest_entry.artist,contest_entry.title,contest_entry.youtube_url,
                                contest_entry.comment,contest_entry.assessment,contest_entry.assessment_confidence,contest_entry.pool_position,
                                contest_entry.ranking_position,participant.display_name,participation.country_code,
-                               motto_show.ballot_closed_at IS NOT NULL,contest_entry.id=motto_show.own_entry_id
+                               (contest.is_current = 0 OR motto_show.ballot_closed_at IS NOT NULL OR contest_entry.id=motto_show.own_entry_id),
+                               contest_entry.id=motto_show.own_entry_id
                         FROM contest_entry JOIN motto_show ON motto_show.id=contest_entry.motto_show_id
                         JOIN contest ON contest.id=motto_show.contest_id
                         LEFT JOIN contest_participation participation ON participation.id=contest_entry.contest_participation_id
