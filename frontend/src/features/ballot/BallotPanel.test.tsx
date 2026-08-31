@@ -48,8 +48,8 @@ describe('BallotPanel', () => {
     expect(screen.queryByRole('button', { name: 'Ranglistenvorschlag anwenden' })).not.toBeInTheDocument()
   })
 
-  it('keeps snapshot output and the matching text-file endpoint available', () => {
-    const snapshotText = 'Platz #1 - Deutschland: Snapshot Artist - Snapshot Title'
+  it('keeps snapshot output and the matching text-file endpoint available without participant assignments', () => {
+    const snapshotText = '1. Snapshot Artist - Snapshot Title'
     renderPanel({
       ballotClosedAt: '2026-08-27T12:00:00Z',
       currentSnapshot: { id: 1, snapshotNumber: 1, createdAt: '2026-08-27T12:00:00Z', current: true, items: [] },
@@ -58,7 +58,9 @@ describe('BallotPanel', () => {
     })
 
     expect(screen.getByRole('textbox')).toHaveValue(snapshotText)
+    expect(screen.getByRole('button', { name: 'Top 15 kopieren' })).toBeVisible()
     expect(screen.getByRole('link', { name: 'Textdatei herunterladen' })).toHaveAttribute('href', '/api/shows/1/ballot/export')
+    expect(screen.queryByText(/Teilnehmer und damit Länder zugeordnet/)).not.toBeInTheDocument()
   })
 
   it('only applies a ranking suggestion after confirmation when a ranking already exists', async () => {
