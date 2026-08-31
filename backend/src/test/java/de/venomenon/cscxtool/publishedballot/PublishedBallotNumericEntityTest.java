@@ -38,6 +38,22 @@ class PublishedBallotNumericEntityTest {
                 .doesNotContain("POSITION_COUNT", "UNRECOGNIZED_POSITION_LINES", "EXPLICIT_RANK_SEQUENCE");
     }
 
+    @Test
+    void decodesLiteralizedNumericEntitiesAfterRichHtmlExtraction() {
+        String html = "<div>" + FIXTURE.replace("&", "&amp;").replace("\n", "<br>") + "</div>";
+
+        List<PublishedBallotPreviewBlock> blocks = parser.parse(html, "", participants(), entries(), Set.of());
+
+        assertThat(blocks).hasSize(1);
+        PublishedBallotPreviewBlock block = blocks.getFirst();
+        assertThat(block.status()).isEqualTo("READY");
+        assertThat(block.positions()).hasSize(15);
+        assertThat(block.positions()).allSatisfy(position -> {
+            assertThat(position.sourceText()).contains("ұпай");
+            assertThat(position.sourceText()).doesNotContain("&#1201;");
+        });
+    }
+
     private static List<PublishedBallotParticipant> participants() {
         return List.of(
                 participant(100, "Wishmaster", "KZ", "Kasachstan"),
