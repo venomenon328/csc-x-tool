@@ -1,3 +1,5 @@
+import type { CSSProperties } from 'react'
+
 export const CSC_COUNTRY_FLAG_CODES = ['XE', 'XN', 'XL', 'XS', 'XW'] as const
 
 export type CscCountryFlagCode = typeof CSC_COUNTRY_FLAG_CODES[number]
@@ -7,7 +9,7 @@ export function isCscCountryFlagCode(code?: string | null): code is CscCountryFl
 }
 
 export function CscCountryFlag({ code, label, size }: { code: CscCountryFlagCode, label: string, size: number }) {
-  const style = { display: 'inline-block', height: Math.round(size * 2 / 3), verticalAlign: 'middle', width: size }
+  const style: CSSProperties = { display: 'inline-block', height: Math.round(size * 2 / 3), verticalAlign: 'middle', width: size }
 
   switch (code) {
     case 'XE':
