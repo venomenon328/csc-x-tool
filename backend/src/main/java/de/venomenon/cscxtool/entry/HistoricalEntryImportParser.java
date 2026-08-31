@@ -82,7 +82,8 @@ class HistoricalEntryImportParser {
                 child.normalName().equals("p") || child.normalName().equals("li") || child.normalName().equals("div")
         )).toList();
         if (blocks.isEmpty()) {
-            appendHtmlBlock(document.body(), target);
+            if (document.body().select("a[href]").isEmpty()) appendText(document.body().wholeText(), target);
+            else appendHtmlBlock(document.body(), target);
             return;
         }
         blocks.forEach(block -> appendHtmlBlock(block, target));
