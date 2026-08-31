@@ -28,6 +28,12 @@ class PublishedBallotImportParser {
 
     private static final Pattern STANDARD_HEADER = Pattern.compile("^\\s*\\[\\s*#?\\s*\\d+\\s*]\\s*(.*?)\\s*$");
     private static final Pattern ENCLOSED_HEADER = Pattern.compile("^\\s*\\[\\s*#?\\s*\\d+\\s+(.+?)\\s*]\\s*$");
+    private static final Pattern EXPLICIT_RANKED_LINE = Pattern.compile(
+            "^\\s*(\\d{1,2})\\.\\s+(.+?)\\s+(?:[*_`~]+\\s*)?(\\d+)\\s*([^\\s\\d]+)\\s*$"
+    );
+    private static final Pattern PARENTHETICAL_ASSIGNMENT = Pattern.compile(
+            "\\(([^()]+?)\\s+[-–—]\\s+([^()]+?)\\)"
+    );
     private static final char INLINE_BOUNDARY = '\u001f';
 
     private final Map<String, String> countriesByName;
@@ -69,17 +75,40 @@ class PublishedBallotImportParser {
                 if (element.children().stream().anyMatch(child -> List.of("p", "li", "div").contains(child.normalName()))) {
                     continue;
                 }
-                String url = element.select("a[href]").stream().map(link -> compact(link.attr("href")))
-                        .filter(value -> !value.isBlank()).findFirst().orElse(null);
-                appendText(htmlText(element), htmlLines, url);
+                appendHtmlElement(element, htmlLines);
             }
-            if (htmlLines.isEmpty()) appendText(htmlText(document.body()), htmlLines, null);
+            if (htmlLines.isEmpty()) appendHtmlElement(document.body(), htmlLines);
         }
         // A paste commonly supplies HTML and plain text. Prefer the DOM form rather than importing both.
         if (!htmlLines.isEmpty()) return htmlLines;
         List<SourceLine> textLines = new ArrayList<>();
         appendText(text, textLines, null);
         return textLines;
+    }
+
+    private static void appendHtmlElement(Element element, List<SourceLine> result) {
+        List<Element> links = element.select("a[href]");
+        if (links.size() <= 1) {
+            String url = links.stream().map(link -> compact(link.attr("href")))
+                    .filter(value -> !value.isBlank()).findFirst().orElse(null);
+            appendText(htmlText(element), result, url);
+            return;
+        }
+
+        if (!element.select("br").isEmpty()) {
+            String[] fragments = element.html().split("(?i)<br\\b[^>]*>");
+            for (String fragment : fragments) {
+                if (fragment.isBlank()) continue;
+                Element logicalLine = Jsoup.parseBodyFragment(fragment).body();
+                List<Element> lineLinks = logicalLine.select("a[href]");
+                String url = lineLinks.size() == 1 ? compact(lineLinks.getFirst().attr("href")) : null;
+                appendText(htmlText(logicalLine), result, url);
+            }
+            return;
+        }
+
+        // Never apply one arbitrary link to several logical rating lines.
+        appendText(htmlText(element), result, null);
     }
 
     private static void appendText(String source, List<SourceLine> result, String url) {
@@ -191,6 +220,17 @@ class PublishedBallotImportParser {
                     "Bewertungszeilen konnten nicht erkannt werden; bitte Punktepräfix und Formatierung prüfen."
             ));
         }
+        boolean explicitRankMismatch = false;
+        for (int index = 0; index < block.songLines().size(); index++) {
+            ExplicitRankedLine explicit = explicitRankedLine(block.songLines().get(index).text());
+            if (explicit != null && explicit.rank() != 15 - index) explicitRankMismatch = true;
+        }
+        if (explicitRankMismatch) {
+            warnings.add(new BallotImportWarning(
+                    "EXPLICIT_RANK_SEQUENCE",
+                    "Explizite Rangnummern müssen vollständig in der Reihenfolge 15 bis 1 vorliegen."
+            ));
+        }
         List<PublishedBallotPreviewPosition> positions = new ArrayList<>();
         for (int index = 0; index < block.songLines().size(); index++) {
             positions.add(resolvePosition(
@@ -227,7 +267,7 @@ class PublishedBallotImportParser {
         return switch (warning.code()) {
             case "POSITION_COUNT", "UNRESOLVED_VOTER", "AMBIGUOUS_VOTER", "COUNTRY_CONFLICT",
                     "UNRECOGNIZED_POSITION_LINES", "UNRESOLVED_SONG", "AMBIGUOUS_SONG", "SOURCE_CONFLICT",
-                    "SUBMITTER_CONFLICT" -> true;
+                    "SUBMITTER_CONFLICT", "EXPLICIT_RANK_SEQUENCE" -> true;
             default -> false;
         };
     }
@@ -338,7 +378,12 @@ class PublishedBallotImportParser {
         }
         int songStart = source.toLowerCase(Locale.ROOT).indexOf(selected.artist().toLowerCase(Locale.ROOT));
         if (songStart < 0) return List.of();
-        String hint = normalized(source.substring(0, songStart));
+        StringBuilder hintSource = new StringBuilder(source.substring(0, songStart));
+        Matcher parenthetical = PARENTHETICAL_ASSIGNMENT.matcher(source.substring(songStart));
+        while (parenthetical.find()) {
+            hintSource.append(' ').append(parenthetical.group(1)).append(' ').append(parenthetical.group(2));
+        }
+        String hint = normalized(hintSource.toString());
         boolean participantMatches = hint.contains(normalized(submitter.displayName()))
                 || submitter.aliases().stream().anyMatch(alias -> hint.contains(normalized(alias)));
         Set<String> hintedCountries = new HashSet<>();
@@ -410,19 +455,32 @@ class PublishedBallotImportParser {
     }
 
     private static boolean isSongLine(SourceLine source) {
-        return !songTexts(source.structure()).isEmpty();
+        return explicitRankedLine(source.text()) != null || !songTexts(source.structure()).isEmpty();
     }
 
     private static boolean looksLikeRatingLine(SourceLine source) {
         String structure = source.structure();
-        return !songTexts(structure).isEmpty()
+        return explicitRankedLine(source.text()) != null
+                || !songTexts(structure).isEmpty()
                 || afterLeadingDecimal(structure) >= 0
                 || afterLeadingDecorationThenDecimal(structure) >= 0;
     }
 
     private static String songText(SourceLine source) {
+        ExplicitRankedLine explicit = explicitRankedLine(source.text());
+        if (explicit != null) return explicit.songText();
         List<String> candidates = songTexts(source.structure());
         return candidates.isEmpty() ? compact(source.text()) : candidates.getFirst();
+    }
+
+    private static ExplicitRankedLine explicitRankedLine(String source) {
+        Matcher matcher = EXPLICIT_RANKED_LINE.matcher(compact(source));
+        if (!matcher.matches()) return null;
+        String pointsWord = matcher.group(4);
+        if (pointsWord.codePoints().noneMatch(Character::isLetter)) return null;
+        String songText = compact(matcher.group(2));
+        if (songText.isBlank()) return null;
+        return new ExplicitRankedLine(Integer.parseInt(matcher.group(1)), songText);
     }
 
     /**
@@ -526,6 +584,7 @@ class PublishedBallotImportParser {
 
     private record SourceLine(String text, String structure, String url) { }
     private record HeaderTokens(String firstToken, String secondToken) { }
+    private record ExplicitRankedLine(int rank, String songText) { }
     private record Block(
             String header,
             String firstHeaderToken,
