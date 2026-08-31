@@ -367,7 +367,15 @@ Die Anwendung bietet mindestens:
 - Nutzung des contestbezogenen Landes als zusätzliche Prüf- und Anzeigeinformation,
 - atomaren bestätigten Import.
 
-Das genaue automatisierte Parserformat wird anhand eines realen historischen Songlistenblocks festgelegt. Ein solcher Block ist Implementierungsvoraussetzung für das Importpaket, aber kein offener fachlicher Punkt dieses Dokuments.
+Der Import erkennt die derzeit bekannten realen Formate block- oder zeilenweise über kleine, getrennte Formatstrategien. Keine Variante ist das einzig zulässige CSC-Format; weitere belegte Varianten können als zusätzliche Strategie folgen. Alle Varianten münden unverändert in dieselbe editierbare Vorschau und den atomaren Import:
+
+- Format A: `Interpret - Titel (Land/Teilnehmer)` beziehungsweise die eindeutig auflösbare umgekehrte Zuordnung;
+- Format B: `Interpret - Titel - Teilnehmer / Land` mit optionalem Leerraum am Slash;
+- Format C: sichtbares Präfix `Land - Teilnehmer` mit verlinktem `Interpret - Titel`.
+
+Bei Format C ist eine eindeutige Rich-HTML-Struktur die bevorzugte Informationsquelle: Das sichtbare Präfix und genau ein Anchor desselben logischen Quellblocks liefern Zuordnung, Songtext und Linkziel. Der Markdown-/Plaintext-Fallback bleibt nutzbar. Liefert ein Paste-Ereignis beide äquivalenten Repräsentationen, wird die eindeutige linkhaltige Variante nur einmal übernommen; die Rich-HTML-Variante hat dabei Vorrang. Widersprüchliche Darstellungen oder mehrere Links bleiben sichtbar zur manuellen Nacharbeit.
+
+Interpret, Titel und Teilnehmernamen sind stets konkrete Quelldaten. Sie werden weder automatisch korrigiert oder harmonisiert noch fuzzy zusammengeführt. Teilnehmer werden ausschließlich über Anzeigename oder gepflegte Aliasse aufgelöst; das vertretene Land ist nur ein contestbezogenes Plausibilitätssignal.
 
 ### 10.3 Keine Ableitung aus Stimmzetteln
 
