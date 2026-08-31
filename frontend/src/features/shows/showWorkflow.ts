@@ -66,7 +66,7 @@ export function ownEntryStatusForShow(show: MottoShow): string {
   return 'Eigene Einreichung bestätigt'
 }
 
-export function evaluationPath(showId: number, view: 'published-ballots' | 'own-entry') {
+export function evaluationPath(showId: number, view: 'published-ballots' | 'own-entry' | 'standings') {
   return `/shows/${showId}/evaluation?view=${view}`
 }
 

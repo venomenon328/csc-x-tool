@@ -19,6 +19,8 @@ class PublishedBallotController {
 
     @GetMapping
     PublishedBallotOverviewResponse overview(@PathVariable long showId) { return service.overview(showId); }
+    @GetMapping("/standings")
+    PublishedBallotStandingsResponse standings(@PathVariable long showId) { return service.standings(showId); }
     @GetMapping("/{participationId}")
     PublishedBallotDetailResponse detail(@PathVariable long showId, @PathVariable long participationId) { return service.detail(showId, participationId); }
     @PostMapping("/import-preview")

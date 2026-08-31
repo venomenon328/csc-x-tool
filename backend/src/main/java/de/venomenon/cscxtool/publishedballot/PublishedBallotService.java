@@ -3,10 +3,13 @@ package de.venomenon.cscxtool.publishedballot;
 import de.venomenon.cscxtool.shared.ApiBadRequestException;
 import de.venomenon.cscxtool.shared.ApiConflictException;
 import de.venomenon.cscxtool.shared.CscPoints;
+import de.venomenon.cscxtool.participant.CountryCatalog;
 import de.venomenon.cscxtool.show.ShowNotFoundException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -18,10 +21,12 @@ public class PublishedBallotService {
 
     private final PublishedBallotRepository repository;
     private final PublishedBallotImportParser parser;
+    private final CountryCatalog countries;
 
-    PublishedBallotService(PublishedBallotRepository repository, PublishedBallotImportParser parser) {
+    PublishedBallotService(PublishedBallotRepository repository, PublishedBallotImportParser parser, CountryCatalog countries) {
         this.repository = repository;
         this.parser = parser;
+        this.countries = countries;
     }
 
     PublishedBallotOverviewResponse overview(long showId) {
@@ -56,6 +61,46 @@ public class PublishedBallotService {
         List<PublishedBallotDerivedEntryResponse> derived = entries.stream().map(entry -> derived(entry, participationId, status, ranks)).toList();
         return new PublishedBallotDetailResponse(showId, participationId, participant.participantId(), participant.displayName(), participant.countryCode(),
                 status, ballot != null, positions, derived);
+    }
+
+    PublishedBallotStandingsResponse standings(long showId) {
+        facts(showId);
+        List<PublishedBallotEntry> entries = repository.findEntries(showId);
+        Map<Long, StandingAccumulator> standings = new LinkedHashMap<>();
+        for (PublishedBallotEntry entry : entries) standings.put(entry.id(), new StandingAccumulator(entry));
+
+        List<PublishedBallotParticipant> participants = repository.findParticipants(showId);
+        Map<Long, PublishedBallot> ballots = ballotsByParticipation(showId);
+        int voted = 0;
+        int notVoted = 0;
+        for (PublishedBallotParticipant participant : participants) {
+            PublishedBallot ballot = ballots.get(participant.participationId());
+            PublishedBallotStatus status = ballot == null ? PublishedBallotStatus.UNERFASST : ballot.status();
+            if (status == PublishedBallotStatus.ABGESTIMMT) voted++;
+            if (status == PublishedBallotStatus.NICHT_ABGESTIMMT) notVoted++;
+        }
+
+        for (PublishedBallot ballot : ballots.values()) {
+            if (ballot.status() != PublishedBallotStatus.ABGESTIMMT) continue;
+            for (PublishedBallotPosition position : repository.findPositions(ballot.id())) {
+                StandingAccumulator standing = standings.get(position.entryId());
+                if (standing != null) standing.add(CscPoints.pointsForRank(position.rank()));
+            }
+        }
+
+        List<StandingAccumulator> ordered = new ArrayList<>(standings.values());
+        // The stable encounter order only makes equal scores readable; it is not a CSC tie-break rule.
+        ordered.sort(Comparator.comparingInt(StandingAccumulator::points).reversed());
+        List<PublishedBallotStandingEntryResponse> responseEntries = new ArrayList<>();
+        int interimRank = 0;
+        Integer previousPoints = null;
+        for (int index = 0; index < ordered.size(); index++) {
+            StandingAccumulator standing = ordered.get(index);
+            if (previousPoints == null || standing.points() != previousPoints) interimRank = index + 1;
+            responseEntries.add(standing.response(interimRank, countries));
+            previousPoints = standing.points();
+        }
+        return new PublishedBallotStandingsResponse(showId, voted, notVoted, participants.size() - voted - notVoted, List.copyOf(responseEntries));
     }
 
     List<PublishedBallotPreviewBlock> preview(long showId, PublishedBallotImportPreviewRequest request) {
@@ -228,4 +273,19 @@ public class PublishedBallotService {
         return new ApiBadRequestException("INVALID_PUBLISHED_BALLOT_STATUS", "Erlaubt sind nur NICHT_ABGESTIMMT und UNERFASST als bewusste Statusaktion.");
     }
     private record ValidatedBallot(long participationId, List<PublishedBallotPositionRequest> positions) { }
+
+    private static final class StandingAccumulator {
+        private final PublishedBallotEntry entry;
+        private int points;
+        private int mentions;
+
+        private StandingAccumulator(PublishedBallotEntry entry) { this.entry = entry; }
+        private void add(int rankPoints) { points += rankPoints; mentions++; }
+        private int points() { return points; }
+        private PublishedBallotStandingEntryResponse response(int interimRank, CountryCatalog countries) {
+            String countryName = entry.submitterCountryCode() == null ? null : countries.findRequired(entry.submitterCountryCode()).name();
+            return new PublishedBallotStandingEntryResponse(interimRank, entry.id(), entry.artist(), entry.title(), entry.youtubeUrl(),
+                    entry.submitterParticipantId(), entry.submitterDisplayName(), entry.submitterCountryCode(), countryName, points, mentions);
+        }
+    }
 }

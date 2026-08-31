@@ -45,6 +45,18 @@ record PublishedBallotDetailResponse(
         List<PublishedBallotDerivedEntryResponse> entries
 ) { }
 
+/** Read-only snapshot derived from the currently stored published ballots. */
+record PublishedBallotStandingsResponse(
+        long mottoShowId, int votedCount, int notVotedCount, int unrecordedCount,
+        List<PublishedBallotStandingEntryResponse> entries
+) { }
+
+record PublishedBallotStandingEntryResponse(
+        int interimRank, long entryId, String artist, String title, String youtubeUrl,
+        Long submitterParticipantId, String submitterDisplayName, String submitterCountryCode, String submitterCountryName,
+        int points, int mentions
+) { }
+
 record BallotImportWarning(String code, String message) { }
 
 record PublishedBallotPreviewPosition(

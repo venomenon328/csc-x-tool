@@ -4,10 +4,11 @@ import { Link as RouterLink, useParams, useSearchParams } from 'react-router-dom
 import { ApiErrorNotice } from '../../components/ApiErrorNotice'
 import { PublishedBallotsEvaluation } from '../published-ballots/PublishedBallotPage'
 import { OwnEntryEvaluation } from '../results/ResultPage'
+import { ShowStandingsEvaluation } from '../standings/ShowStandingsPage'
 import { fetchShow, ShowApiError, type MottoShow } from '../shows/api'
 import { evaluationPath } from '../shows/showWorkflow'
 
-type EvaluationView = 'published-ballots' | 'own-entry'
+type EvaluationView = 'published-ballots' | 'own-entry' | 'standings'
 
 export function EvaluationPage() {
   const parsedShowId = Number(useParams().showId)
@@ -15,7 +16,8 @@ export function EvaluationPage() {
   const [searchParams] = useSearchParams()
   const [show, setShow] = useState<MottoShow | null>(null)
   const [error, setError] = useState<ShowApiError | null>(null)
-  const view: EvaluationView = searchParams.get('view') === 'own-entry' ? 'own-entry' : 'published-ballots'
+  const requestedView = searchParams.get('view')
+  const view: EvaluationView = requestedView === 'own-entry' || requestedView === 'standings' ? requestedView : 'published-ballots'
 
   useEffect(() => {
     if (showId === null) return
@@ -37,15 +39,18 @@ export function EvaluationPage() {
     <Box>
       <Typography color="secondary" variant="overline">Show {show.showNumber}</Typography>
       <Typography component="h1" variant="h4">{show.name} – Auswertung</Typography>
-      <Typography color="text.secondary" sx={{ mt: 1 }}>Veröffentlichte Stimmzettel und die read-only abgeleitete Ansicht der eigenen Einreichung nutzen dieselbe kanonische Datenbasis.</Typography>
+      <Typography color="text.secondary" sx={{ mt: 1 }}>Veröffentlichte Stimmzettel sowie die read-only abgeleiteten Ansichten nutzen dieselbe kanonische Datenbasis.</Typography>
     </Box>
     <Tabs aria-label="Auswertungsansichten" value={view} variant="scrollable">
       <Tab aria-label="Veröffentlichte Stimmzettel" component={RouterLink} label="Veröffentlichte Stimmzettel" to={evaluationPath(showId, 'published-ballots')} value="published-ballots" />
       <Tab aria-label="Meine Einreichung" component={RouterLink} label="Meine Einreichung" to={evaluationPath(showId, 'own-entry')} value="own-entry" />
+      <Tab aria-label="Zwischenstand" component={RouterLink} label="Zwischenstand" to={evaluationPath(showId, 'standings')} value="standings" />
     </Tabs>
     {view === 'published-ballots'
       ? <PublishedBallotsEvaluation show={show} showId={showId} />
-      : <OwnEntryEvaluation showId={showId} />}
+      : view === 'own-entry'
+        ? <OwnEntryEvaluation showId={showId} />
+        : <ShowStandingsEvaluation showId={showId} />}
   </Stack>
 }
 
