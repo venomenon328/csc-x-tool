@@ -414,7 +414,10 @@ class PublishedBallotImportParser {
     }
 
     private static boolean looksLikeRatingLine(SourceLine source) {
-        return afterLeadingDecimal(source.structure()) >= 0;
+        String structure = source.structure();
+        return !songTexts(structure).isEmpty()
+                || afterLeadingDecimal(structure) >= 0
+                || afterLeadingDecorationThenDecimal(structure) >= 0;
     }
 
     private static String songText(SourceLine source) {
@@ -423,28 +426,70 @@ class PublishedBallotImportParser {
     }
 
     /**
-     * Separates a visible score prefix without assigning meaning to its word, language or script. Markdown and
-     * HTML boundaries are candidates for the otherwise optional separator, so a copied {@code **20点****Samoa}
-     * keeps the complete {@code Samoa ...} content even though flattening would join the visible fragments.
+     * Separates a visible score prefix without assigning meaning to its word, language, script or displayed value.
+     * The decimal marker may appear before or after one opaque decoration token. Markdown and HTML boundaries are
+     * candidates for the separator to the actual ballot content; the longest valid prefix wins.
      */
     private static List<String> songTexts(String source) {
-        int prefixStart = afterLeadingDecimal(source);
-        if (prefixStart < 0) return List.of();
-
         List<String> candidates = new ArrayList<>();
-        for (int index = prefixStart; index < source.length(); index++) {
+        for (int index = 0; index < source.length(); index++) {
             if (!isSeparator(source.charAt(index))) continue;
-            String prefix = compact(withoutInlineBoundaries(source.substring(prefixStart, index)));
+            String prefix = source.substring(0, index);
+            if (!isStructuredScorePrefix(prefix)) continue;
             int contentStart = index;
             while (contentStart < source.length() && isSeparator(source.charAt(contentStart))) contentStart++;
             String content = compact(withoutInlineBoundaries(source.substring(contentStart)));
-            if (!prefix.isBlank() && !content.isBlank() && !candidates.contains(content)) candidates.add(content);
+            if (!content.isBlank() && !candidates.contains(content)) candidates.add(0, content);
         }
         return List.copyOf(candidates);
     }
 
+    private static boolean isStructuredScorePrefix(String source) {
+        String prefix = compact(withoutInlineBoundaries(source));
+        if (prefix.isBlank()) return false;
+
+        int numberStart = -1;
+        int numberEnd = -1;
+        boolean numberFinished = false;
+        for (int index = 0; index < prefix.length(); index++) {
+            if (Character.isDigit(prefix.charAt(index))) {
+                if (numberFinished) return false;
+                if (numberStart < 0) numberStart = index;
+                numberEnd = index + 1;
+            } else if (numberStart >= 0) {
+                numberFinished = true;
+            }
+        }
+        if (numberStart < 0 || numberStart != 0 && numberEnd != prefix.length()) return false;
+
+        String decoration = compact(prefix.substring(0, numberStart) + prefix.substring(numberEnd));
+        if (decoration.isBlank()) return false;
+        for (int index = 0; index < decoration.length(); index++) {
+            char value = decoration.charAt(index);
+            if (Character.isWhitespace(value) || Character.isSpaceChar(value)) return false;
+        }
+        return decoration.codePoints().anyMatch(Character::isLetter);
+    }
+
     private static int afterLeadingDecimal(String source) {
         int index = 0;
+        while (index < source.length() && isSeparator(source.charAt(index))) index++;
+        int numberStart = index;
+        while (index < source.length() && Character.isDigit(source.charAt(index))) index++;
+        return index == numberStart ? -1 : index;
+    }
+
+    private static int afterLeadingDecorationThenDecimal(String source) {
+        int index = 0;
+        while (index < source.length() && isSeparator(source.charAt(index))) index++;
+        int decorationStart = index;
+        boolean hasLetter = false;
+        while (index < source.length() && !isSeparator(source.charAt(index))) {
+            if (Character.isDigit(source.charAt(index))) return -1;
+            if (Character.isLetter(source.charAt(index))) hasLetter = true;
+            index++;
+        }
+        if (index == decorationStart || !hasLetter) return -1;
         while (index < source.length() && isSeparator(source.charAt(index))) index++;
         int numberStart = index;
         while (index < source.length() && Character.isDigit(source.charAt(index))) index++;
