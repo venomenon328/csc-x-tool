@@ -113,7 +113,7 @@ class HistoricalEntryLinkedSongSuffixFormatTest {
             [Holly Loose - John Maynard](https://www.youtube.com/watch?v=mLu_v7nHIcI) **(USA - Kapitän Ahab)**
             [Jack Curley - I'm Here For You](https://www.youtube.com/watch?v=EhDUn7q0_l8) **(Türkei - Toblerone Driver)**
             [Jake Isaac - Waiting Here](https://www.youtube.com/watch?v=cOQ3Zae8LSU) **(Jamaika - Julian)**
-            [Knallfrosch Elektro - Mitten im Leben](https://www.youtube.com/watch?v=ms6UmbL48OI\&ab_channel=KnallfroschElektro-Topic) **(Dänemark - Jaime Lannister)**
+            [Knallfrosch Elektro - Mitten im Leben](https://www.youtube.com/watch?v=ms6UmbL48OI\\&ab_channel=KnallfroschElektro-Topic) **(Dänemark - Jaime Lannister)**
             [Listener - There's Money in the Walls](https://www.youtube.com/watch?v=sCqXflk5-d0) **(Island - Straßenköter)**
             [MakeWar - Oh, Brother](https://www.youtube.com/watch?v=CRXgOgFTSh0) **(Finnland - Suicide)**
             [Mathea - Chaos](https://www.youtube.com/watch?v=fMlo3nxVEUM) **(Ägypten - Cameron Grimes)**
@@ -125,7 +125,7 @@ class HistoricalEntryLinkedSongSuffixFormatTest {
             [The Roop - On Fire](https://www.youtube.com/watch?v=YFzcmH1kDj8) **(Italien - Legendk!ller)**
             [The Tragic Thrills - Fever](https://www.youtube.com/watch?v=CazO8Ar4Szg) **(Nauru - Fingerinpo)**
             [The Treatment - Bite Back](https://youtu.be/HsuOhGVmkdg) **(Frankreich - Clémentine Lyon)**
-            [UMME BLOCK - Yellow Lights](https://www.youtube.com/watch?app=desktop\&v=w-_JLKh6WBA\&ab_channel=UMMEBLOCK) **(Portugal - Red Forman)**
+            [UMME BLOCK - Yellow Lights](https://www.youtube.com/watch?app=desktop\\&v=w-_JLKh6WBA\\&ab_channel=UMMEBLOCK) **(Portugal - Red Forman)**
             [Unprocessed - deadrose](https://www.youtube.com/watch?v=YnGRrWNOZ4E) **(Neuseeland - Cortez)**
             [Vandroya - Why Should We Say Goodbye](https://www.youtube.com/watch?v=W9pXKIYhTCM) **(Bahamas - EdgeGF)**
             [Viagra Boys — Ain't Nice](https://www.youtube.com/watch?v=vzWds5gWS6c) **(Kanada - Fabe)**
@@ -133,6 +133,6 @@ class HistoricalEntryLinkedSongSuffixFormatTest {
             [Wally Warning - No Monkey](https://www.youtube.com/watch?v=z2Zr3EgzbEs) **(Belgien - Eugene Fan)**
             [We Are Temporary - You Can Now Let Go](https://www.youtube.com/watch?v=4efGQgC5pd4) **(Australien - AEWconic)**
             [Wind Rose - Diggy Diggy Hole](https://www.youtube.com/watch?v=34CZjsEI1yU) **(Samoa - OMW)**
-            [XOV - Lucifer](https://www.youtube.com/watch?v=M7bUWuj0EYE\&ab_channel=XOV) **(Uganda - Berggorilla)**
+            [XOV - Lucifer](https://www.youtube.com/watch?v=M7bUWuj0EYE\\&ab_channel=XOV) **(Uganda - Berggorilla)**
             """;
 }
