@@ -46,6 +46,7 @@ describe('evaluation navigation', () => {
     expect(screen.getByRole('tab', { name: 'Veröffentlichte Stimmzettel', selected: true })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Veröffentlichte Stimmzettel' })).toBeVisible()
     expect(await screen.findByText('Einzelwertungen')).toBeVisible()
+    expect(screen.queryByText(/dieselbe kanonische Datenbasis/)).not.toBeInTheDocument()
     await user.click(screen.getByRole('tab', { name: 'Meine Einreichung' }))
 
     await screen.findByRole('tab', { name: 'Meine Einreichung', selected: true })

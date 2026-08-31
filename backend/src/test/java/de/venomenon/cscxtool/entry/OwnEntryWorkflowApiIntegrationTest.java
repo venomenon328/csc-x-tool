@@ -50,6 +50,8 @@ class OwnEntryWorkflowApiIntegrationTest {
         assertThat(unresolvedClose.body()).contains("OWN_ENTRY_RESOLUTION_REQUIRED");
 
         long ownEntryId = entryIds.getFirst();
+        jdbc.update("UPDATE contest_entry SET assessment = 5, assessment_confidence = 5 WHERE id = ?", ownEntryId);
+        assertThat(get("/api/shows/" + showId).body()).contains("\"assessedEntryCount\":1", "\"rankedEntryCount\":16");
         HttpResponse<String> confirmationRequired = put("/api/shows/" + showId + "/entries/own-entry-resolution",
                 "{\"resolution\":\"OWN_ENTRY\",\"entryId\":" + ownEntryId + ",\"confirmRankingRemoval\":false}");
         assertThat(confirmationRequired.statusCode()).isEqualTo(409);
@@ -57,6 +59,7 @@ class OwnEntryWorkflowApiIntegrationTest {
 
         assertThat(put("/api/shows/" + showId + "/entries/own-entry-resolution",
                 "{\"resolution\":\"OWN_ENTRY\",\"entryId\":" + ownEntryId + ",\"confirmRankingRemoval\":true}").statusCode()).isEqualTo(204);
+        assertThat(get("/api/shows/" + showId).body()).contains("\"contestEntryCount\":16", "\"assessedEntryCount\":0", "\"rankedEntryCount\":15");
         HttpResponse<String> entries = get("/api/shows/" + showId + "/entries");
         assertThat(entries.body()).contains("\"id\":" + ownEntryId, "\"ownEntry\":true", "\"rankingPosition\":null");
 

@@ -35,7 +35,7 @@ import { ApiErrorNotice } from '../../components/ApiErrorNotice'
 import { fetchShows, renameShow, ShowApiError, type MottoShow } from './api'
 import { useContest } from '../contests/ContestContext'
 import { HistoricalContestPage } from '../history/HistoricalContestPage'
-import { evaluationAvailabilityForShow, evaluationStatusForShow, ownEntryStatusForShow, primaryActionForShow } from './showWorkflow'
+import { evaluatableEntryCountForShow, evaluationAvailabilityForShow, evaluationStatusForShow, hasConfirmedOwnEntry, ownEntryStatusForShow, primaryActionForShow } from './showWorkflow'
 
 export function ShowOverview() {
   const { selectedContest } = useContest()
@@ -165,10 +165,10 @@ function ShowCard({ show, onRename }: { show: MottoShow, onRename: () => void })
   const contestEntryCount = show.contestEntryCount ?? 0
   const assessedEntryCount = show.assessedEntryCount ?? 0
   const rankedEntryCount = show.rankedEntryCount ?? 0
+  const evaluatableEntryCount = evaluatableEntryCountForShow(show)
   const ballotClosed = show.ballotClosedAt !== null && show.ballotClosedAt !== undefined
   const primaryAction = primaryActionForShow(show)
   const evaluationAvailable = evaluationAvailabilityForShow(show) === 'AVAILABLE'
-  const ownEntryStatus = ownEntryStatusForShow(show)
   const evaluationStatus = evaluationStatusForShow(show)
 
   return (
@@ -200,8 +200,8 @@ function ShowCard({ show, onRename }: { show: MottoShow, onRename: () => void })
           <Typography color="text.secondary" variant="overline">Arbeitsfortschritt</Typography>
           <Box sx={{ display: 'grid', gap: 0.75, gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', mt: 0.5 }}>
             <ProgressMetric count={contestEntryCount} kind="entries" label="Beiträge" total={contestEntryCount} />
-            <ProgressMetric count={assessedEntryCount} kind="assessed" label="Eingeschätzt" total={contestEntryCount} />
-            <ProgressMetric count={rankedEntryCount} kind="ranked" label="Gerankt" total={contestEntryCount} />
+            <ProgressMetric count={assessedEntryCount} kind="assessed" label="Eingeschätzt" total={evaluatableEntryCount} />
+            <ProgressMetric count={rankedEntryCount} kind="ranked" label="Gerankt" total={evaluatableEntryCount} />
           </Box>
         </Box>
 
@@ -215,12 +215,10 @@ function ShowCard({ show, onRename }: { show: MottoShow, onRename: () => void })
             />}
             {contestEntryCount > 0 && !ballotClosed && <>
               <WorkflowStatus icon={<ClockIcon fontSize="small" />} label="Top 15" status="Offen" />
-              <WorkflowStatus icon={<SubmissionIcon fontSize="small" />} label="Eigene Einreichung" status={ownEntryStatus} />
               <WorkflowStatus icon={<ResultIcon fontSize="small" />} label="Auswertung" status={evaluationStatus} />
             </>}
             {contestEntryCount > 0 && ballotClosed && !evaluationAvailable && <>
               <WorkflowStatus icon={<CheckIcon fontSize="small" />} label="Top 15" status="Abgeschlossen" tone="success.main" />
-              <WorkflowStatus icon={<SubmissionIcon fontSize="small" />} label="Eigene Einreichung" status={ownEntryStatus} />
               <WorkflowStatus
                 icon={<CandidateIcon fontSize="small" />}
                 label="Einreichende"
@@ -229,7 +227,6 @@ function ShowCard({ show, onRename }: { show: MottoShow, onRename: () => void })
             </>}
             {contestEntryCount > 0 && ballotClosed && evaluationAvailable && <>
               <WorkflowStatus icon={<CheckIcon fontSize="small" />} label="Top 15" status="Abgeschlossen" tone="success.main" />
-              <WorkflowStatus icon={<SubmissionIcon fontSize="small" />} label="Eigene Einreichung" status={ownEntryStatus} />
               <WorkflowStatus icon={<ResultIcon fontSize="small" />} label="Auswertung" status={evaluationStatus} />
             </>}
           </Stack>
@@ -280,11 +277,35 @@ function SubmissionBlock({ show }: { show: MottoShow }) {
               <Typography color="text.secondary" sx={{ overflowWrap: 'anywhere' }} variant="body2">{selectedCandidate.artist}</Typography>
               <Typography sx={{ overflowWrap: 'anywhere' }} variant="body1">{selectedCandidate.title}</Typography>
             </Stack>}
-          <Typography color="text.secondary" sx={{ display: 'block', mt: 1 }} variant="caption">Eigene tatsächliche Einreichung: {ownEntryStatusForShow(show)}</Typography>
+          <OwnEntryStatus show={show} />
         </Box>
       </Stack>
     </Box>
   )
+}
+
+function OwnEntryStatus({ show }: { show: MottoShow }) {
+  const status = ownEntryStatusForShow(show)
+  const ownParticipationMissing = show.ownParticipationId === null || show.ownParticipationId === undefined
+  const confirmedOwnEntry = !ownParticipationMissing && hasConfirmedOwnEntry(show)
+  const noOwnEntry = !ownParticipationMissing && show.ownEntryResolution === 'NO_OWN_ENTRY'
+  const label = confirmedOwnEntry
+    ? 'Eigene Einreichung'
+    : ownParticipationMissing
+      ? 'Eigene Teilnahme fehlt'
+      : noOwnEntry
+        ? 'Keine eigene Einreichung'
+        : 'Einreichung ungeklärt'
+
+  return <Chip
+    aria-label={status}
+    color={confirmedOwnEntry ? 'success' : undefined}
+    icon={confirmedOwnEntry ? <CheckIcon aria-hidden="true" /> : <ClockIcon aria-hidden="true" />}
+    label={label}
+    size="small"
+    sx={{ mt: 1 }}
+    variant={confirmedOwnEntry ? 'filled' : 'outlined'}
+  />
 }
 
 type ProgressMetricKind = 'entries' | 'assessed' | 'ranked'

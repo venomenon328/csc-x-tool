@@ -28,7 +28,6 @@ export function OwnEntryEvaluation({ showId }: { showId: number }) {
   return <Stack component="section" spacing={3}>
     <Box>
       <Typography component="h2" variant="h5">Meine Einreichung</Typography>
-      <Typography color="text.secondary">Erhaltene Bewertungen werden ausschließlich aus der eigenen Teilnahme, der tatsächlichen Einreichung und veröffentlichten Stimmzetteln abgeleitet.</Typography>
     </Box>
     {error !== null && <ApiErrorNotice error={error.apiError} />}
     {result === null && error === null && <ResultLoading />}
@@ -46,7 +45,7 @@ function DerivedResult({ result, showId }: { result: ShowResult, showId: number 
   if (ownEntry === null) return null
   return <>
     <Paper component="section" sx={{ p: 2 }}><Typography color="secondary" variant="overline">Eigene tatsächliche Einreichung</Typography><Typography component="h3" variant="h6">{ownEntry.artist} – {ownEntry.title}</Typography>{result.selectedCandidateDiffers && <Alert severity="info" sx={{ mt: 1 }}>Die Kandidatenplanung weicht von der zugeordneten Wettbewerbseinreichung ab. Es wurden keine Daten automatisch geändert.</Alert>}</Paper>
-    <Paper component="section" sx={{ p: 2 }}><Typography component="h3" variant="h6">Veröffentlichte Stimmzettel</Typography><Typography color="text.secondary">{result.votedCount} abgegeben · {result.notVotedCount} nicht abgestimmt · {result.unrecordedCount} unerfasst</Typography><Typography sx={{ mt: 1 }}>Abgeleitete Summe: {result.derivedTotalPoints} Punkte</Typography><Typography color="text.secondary" variant="body2">Keine offizielle Gesamtwertung.</Typography></Paper>
+    <Paper component="section" sx={{ p: 2 }}><Typography component="h3" variant="h6">Veröffentlichte Stimmzettel</Typography><Typography color="text.secondary">{result.votedCount} abgegeben · {result.notVotedCount} nicht abgestimmt · {result.unrecordedCount} unerfasst</Typography><Typography sx={{ mt: 1 }}>Abgeleitete Summe: {result.derivedTotalPoints} Punkte</Typography></Paper>
     <Paper component="section" sx={{ overflowX: 'auto', p: 2 }}>
       <Typography component="h3" sx={{ mb: 2 }} variant="h6">Erhaltene Bewertung je Teilnehmer</Typography>
       <Table aria-label="Abgeleitete Bewertung der eigenen Einreichung" size="small"><TableHead><TableRow><TableCell>Teilnehmer</TableCell><TableCell>Status</TableCell><TableCell>Rang</TableCell><TableCell>Punkte</TableCell><TableCell>Quelle</TableCell></TableRow></TableHead><TableBody>{result.lines.map((line) => <DerivedLine key={line.participationId} line={line} showId={showId} />)}</TableBody></Table>

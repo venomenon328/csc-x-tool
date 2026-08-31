@@ -39,7 +39,6 @@ export function EvaluationPage() {
     <Box>
       <Typography color="secondary" variant="overline">Show {show.showNumber}</Typography>
       <Typography component="h1" variant="h4">{show.name} – Auswertung</Typography>
-      <Typography color="text.secondary" sx={{ mt: 1 }}>Veröffentlichte Stimmzettel sowie die read-only abgeleiteten Ansichten nutzen dieselbe kanonische Datenbasis.</Typography>
     </Box>
     <Tabs aria-label="Auswertungsansichten" value={view} variant="scrollable">
       <Tab aria-label="Veröffentlichte Stimmzettel" component={RouterLink} label="Veröffentlichte Stimmzettel" to={evaluationPath(showId, 'published-ballots')} value="published-ballots" />
