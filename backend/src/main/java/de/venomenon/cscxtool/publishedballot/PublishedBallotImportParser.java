@@ -15,6 +15,7 @@ import java.util.regex.Pattern;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
+import org.jsoup.nodes.Node;
 import org.jsoup.nodes.TextNode;
 import org.springframework.stereotype.Component;
 
@@ -26,7 +27,7 @@ import org.springframework.stereotype.Component;
 class PublishedBallotImportParser {
 
     private static final Pattern HEADER = Pattern.compile("^\\s*\\[\\s*#?\\d+\\s*]\\s*(.*?)\\s*[-\\u2010-\\u2014]\\s*(.*?)\\s*$");
-    private static final Pattern SONG_LINE = Pattern.compile("^(?:[\\s*_`]+)?\\d+\\s+\\S+\\s+(.+)$");
+    private static final char INLINE_BOUNDARY = '\u001f';
 
     private final Map<String, String> countriesByName;
 
@@ -69,9 +70,9 @@ class PublishedBallotImportParser {
                 }
                 String url = element.select("a[href]").stream().map(link -> compact(link.attr("href")))
                         .filter(value -> !value.isBlank()).findFirst().orElse(null);
-                appendText(element.wholeText(), htmlLines, url);
+                appendText(htmlText(element), htmlLines, url);
             }
-            if (htmlLines.isEmpty()) appendText(document.body().wholeText(), htmlLines, null);
+            if (htmlLines.isEmpty()) appendText(htmlText(document.body()), htmlLines, null);
         }
         // A paste commonly supplies HTML and plain text. Prefer the DOM form rather than importing both.
         if (!htmlLines.isEmpty()) return htmlLines;
@@ -83,9 +84,29 @@ class PublishedBallotImportParser {
     private static void appendText(String source, List<SourceLine> result, String url) {
         if (source == null || source.isBlank()) return;
         for (String line : source.replace('\u00a0', ' ').split("\\R")) {
-            String value = compact(line);
-            if (!value.isBlank()) result.add(new SourceLine(value, url));
+            String value = compact(line.replace(INLINE_BOUNDARY, ' '));
+            if (!value.isBlank()) result.add(new SourceLine(value, inlineStructure(line), url));
         }
+    }
+
+    private static String htmlText(Element element) {
+        StringBuilder result = new StringBuilder();
+        appendHtmlText(element, result);
+        return result.toString();
+    }
+
+    private static boolean appendHtmlText(Node node, StringBuilder result) {
+        if (node instanceof TextNode textNode) {
+            String text = textNode.getWholeText();
+            result.append(text);
+            return !text.isBlank();
+        }
+        boolean hasText = false;
+        for (Node child : node.childNodes()) {
+            if (hasText) result.append(INLINE_BOUNDARY);
+            hasText |= appendHtmlText(child, result);
+        }
+        return hasText;
     }
 
     private static List<Block> blocks(List<SourceLine> lines) {
@@ -96,14 +117,17 @@ class PublishedBallotImportParser {
             if (header.matches()) {
                 current = new Block(line.text(), compact(header.group(1)), compact(header.group(2)));
                 blocks.add(current);
-            } else if (current != null && SONG_LINE.matcher(line.text()).matches()) {
+            } else if (current != null && isSongLine(line)) {
                 current.songLines().add(line);
+            } else if (current != null && looksLikeRatingLine(line)) {
+                current.unrecognizedRatingLines().add(line);
             }
         }
         if (blocks.isEmpty()) {
             Block unknown = new Block(null, null, null);
             for (SourceLine line : lines) {
-                if (SONG_LINE.matcher(line.text()).matches()) unknown.songLines().add(line);
+                if (isSongLine(line)) unknown.songLines().add(line);
+                else if (looksLikeRatingLine(line)) unknown.unrecognizedRatingLines().add(line);
             }
             blocks.add(unknown);
         }
@@ -123,6 +147,12 @@ class PublishedBallotImportParser {
         );
         if (block.songLines().size() != 15) {
             warnings.add(new BallotImportWarning("POSITION_COUNT", "Der Bewertungsblock muss genau 15 Songzeilen enthalten."));
+        }
+        if (!block.unrecognizedRatingLines().isEmpty()) {
+            warnings.add(new BallotImportWarning(
+                    "UNRECOGNIZED_POSITION_LINES",
+                    "Bewertungszeilen konnten nicht erkannt werden; bitte Punktepräfix und Formatierung prüfen."
+            ));
         }
         List<PublishedBallotPreviewPosition> positions = new ArrayList<>();
         for (int index = 0; index < block.songLines().size(); index++) {
@@ -159,7 +189,8 @@ class PublishedBallotImportParser {
     private boolean blocksImport(BallotImportWarning warning) {
         return switch (warning.code()) {
             case "POSITION_COUNT", "UNRESOLVED_VOTER", "AMBIGUOUS_VOTER", "COUNTRY_CONFLICT",
-                    "UNRESOLVED_SONG", "AMBIGUOUS_SONG", "SOURCE_CONFLICT", "SUBMITTER_CONFLICT" -> true;
+                    "UNRECOGNIZED_POSITION_LINES", "UNRESOLVED_SONG", "AMBIGUOUS_SONG", "SOURCE_CONFLICT",
+                    "SUBMITTER_CONFLICT" -> true;
             default -> false;
         };
     }
@@ -173,7 +204,7 @@ class PublishedBallotImportParser {
             List<BallotImportWarning> blockWarnings
     ) {
         List<BallotImportWarning> warnings = new ArrayList<>();
-        String songText = songText(source.text());
+        String songText = songText(source);
         EntryResolution resolution = resolveEntry(songText, source.url(), entries);
         warnings.addAll(resolution.warnings());
         PublishedBallotEntry entry = resolution.entry();
@@ -341,9 +372,60 @@ class PublishedBallotImportParser {
                 || participant.aliases().stream().anyMatch(alias -> normalized(alias).equals(needle))).toList();
     }
 
-    private static String songText(String source) {
-        Matcher matcher = SONG_LINE.matcher(source);
-        return matcher.matches() ? compact(matcher.group(1)) : compact(source);
+    private static boolean isSongLine(SourceLine source) {
+        return !songTexts(source.structure()).isEmpty();
+    }
+
+    private static boolean looksLikeRatingLine(SourceLine source) {
+        return afterLeadingDecimal(source.structure()) >= 0;
+    }
+
+    private static String songText(SourceLine source) {
+        List<String> candidates = songTexts(source.structure());
+        return candidates.isEmpty() ? compact(source.text()) : candidates.getFirst();
+    }
+
+    /**
+     * Separates a visible score prefix without assigning meaning to its word, language or script. Markdown and
+     * HTML boundaries are candidates for the otherwise optional separator, so a copied {@code **20点****Samoa}
+     * keeps the complete {@code Samoa ...} content even though flattening would join the visible fragments.
+     */
+    private static List<String> songTexts(String source) {
+        int prefixStart = afterLeadingDecimal(source);
+        if (prefixStart < 0) return List.of();
+
+        List<String> candidates = new ArrayList<>();
+        for (int index = prefixStart; index < source.length(); index++) {
+            if (!isSeparator(source.charAt(index))) continue;
+            String prefix = compact(withoutInlineBoundaries(source.substring(prefixStart, index)));
+            int contentStart = index;
+            while (contentStart < source.length() && isSeparator(source.charAt(contentStart))) contentStart++;
+            String content = compact(withoutInlineBoundaries(source.substring(contentStart)));
+            if (!prefix.isBlank() && !content.isBlank() && !candidates.contains(content)) candidates.add(content);
+        }
+        return List.copyOf(candidates);
+    }
+
+    private static int afterLeadingDecimal(String source) {
+        int index = 0;
+        while (index < source.length() && isSeparator(source.charAt(index))) index++;
+        int numberStart = index;
+        while (index < source.length() && Character.isDigit(source.charAt(index))) index++;
+        return index == numberStart ? -1 : index;
+    }
+
+    private static boolean isSeparator(char value) {
+        return value == INLINE_BOUNDARY || Character.isWhitespace(value) || Character.isSpaceChar(value);
+    }
+
+    private static String inlineStructure(String source) {
+        String boundary = String.valueOf(INLINE_BOUNDARY);
+        return source.replaceAll("[*_]{2,}|`+", boundary)
+                .replaceAll("(?<![\\p{L}\\p{N}])[*_](?=\\S)|(?<=\\S)[*_](?![\\p{L}\\p{N}])", boundary);
+    }
+
+    private static String withoutInlineBoundaries(String value) {
+        return value.replace(String.valueOf(INLINE_BOUNDARY), "");
     }
 
     private static String compact(String value) {
@@ -360,10 +442,16 @@ class PublishedBallotImportParser {
                 .replace('\u2013', '-').replace('\u2014', '-').toLowerCase(Locale.ROOT);
     }
 
-    private record SourceLine(String text, String url) { }
-    private record Block(String header, String firstHeaderToken, String secondHeaderToken, List<SourceLine> songLines) {
+    private record SourceLine(String text, String structure, String url) { }
+    private record Block(
+            String header,
+            String firstHeaderToken,
+            String secondHeaderToken,
+            List<SourceLine> songLines,
+            List<SourceLine> unrecognizedRatingLines
+    ) {
         Block(String header, String firstHeaderToken, String secondHeaderToken) {
-            this(header, firstHeaderToken, secondHeaderToken, new ArrayList<>());
+            this(header, firstHeaderToken, secondHeaderToken, new ArrayList<>(), new ArrayList<>());
         }
     }
     private record ResolvedParticipant(PublishedBallotParticipant participant) { }
