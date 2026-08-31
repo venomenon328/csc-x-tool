@@ -23,11 +23,15 @@ class BallotRenderer {
             if (index > 0) {
                 text.append('\n');
             }
+            int points = BallotPoints.pointsForRank(item.rank());
             text.append(item.rank())
                     .append(". ")
                     .append(item.artist())
                     .append(" - ")
-                    .append(item.title());
+                    .append(item.title())
+                    .append(" - ")
+                    .append(points)
+                    .append(points == 1 ? " Punkt" : " Punkte");
         }
         return text.toString();
     }
