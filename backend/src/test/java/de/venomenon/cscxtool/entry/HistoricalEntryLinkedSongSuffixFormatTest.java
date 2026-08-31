@@ -4,11 +4,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import de.venomenon.cscxtool.participant.CountryCatalog;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.ObjectMapper;
 
 class HistoricalEntryLinkedSongSuffixFormatTest {
 
+    private static final Pattern MARKDOWN_LINE = Pattern.compile(
+            "^\\[(.+)]\\((https?://.+)\\) \\*\\*(\\(.+\\))\\*\\*$"
+    );
     private final HistoricalEntryImportParser parser = new HistoricalEntryImportParser(new CountryCatalog(new ObjectMapper()));
 
     @Test
@@ -70,6 +75,53 @@ class HistoricalEntryLinkedSongSuffixFormatTest {
                 .containsExactly("Saarland", "Kanada");
     }
 
+    @Test
+    void parsesTheRealVivaldiClipboardShapeAsThirtySixLinkedRowsWithoutDuplicates() {
+        BrowserClipboard clipboard = browserClipboard(FIXTURE);
+
+        List<HistoricalImportPreviewLine> lines = parser.parse(clipboard.html(), clipboard.text(), participants());
+
+        assertThat(lines).hasSize(36);
+        assertThat(lines).allSatisfy(line -> {
+            assertThat(line.status()).isEqualTo(ImportPreviewStatus.READY);
+            assertThat(line.participantId()).isNotNull();
+            assertThat(line.youtubeUrl()).startsWith("http");
+            assertThat(line.warnings()).isEmpty();
+        });
+        assertThat(lines.getFirst()).satisfies(line -> {
+            assertThat(line.sourceText()).isEqualTo("Andreas Kümmert - Simple Man (Saarland - Peter Neururer)");
+            assertThat(line.youtubeUrl()).isEqualTo("https://youtu.be/Vbq7HygVMW4");
+        });
+        assertThat(lines.getLast()).satisfies(line -> {
+            assertThat(line.artist()).isEqualTo("XOV");
+            assertThat(line.participantDisplayName()).isEqualTo("Berggorilla");
+            assertThat(line.youtubeUrl()).isEqualTo("https://www.youtube.com/watch?v=M7bUWuj0EYE&ab_channel=XOV");
+        });
+    }
+
+    private static BrowserClipboard browserClipboard(String source) {
+        StringBuilder html = new StringBuilder("<div>");
+        StringBuilder text = new StringBuilder();
+        for (String rawLine : source.lines().filter(line -> !line.isBlank()).toList()) {
+            Matcher matcher = MARKDOWN_LINE.matcher(rawLine.trim());
+            assertThat(matcher.matches()).as("binding fixture line: %s", rawLine).isTrue();
+            String song = matcher.group(1);
+            String url = matcher.group(2).replace("\\&", "&");
+            String assignment = matcher.group(3);
+            html.append("<a href=\"")
+                    .append(url.replace("&", "&amp;"))
+                    .append("\">")
+                    .append(song)
+                    .append("</a>&nbsp;<strong>")
+                    .append(assignment)
+                    .append("</strong><br>");
+            if (!text.isEmpty()) text.append('\n');
+            text.append(song).append(' ').append(assignment);
+        }
+        html.append("</div>");
+        return new BrowserClipboard(html.toString(), text.toString());
+    }
+
     private static List<HistoricalImportParticipant> participants() {
         return List.of(
                 participant(1, "Peter Neururer", "XL"), participant(2, "Mark Webber", "NO"),
@@ -96,6 +148,8 @@ class HistoricalEntryLinkedSongSuffixFormatTest {
     private static HistoricalImportParticipant participant(long id, String name, String countryCode) {
         return new HistoricalImportParticipant(id, id, name, countryCode, List.of());
     }
+
+    private record BrowserClipboard(String html, String text) { }
 
     private static final String FIXTURE = """
             [Andreas Kümmert - Simple Man](https://youtu.be/Vbq7HygVMW4) **(Saarland - Peter Neururer)**
