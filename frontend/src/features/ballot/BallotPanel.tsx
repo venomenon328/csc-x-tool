@@ -34,6 +34,8 @@ export function BallotPanel({
   onReopen,
   onRemove,
   onSelect,
+  ownEntryResolution,
+  ownParticipationId,
 }: {
   ballot: Ballot
   entries: ContestEntry[]
@@ -45,6 +47,8 @@ export function BallotPanel({
   onReopen: () => void
   onRemove: (entry: ContestEntry) => void
   onSelect: (entry: ContestEntry) => void
+  ownEntryResolution?: 'UNRESOLVED' | 'NO_OWN_ENTRY' | 'OWN_ENTRY'
+  ownParticipationId?: number | null
 }) {
   const [confirmingClose, setConfirmingClose] = useState(false)
   const [confirmingSuggestion, setConfirmingSuggestion] = useState(false)
@@ -52,7 +56,8 @@ export function BallotPanel({
   const [clipboardNotice, setClipboardNotice] = useState<string | null>(null)
   const ranked = rankedEntries(entries)
   const closed = ballot.ballotClosedAt !== null
-  const canClose = ranked.length >= 15
+  const ownEntryResolved = ownParticipationId === null || ownParticipationId === undefined || ownEntryResolution === 'NO_OWN_ENTRY' || ownEntryResolution === 'OWN_ENTRY'
+  const canClose = ranked.length >= 15 && ownEntryResolved
   const suggestion = suggestedBallotRanking(entries)
   const warnings = deriveBallotWarnings(entries)
 
@@ -80,6 +85,7 @@ export function BallotPanel({
         reordering={reordering}
         canClose={canClose}
         canSuggest={suggestion.rankedEntryIds.length > 0}
+        ownEntryResolved={ownEntryResolved}
       />
 
       {ballot.currentSnapshot !== null && ballot.renderedText === null && (
@@ -137,13 +143,14 @@ export function BallotPanel({
   )
 }
 
-function RankingSurface({ activeEntryId, closed, entries, reordering, canClose, canSuggest, onClose, onApplySuggestion, onReopen, onRemove, onSelect }: {
+function RankingSurface({ activeEntryId, closed, entries, reordering, canClose, canSuggest, ownEntryResolved, onClose, onApplySuggestion, onReopen, onRemove, onSelect }: {
   activeEntryId: number | null
   closed: boolean
   entries: ContestEntry[]
   reordering: boolean
   canClose: boolean
   canSuggest: boolean
+  ownEntryResolved: boolean
   onClose: () => void
   onApplySuggestion: () => void
   onReopen: () => void
@@ -156,7 +163,11 @@ function RankingSurface({ activeEntryId, closed, entries, reordering, canClose, 
         <ReplayIcon aria-hidden="true" fontSize="small" />
       </IconButton>
     </Tooltip>
-    : <Tooltip title={canClose ? 'Abstimmung abschließen' : 'Mindestens 15 Beiträge müssen gerankt sein.'}>
+    : <Tooltip title={canClose
+      ? 'Abstimmung abschließen'
+      : !ownEntryResolved
+        ? 'Bestätige zuerst, ob du selbst einen Beitrag eingereicht hast.'
+        : 'Mindestens 15 Beiträge müssen gerankt sein.'}>
       <span><IconButton
         aria-label="Abstimmung abschließen"
         disabled={!canClose || reordering}
@@ -182,7 +193,9 @@ function RankingSurface({ activeEntryId, closed, entries, reordering, canClose, 
     </Stack>
   const notice = closed
     ? 'Die Top 15 ist abgeschlossen. Für Rangänderungen bitte bewusst wieder öffnen.'
-    : !canClose ? `Für den Abschluss fehlen noch ${15 - entries.length} gerankte Beiträge.` : undefined
+    : !ownEntryResolved
+      ? 'Bestätige vor dem Abschluss im Beitragspool, ob du selbst eine tatsächliche Einreichung hast.'
+      : !canClose ? `Für den Abschluss fehlen noch ${15 - entries.length} gerankte Beiträge.` : undefined
 
   return (
     <Paper component="section" elevation={0} sx={{ border: 1, borderColor: closed ? 'divider' : 'secondary.main', p: 1.5 }}>

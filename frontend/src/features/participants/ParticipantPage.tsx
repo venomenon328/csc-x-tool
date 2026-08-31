@@ -24,6 +24,7 @@ import {
 } from '@mui/material'
 import { useEffect, useState } from 'react'
 import { ApiErrorNotice } from '../../components/ApiErrorNotice'
+import { ContestApiError, setOwnParticipation } from '../contests/api'
 import { useContest } from '../contests/ContestContext'
 import { CountryFlag } from './CountryFlag'
 import {
@@ -54,7 +55,7 @@ type ExistingIdentityEditorState = { identities: ParticipantIdentity[] }
 const emptyInput: ParticipantInput = { displayName: '', countryCode: '', active: true, aliases: [] }
 
 export function ParticipantPage() {
-  const { selectedContestId, selectedContest } = useContest()
+  const { selectedContestId, selectedContest, refresh } = useContest()
   const [countries, setCountries] = useState<Country[]>([])
   const [participants, setParticipants] = useState<Participant[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -185,6 +186,29 @@ export function ParticipantPage() {
     }
   }
 
+  const chooseOwnParticipation = async (participationId: number | null) => {
+    if (selectedContest === null) return
+    try {
+      await setOwnParticipation(selectedContest.id, participationId)
+      await refresh()
+      await load()
+    } catch (caughtError) {
+      if (caughtError instanceof ContestApiError
+        && caughtError.apiError.code === 'OWN_PARTICIPATION_CHANGE_CONFIRMATION_REQUIRED'
+        && window.confirm('Die eigene Teilnahme wird bereits für abgeleitete Ergebnisse verwendet. Bezug bewusst ändern?')) {
+        try {
+          await setOwnParticipation(selectedContest.id, participationId, true)
+          await refresh()
+          await load()
+        } catch (retry) {
+          setError(asParticipantApiError(retry, `/api/contests/${selectedContest.id}/own-participation`))
+        }
+        return
+      }
+      setError(asParticipantApiError(caughtError, `/api/contests/${selectedContest.id}/own-participation`))
+    }
+  }
+
   return (
     <Stack spacing={3}>
       <Box>
@@ -212,6 +236,7 @@ export function ParticipantPage() {
 
       {isLoading ? <ParticipantLoading /> : (
         <ParticipantTable
+          ownParticipationId={selectedContest?.ownParticipationId ?? null}
           participants={participants}
           onDelete={setParticipantToDelete}
           onEditIdentity={(participant) => setEditor({
@@ -220,6 +245,7 @@ export function ParticipantPage() {
           onEditParticipation={(participant) => setEditor({
             kind: 'participation', participant, input: { countryCode: participant.countryCode, active: participant.active },
           })}
+          onSetOwnParticipation={(participationId) => void chooseOwnParticipation(participationId)}
         />
       )}
 
@@ -253,11 +279,13 @@ export function ParticipantPage() {
   )
 }
 
-function ParticipantTable({ participants, onEditIdentity, onEditParticipation, onDelete }: {
+function ParticipantTable({ participants, ownParticipationId, onEditIdentity, onEditParticipation, onDelete, onSetOwnParticipation }: {
   participants: Participant[]
+  ownParticipationId: number | null
   onEditIdentity: (participant: Participant) => void
   onEditParticipation: (participant: Participant) => void
   onDelete: (participant: Participant) => void
+  onSetOwnParticipation: (participationId: number | null) => void
 }) {
   if (participants.length === 0) {
     return <Paper sx={{ p: 3 }}><Typography>Noch keine passenden Teilnehmer vorhanden.</Typography></Paper>
@@ -269,11 +297,12 @@ function ParticipantTable({ participants, onEditIdentity, onEditParticipation, o
         <TableBody>
           {participants.map((participant) => (
             <TableRow key={participant.id} sx={participant.active ? undefined : { opacity: 0.65 }}>
-              <TableCell><Typography sx={{ fontWeight: 600 }}>{participant.displayName}</Typography></TableCell>
+              <TableCell><Stack direction="row" spacing={0.75} sx={{ alignItems: 'center' }}><Typography sx={{ fontWeight: 600 }}>{participant.displayName}</Typography>{participant.participationId === ownParticipationId && <Chip color="secondary" label="Meine Teilnahme" size="small" />}</Stack></TableCell>
               <TableCell><Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}><CountryFlag code={participant.countryCode} countryName={participant.countryName} /><span>{participant.countryName}</span></Stack></TableCell>
               <TableCell>{participant.aliases.length === 0 ? '—' : <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap' }}>{participant.aliases.map((alias) => <Chip key={alias} label={alias} size="small" />)}</Stack>}</TableCell>
               <TableCell>{participant.active ? 'Aktiv' : 'Inaktiv'}</TableCell>
               <TableCell align="right">
+                {participant.participationId !== undefined && <Button onClick={() => onSetOwnParticipation(participant.participationId === ownParticipationId ? null : participant.participationId)}>{participant.participationId === ownParticipationId ? 'Eigene Teilnahme aufheben' : 'Als meine Teilnahme markieren'}</Button>}
                 <Button onClick={() => onEditParticipation(participant)}>Teilnahme bearbeiten</Button>
                 <Button onClick={() => onEditIdentity(participant)}>Identität bearbeiten</Button>
                 <Button color="error" onClick={() => onDelete(participant)}>Entfernen</Button>
@@ -463,5 +492,6 @@ function ParticipantLoading() {
 
 function asParticipantApiError(error: unknown, path: string): ParticipantApiError {
   if (error instanceof ParticipantApiError) return error
+  if (error instanceof ContestApiError) return new ParticipantApiError(error.apiError)
   return new ParticipantApiError({ timestamp: new Date().toISOString(), status: 0, code: 'NETWORK_ERROR', message: 'Die Teilnehmerdaten konnten nicht verarbeitet werden.', path })
 }

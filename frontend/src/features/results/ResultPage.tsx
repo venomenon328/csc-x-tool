@@ -35,7 +35,9 @@ export function ResultPage() {
     <Box><Typography color="secondary" variant="overline">{show === null ? 'Mottoshow' : `Show ${show.showNumber}`}</Typography><Typography component="h1" variant="h4">{show?.name ?? 'Ergebnis der eigenen Einreichung'}</Typography></Box>
     {error !== null && <ApiErrorNotice error={error.apiError} />}
     {result === null && error === null && <ResultLoading />}
-    {result?.prerequisite === 'OWN_PARTICIPATION_MISSING' && <Alert action={<Button component={RouterLink} to="/contests">CSC-Ausgabe öffnen</Button>} severity="info">Wähle in der Contestverwaltung zuerst ausdrücklich deine Contest-Teilnahme. Es wird keine Identität aus einem Namen erraten.</Alert>}
+    {result?.prerequisite === 'OWN_PARTICIPATION_MISSING' && <Alert action={<Button component={RouterLink} to="/participants">Teilnehmer öffnen</Button>} severity="info">Markiere in der Teilnehmerliste zuerst ausdrücklich deine Contest-Teilnahme. Es wird keine Identität aus einem Namen erraten.</Alert>}
+    {result?.prerequisite === 'OWN_ENTRY_UNRESOLVED' && <Alert action={<Button component={RouterLink} to={`/shows/${showId}/voting`}>Abstimmung öffnen</Button>} severity="warning">Bestätige vor der Ergebnisableitung, ob du in dieser Show selbst eine tatsächliche Einreichung hast.</Alert>}
+    {result?.prerequisite === 'OWN_ENTRY_NONE' && <Alert severity="info">Für diese Show ist ausdrücklich bestätigt, dass du keine eigene Einreichung hast. Daher gibt es keine persönliche Ergebnisableitung.</Alert>}
     {result?.prerequisite === 'ENTRY_LIST_INCOMPLETE' && <Alert severity="warning">Die vollständige Songzuordnung dieser Show ist noch nicht bestätigt. Deshalb werden aus veröffentlichten Stimmzetteln noch keine eigenen Ergebnisse abgeleitet.</Alert>}
     {result?.prerequisite === 'OWN_ENTRY_MISSING' && <Alert severity="warning">Für deine gewählte Contest-Teilnahme ist dieser Show noch keine tatsächliche Einreichung zugeordnet. Deshalb können keine erhaltenen Bewertungen abgeleitet werden.</Alert>}
     {result?.prerequisite === 'READY' && <DerivedResult result={result} showId={showId} />}

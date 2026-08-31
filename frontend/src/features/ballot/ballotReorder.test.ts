@@ -54,6 +54,12 @@ describe('ballot ranking interactions', () => {
     expect(moved.filter((entry) => entry.rankingPosition !== null).sort((left, right) => left.rankingPosition! - right.rankingPosition!).map((entry) => entry.id)).toEqual([1, 2, 3])
   })
 
+  it('never adds the marked own entry to the ranking payload', () => {
+    const own = entries.map((entry) => entry.id === 3 ? { ...entry, ownEntry: true } : entry)
+
+    expect(applyRankingDrop(own, drop('pool-entry-3', ENTRY_POOL_DROPPABLE_ID, 0, RANKING_DROPPABLE_ID, 1))).toEqual(own)
+  })
+
   it('sends a complete ranking payload and rolls back only ranking positions when persistence fails', async () => {
     const failure = new Error('conflict')
     const save = vi.fn().mockRejectedValue(failure)

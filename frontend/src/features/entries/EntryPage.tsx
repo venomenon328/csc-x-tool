@@ -23,7 +23,7 @@ import { ClipboardImportArea } from './ClipboardImportArea'
 import { ImportPreview, type EditableImportLine } from './ImportPreview'
 import {
   createEntry, deleteEntry, EntryApiError, fetchEntries, importEntries, previewImport, reorderEntryPool,
-  updateEntryAssessment, updateParticipantAssignment, updateEntry, type ContestEntry, type ContestEntryInput,
+  updateEntryAssessment, updateOwnEntryResolution, updateParticipantAssignment, updateEntry, type ContestEntry, type ContestEntryInput,
 } from './api'
 import {
   persistDroppedPoolOrder, visiblePoolEntries, type EntryPoolFilters, type EntryPoolSortMode,
@@ -54,6 +54,7 @@ export function EntryPage() {
   const [entryPendingDeletion, setEntryPendingDeletion] = useState<ContestEntry | null>(null)
   const [poolReordering, setPoolReordering] = useState(false)
   const [rankingReordering, setRankingReordering] = useState(false)
+  const [ownEntryResolutionConfirmation, setOwnEntryResolutionConfirmation] = useState<{ resolution: 'OWN_ENTRY' | 'NO_OWN_ENTRY', entryId: number | null } | null>(null)
   const [pendingAssessmentIds, setPendingAssessmentIds] = useState<Set<number>>(new Set())
   const assessmentPendingIds = useRef(new Set<number>())
 
@@ -302,6 +303,23 @@ export function EntryPage() {
     } catch (caught) { setError(asEntryApiError(caught, `/api/shows/${showId}/entries/${entry.id}/participant`)) }
   }
 
+  async function saveOwnEntryResolution(resolution: 'OWN_ENTRY' | 'NO_OWN_ENTRY', entryId: number | null, confirmRankingRemoval = false) {
+    if (showId === null) return
+    setError(null)
+    try {
+      await updateOwnEntryResolution(showId, resolution, entryId, confirmRankingRemoval)
+      setOwnEntryResolutionConfirmation(null)
+      await load()
+    } catch (caught) {
+      const apiError = asEntryApiError(caught, `/api/shows/${showId}/entries/own-entry-resolution`)
+      if (!confirmRankingRemoval && apiError.apiError.code === 'OWN_ENTRY_RANKING_REMOVAL_CONFIRMATION_REQUIRED') {
+        setOwnEntryResolutionConfirmation({ resolution, entryId })
+        return
+      }
+      setError(apiError)
+    }
+  }
+
   if (showId === null) return <Alert severity="error">Die Mottoshow-ID ist ungültig.</Alert>
 
   return (
@@ -358,6 +376,13 @@ export function EntryPage() {
             <Paper component="aside" elevation={0} sx={{ backgroundColor: 'action.hover', border: 1, borderColor: 'divider', p: 2, position: { md: 'sticky' }, top: 24, width: { md: 450, xs: '100%' } }}>
               <Stack spacing={2}>
                 <YoutubePlayerPanel contextLabel="Aktuell ausgewählter Wettbewerbsbeitrag" emptyMessage="Wähle einen Wettbewerbsbeitrag aus, um ihn hier anzuhören." song={activeEntry} />
+                <OwnEntryResolutionPanel
+                  activeEntry={activeEntry}
+                  ballotClosed={ballot?.ballotClosedAt !== null && ballot?.ballotClosedAt !== undefined}
+                  ownEntryResolution={show.ownEntryResolution}
+                  ownParticipationId={show.ownParticipationId}
+                  onResolve={(resolution, entryId) => void saveOwnEntryResolution(resolution, entryId)}
+                />
                 {activeEntry !== null && <>
                   <Stack direction="row" spacing={1}>
                     <Button disabled={activeIndex <= 0} onClick={() => setActiveEntryId(visibleEntries[activeIndex - 1]?.id ?? null)}>Vorheriger</Button>
@@ -385,6 +410,8 @@ export function EntryPage() {
                   onSelect={(entry) => setActiveEntryId(entry.id)}
                   reordering={dndBusy}
                   showId={showId}
+                  ownEntryResolution={show.ownEntryResolution}
+                  ownParticipationId={show.ownParticipationId}
                 />}
               </Stack>
             </Paper>
@@ -393,8 +420,44 @@ export function EntryPage() {
       </>}
       <EntryDialog creating={creating} entry={editing} key={`${creating}-${editing?.id ?? 'none'}`} onClose={() => { setEditing(null); setCreating(false) }} onCreate={(input) => void saveNewEntry(input)} onSave={(entry) => void saveEntry(entry)} saving={savingNewEntry} />
       <DeleteEntryDialog entry={entryPendingDeletion} onClose={() => setEntryPendingDeletion(null)} onConfirm={() => entryPendingDeletion !== null && void removeEntry(entryPendingDeletion)} />
+      <Dialog onClose={() => setOwnEntryResolutionConfirmation(null)} open={ownEntryResolutionConfirmation !== null}>
+        <DialogTitle>Eigene Einreichung aus der Rangliste entfernen?</DialogTitle>
+        <DialogContent><Typography>Dieser Beitrag ist bereits gerankt. Mit der Bestätigung wird er aus deiner Rangliste entfernt und als eigene tatsächliche Einreichung markiert.</Typography></DialogContent>
+        <DialogActions><Button onClick={() => setOwnEntryResolutionConfirmation(null)}>Abbrechen</Button><Button color="warning" onClick={() => ownEntryResolutionConfirmation !== null && void saveOwnEntryResolution(ownEntryResolutionConfirmation.resolution, ownEntryResolutionConfirmation.entryId, true)} variant="contained">Aus Ranking entfernen und markieren</Button></DialogActions>
+      </Dialog>
     </Stack>
   )
+}
+
+function OwnEntryResolutionPanel({ activeEntry, ballotClosed, ownParticipationId, ownEntryResolution, onResolve }: {
+  activeEntry: ContestEntry | null
+  ballotClosed: boolean
+  ownParticipationId: number | null | undefined
+  ownEntryResolution: MottoShow['ownEntryResolution']
+  onResolve: (resolution: 'OWN_ENTRY' | 'NO_OWN_ENTRY', entryId: number | null) => void
+}) {
+  if (ownParticipationId === null || ownParticipationId === undefined) {
+    return <Alert severity="warning">Lege zuerst unter <Button component={RouterLink} size="small" to="/participants">Teilnehmer</Button> deine eigene Teilnahme fest. Erst dann kann deine eigene Einreichung für diese Show bestätigt werden.</Alert>
+  }
+  if (ballotClosed) {
+    return <Alert severity="info">Die eigene Einreichung ist nach dem Abschluss schreibgeschützt. Öffne die Abstimmung bewusst wieder, um sie zu ändern.</Alert>
+  }
+  const currentOwnEntry = activeEntry?.ownEntry === true
+  const resolution = ownEntryResolution ?? 'UNRESOLVED'
+  return <Paper component="section" elevation={0} sx={{ border: 1, borderColor: resolution === 'UNRESOLVED' ? 'warning.main' : 'divider', p: 1.25 }}>
+    <Stack spacing={1}>
+      <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}><Typography component="h2" variant="subtitle1">Eigene Einreichung</Typography><Chip color={resolution === 'UNRESOLVED' ? 'warning' : 'success'} label={resolution === 'UNRESOLVED' ? 'Noch offen' : resolution === 'OWN_ENTRY' ? 'Bestätigt' : 'Keine eigene'} size="small" /></Stack>
+      {resolution === 'UNRESOLVED' && <Typography color="text.secondary" variant="body2">Bestätige vor dem Abschluss bewusst, ob einer der anonymen Beiträge deine tatsächliche Einreichung ist.</Typography>}
+      {resolution === 'OWN_ENTRY' && <Typography color="text.secondary" variant="body2">Der markierte Beitrag bleibt sichtbar, ist aber aus Ranking und Vorschlag ausgeschlossen.</Typography>}
+      {resolution === 'NO_OWN_ENTRY' && <Typography color="text.secondary" variant="body2">Für diese Show ist bestätigt, dass du keine eigene Einreichung hast.</Typography>}
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+        <Button disabled={activeEntry === null || currentOwnEntry} onClick={() => activeEntry !== null && onResolve('OWN_ENTRY', activeEntry.id)} variant="contained">
+          {currentOwnEntry ? 'Als eigene Einreichung markiert' : 'Ausgewählten Beitrag als eigene Einreichung markieren'}
+        </Button>
+        <Button onClick={() => onResolve('NO_OWN_ENTRY', null)} variant="outlined">Keine eigene Einreichung bestätigen</Button>
+      </Stack>
+    </Stack>
+  </Paper>
 }
 
 function EntryPoolControls({ filters, onFilters, participantAssignmentOpen, sortMode, onSortMode }: {
@@ -442,7 +505,7 @@ function PoolList({ activeEntryId, dndBusy, entries, onSelect, onPlay, onSaveAss
 }) {
   return <Droppable droppableId={ENTRY_POOL_DROPPABLE_ID} isDropDisabled={dndBusy}>
     {(provided) => <Stack {...provided.droppableProps} aria-label="Wettbewerbsbeiträge" ref={provided.innerRef} spacing={0.75}>
-      {entries.map((entry, index) => <Draggable draggableId={`pool-entry-${entry.id}`} index={index} isDragDisabled={dndBusy} key={entry.id}>
+      {entries.map((entry, index) => <Draggable draggableId={`pool-entry-${entry.id}`} index={index} isDragDisabled={dndBusy || entry.ownEntry === true} key={entry.id}>
         {(dragProvided, dragSnapshot) => <EntryPoolCard
           active={activeEntryId === entry.id}
           dragHandleProps={dragProvided.dragHandleProps}
@@ -475,12 +538,13 @@ function EntryPoolCard({ entry, active, dragging, provided, dragHandleProps, onS
   return <Card {...provided.draggableProps} elevation={dragging ? 8 : 0} ref={provided.innerRef} sx={{ backgroundColor: active ? 'action.selected' : 'background.paper', border: 1, borderColor: dragging || active ? 'secondary.main' : 'divider', outline: dragging ? '2px solid' : 'none', outlineColor: 'secondary.main', transition: 'border-color 120ms ease, background-color 120ms ease' }}>
     <CardContent sx={{ p: { xs: 1, md: 1.25 }, '&:last-child': { pb: { xs: 1, md: 1.25 } } }}>
       <Stack direction={{ md: 'row', xs: 'column' }} spacing={1} sx={{ alignItems: { md: 'center', xs: 'stretch' } }}>
-        <Tooltip title={dragEnabled ? 'Ziehen: im Pool umsortieren oder zur Rangliste hinzufügen' : 'Drag-and-drop wird gespeichert'}>
+        <Tooltip title={entry.ownEntry ? 'Eigene tatsächliche Einreichung kann nicht gerankt werden.' : dragEnabled ? 'Ziehen: im Pool umsortieren oder zur Rangliste hinzufügen' : 'Drag-and-drop wird gespeichert'}>
           <Box {...(dragHandleProps ?? {})} aria-disabled={!dragEnabled} aria-label={`${entry.artist} verschieben`} sx={{ alignItems: 'center', borderRadius: 1, color: dragEnabled ? 'text.secondary' : 'action.disabled', cursor: dragging ? 'grabbing' : dragEnabled ? 'grab' : 'default', display: 'inline-flex', flexShrink: 0, justifyContent: 'center', minHeight: 40, minWidth: 40, '&:active': { cursor: 'grabbing' } }}><DragIcon aria-hidden="true" /></Box>
         </Tooltip>
         <Box aria-current={active ? 'true' : undefined} aria-label={`${entry.title} von ${entry.artist} auswählen`} onClick={onSelect} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect() } }} role="button" sx={{ cursor: 'pointer', flex: 1, minWidth: 0, outlineOffset: 4, '&:focus-visible': { outline: '2px solid', outlineColor: 'secondary.main' } }} tabIndex={0}>
           <Typography component="h3" sx={{ fontWeight: 650, overflowWrap: 'anywhere' }} variant="subtitle1">{entry.title}</Typography>
           <Typography color="text.secondary" sx={{ overflowWrap: 'anywhere' }} variant="body2">{entry.artist}</Typography>
+          {entry.ownEntry && <Chip color="warning" label="Eigene Einreichung · nicht wählbar" size="small" sx={{ mt: 0.75 }} />}
           {active && <Chip color="secondary" icon={<PlayIcon aria-hidden="true" />} label="Wird angehört" size="small" sx={{ mt: 0.75 }} />}
           {entry.comment !== null && entry.comment.trim() !== '' && <Typography color="text.secondary" sx={{ mt: 0.5, overflowWrap: 'anywhere' }} variant="body2">{entry.comment}</Typography>}
         </Box>
@@ -488,7 +552,7 @@ function EntryPoolCard({ entry, active, dragging, provided, dragHandleProps, onS
           <AssessmentControls entry={entry} onSave={onSaveAssessment} pending={pendingAssessment} />
           <Tooltip title={entry.rankingPosition === null ? 'Noch nicht gerankt' : `Rang ${entry.rankingPosition}`}><Chip aria-label={`${entry.title}: ${entry.rankingPosition === null ? 'Noch nicht gerankt' : `Rang ${entry.rankingPosition}`}`} icon={<RankIcon aria-hidden="true" fontSize="small" />} label={entry.rankingPosition === null ? 'Noch nicht gerankt' : `Rang ${entry.rankingPosition}`} size="small" sx={{ color: entry.rankingPosition === null ? 'text.secondary' : 'secondary.main', maxWidth: { xs: 'none', sm: 164 } }} /></Tooltip>
           <Tooltip title="Anhören"><IconButton aria-label={`${entry.artist} – ${entry.title} anhören`} color={active ? 'secondary' : 'primary'} onClick={onPlay} size="small"><PlayIcon aria-hidden="true" fontSize="small" /></IconButton></Tooltip>
-          <EntryOverflowMenu entry={entry} onDelete={onDelete} onEdit={onEdit} onResetAssessment={() => onSaveAssessment(null, null)} resetDisabled={entry.assessment === null || pendingAssessment} />
+          <EntryOverflowMenu deleteDisabled={entry.ownEntry} entry={entry} onDelete={onDelete} onEdit={onEdit} onResetAssessment={() => onSaveAssessment(null, null)} resetDisabled={entry.assessment === null || pendingAssessment} />
         </Stack>
       </Stack>
     </CardContent>
@@ -552,7 +616,7 @@ function AssessmentControls({ entry, onSave, pending }: {
   </Stack>
 }
 
-function EntryOverflowMenu({ entry, onEdit, onDelete, onResetAssessment, resetDisabled }: { entry: ContestEntry, onEdit: () => void, onDelete: () => void, onResetAssessment: () => void, resetDisabled: boolean }) {
+function EntryOverflowMenu({ entry, onEdit, onDelete, onResetAssessment, resetDisabled, deleteDisabled }: { entry: ContestEntry, onEdit: () => void, onDelete: () => void, onResetAssessment: () => void, resetDisabled: boolean, deleteDisabled: boolean }) {
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null)
   const open = anchorEl !== null
   function run(action: () => void) { setAnchorEl(null); action() }
@@ -560,7 +624,7 @@ function EntryOverflowMenu({ entry, onEdit, onDelete, onResetAssessment, resetDi
     <Menu anchorEl={anchorEl} id={`entry-${entry.id}-actions`} onClose={() => setAnchorEl(null)} open={open}>
       <MenuItem onClick={() => run(onEdit)}><EditIcon aria-hidden="true" fontSize="small" sx={{ mr: 1 }} />Bearbeiten</MenuItem>
       <MenuItem disabled={resetDisabled} onClick={() => run(onResetAssessment)}><SubmissionIcon aria-hidden="true" fontSize="small" sx={{ mr: 1 }} />Einschätzung zurücksetzen</MenuItem>
-      <MenuItem onClick={() => run(onDelete)} sx={{ color: 'error.main' }}><DeleteIcon aria-hidden="true" fontSize="small" sx={{ mr: 1 }} />Löschen</MenuItem>
+      <MenuItem disabled={deleteDisabled} onClick={() => run(onDelete)} sx={{ color: 'error.main' }}><DeleteIcon aria-hidden="true" fontSize="small" sx={{ mr: 1 }} />Löschen</MenuItem>
     </Menu>
   </>
 }

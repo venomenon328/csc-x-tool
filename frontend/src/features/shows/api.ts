@@ -17,6 +17,9 @@ export type MottoShow = {
   publishedBallotNotVotedCount: number
   publishedBallotUnrecordedCount: number
   ballotClosedAt: string | null
+  ownParticipationId?: number | null
+  ownEntryResolution?: 'UNRESOLVED' | 'NO_OWN_ENTRY' | 'OWN_ENTRY'
+  ownEntryId?: number | null
   selectedCandidate: SelectedCandidate | null
 }
 

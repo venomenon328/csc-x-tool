@@ -30,8 +30,9 @@ export function assessmentSortValue(assessment: number | null, confidence: numbe
  * It is deliberately a calculation only; callers decide when to persist it.
  */
 export function suggestedBallotRanking(entries: ContestEntry[]): BallotRanking {
-  const assessed = entries.filter((entry) => assessmentSortValue(entry.assessment, entry.assessmentConfidence) !== null)
-  const unassessed = entries.filter((entry) => assessmentSortValue(entry.assessment, entry.assessmentConfidence) === null)
+  const eligible = entries.filter((entry) => !entry.ownEntry)
+  const assessed = eligible.filter((entry) => assessmentSortValue(entry.assessment, entry.assessmentConfidence) !== null)
+  const unassessed = eligible.filter((entry) => assessmentSortValue(entry.assessment, entry.assessmentConfidence) === null)
 
   assessed.sort((left, right) => {
     const valueDifference = assessmentSortValue(right.assessment, right.assessmentConfidence)!
@@ -48,22 +49,24 @@ export function suggestedBallotRanking(entries: ContestEntry[]): BallotRanking {
 
   return {
     rankedEntryIds: assessed.map((entry) => entry.id),
-    unrankedEntryIds: unassessed.sort((left, right) => left.poolPosition - right.poolPosition).map((entry) => entry.id),
+    unrankedEntryIds: [...unassessed, ...entries.filter((entry) => entry.ownEntry)]
+      .sort((left, right) => left.poolPosition - right.poolPosition).map((entry) => entry.id),
   }
 }
 
 /** Derives non-blocking completion hints from the current, persisted ranking. */
 export function deriveBallotWarnings(entries: ContestEntry[]): BallotWarning[] {
-  const ranked = rankedEntries(entries)
+  const eligible = entries.filter((entry) => !entry.ownEntry)
+  const ranked = rankedEntries(eligible)
   const topFifteen = ranked.slice(0, 15)
   const warnings: BallotWarning[] = []
-  const unassessedIds = entries.filter((entry) => assessmentSortValue(entry.assessment, entry.assessmentConfidence) === null).map((entry) => entry.id)
+  const unassessedIds = eligible.filter((entry) => assessmentSortValue(entry.assessment, entry.assessmentConfidence) === null).map((entry) => entry.id)
   if (unassessedIds.length > 0) warnings.push({ code: 'UNASSESSED_ENTRIES', entryIds: unassessedIds })
 
   const uncertainTopFifteenIds = topFifteen.filter(isUncertain).map((entry) => entry.id)
   if (uncertainTopFifteenIds.length > 0) warnings.push({ code: 'UNCERTAIN_TOP_FIFTEEN', entryIds: uncertainTopFifteenIds })
 
-  const highAssessmentOutsideTopFifteenIds = entries
+  const highAssessmentOutsideTopFifteenIds = eligible
     .filter((entry) => (entry.assessment === 4 || entry.assessment === 5) && (entry.rankingPosition === null || entry.rankingPosition > 15))
     .map((entry) => entry.id)
   if (highAssessmentOutsideTopFifteenIds.length > 0) warnings.push({ code: 'HIGH_ASSESSMENT_OUTSIDE_TOP_FIFTEEN', entryIds: highAssessmentOutsideTopFifteenIds })

@@ -6,7 +6,7 @@ export const ENTRY_POOL_DROPPABLE_ID = 'entry-pool'
 export const RANKING_DROPPABLE_ID = 'ranking-entries'
 
 export function rankedEntries(entries: ContestEntry[]): ContestEntry[] {
-  return entries.filter((entry) => entry.rankingPosition !== null)
+  return entries.filter((entry) => !entry.ownEntry && entry.rankingPosition !== null)
     .sort((left, right) => left.rankingPosition! - right.rankingPosition!)
 }
 
@@ -19,7 +19,7 @@ export function applyRankingDrop(entries: ContestEntry[], result: DropResult): C
   const entryId = draggableEntryId(result.draggableId)
   if (entryId === null) return entries
   const moved = entries.find((entry) => entry.id === entryId)
-  if (moved === undefined) return entries
+  if (moved === undefined || moved.ownEntry) return entries
 
   const ranked = rankedEntries(entries)
   if (source === RANKING_DROPPABLE_ID && destination === ENTRY_POOL_DROPPABLE_ID) {
@@ -42,6 +42,7 @@ export function applyRankingDrop(entries: ContestEntry[], result: DropResult): C
 }
 
 export function removeFromRanking(entries: ContestEntry[], entryId: number): ContestEntry[] {
+  if (entries.some((entry) => entry.id === entryId && entry.ownEntry)) return entries
   return withRanking(entries, rankedEntries(entries).filter((entry) => entry.id !== entryId))
 }
 
@@ -61,7 +62,7 @@ export function applyConfirmedRanking(entries: ContestEntry[], ranking: BallotRa
   if (submittedIds.size !== entries.length || entries.some((entry) => !submittedIds.has(entry.id))) {
     throw new Error('Der serverbestätigte Rang enthält keinen vollständigen Beitragsbestand.')
   }
-  return entries.map((entry) => ({ ...entry, rankingPosition: rankById.get(entry.id) ?? null }))
+  return entries.map((entry) => ({ ...entry, rankingPosition: entry.ownEntry ? null : rankById.get(entry.id) ?? null }))
 }
 
 type PersistDroppedBallotOptions = {

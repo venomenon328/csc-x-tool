@@ -3,8 +3,8 @@ import type { TipsEntry } from './api'
 import { assignParticipant, assignmentPayload, persistTipsDraft } from './tipsAssignments'
 
 const entries: TipsEntry[] = [
-  { id: 1, artist: 'Alpha', title: 'One', youtubeUrl: null, actualAssignment: null, tip: { entryId: 1, guessedParticipationId: 10, confidence: 'HIGH', note: 'Alt' } },
-  { id: 2, artist: 'Beta', title: 'Two', youtubeUrl: null, actualAssignment: null, tip: null },
+  { id: 1, artist: 'Alpha', title: 'One', youtubeUrl: null, ownEntry: false, actualAssignment: null, tip: { entryId: 1, guessedParticipationId: 10, confidence: 'HIGH', note: 'Alt' } },
+  { id: 2, artist: 'Beta', title: 'Two', youtubeUrl: null, ownEntry: false, actualAssignment: null, tip: null },
 ]
 
 describe('tips assignments', () => {
