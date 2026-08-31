@@ -1,4 +1,5 @@
 import * as Flags from 'country-flag-icons/react/3x2'
+import { CscCountryFlag, isCscCountryFlagCode } from './cscCountryFlags'
 import { hasLocalCountryFlag } from './countryFlagUtils'
 
 type CountryFlagProps = {
@@ -10,13 +11,8 @@ type CountryFlagProps = {
 export function CountryFlag({ code, countryName, size = 24 }: CountryFlagProps) {
   const label = countryName === undefined || countryName === null ? 'Flagge unbekannt' : `Flagge von ${countryName}`
 
-  if (code === 'XS') {
-    return (
-      <svg aria-label={label} role="img" style={{ display: 'inline-block', height: Math.round(size * 2 / 3), verticalAlign: 'middle', width: size }} viewBox="0 0 3 2">
-        <rect fill="#0065BD" height="2" width="3" />
-        <path d="M0 0 L3 2 M3 0 L0 2" fill="none" stroke="#fff" strokeWidth="0.34" />
-      </svg>
-    )
+  if (isCscCountryFlagCode(code)) {
+    return <CscCountryFlag code={code} label={label} size={size} />
   }
 
   const Flag = code !== undefined && code !== null && hasLocalCountryFlag(code)
