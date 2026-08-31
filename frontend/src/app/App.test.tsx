@@ -70,7 +70,7 @@ describe('App', () => {
     expect(within(rankedMetric).getByText('Gerankt')).toBeVisible()
 
     expect(card.getByLabelText('Top 15: Offen')).toBeVisible()
-    expect(card.getByLabelText('Eigene Einreichung: Keine eigene Einreichung bestätigt')).toBeVisible()
+    expect(card.getByLabelText('Keine eigene Einreichung bestätigt')).toBeVisible()
     expect(card.getByLabelText('Auswertung: Auswertung noch nicht verfügbar')).toBeVisible()
     expect(card.getByRole('link', { name: 'Abstimmung fortsetzen' })).toHaveAttribute('href', '/shows/1/voting')
     const navigation = card.getByRole('navigation', { name: 'Arbeitsbereiche für Show 1' })
@@ -130,6 +130,35 @@ describe('App', () => {
     expect(screen.getByLabelText('Auswertung: 18 von 20 Stimmzetteln erfasst')).toBeVisible()
     expect(screen.queryByText('Offiziell')).not.toBeInTheDocument()
     expect(screen.queryByText(/Endplatzierung/)).not.toBeInTheDocument()
+  })
+
+  it('shows the confirmed own entry compactly and excludes it from the visible progress scope', async () => {
+    fetchMock.mockImplementation(async (input) => jsonResponse(String(input) === '/api/contests' ? [currentContest] : [{
+      ...shows[0], contestEntryCount: 33, assessedEntryCount: 32, rankedEntryCount: 32,
+      ownEntryResolution: 'OWN_ENTRY', ownEntryId: 33,
+    }]))
+    render(<App />)
+
+    const card = (await screen.findByRole('heading', { name: 'Super Men' })).closest('section')
+    expect(card).not.toBeNull()
+    const withinCard = within(card!)
+    expect(withinCard.getByRole('group', { name: '32 von 32 Beiträgen eingeschätzt' })).toBeVisible()
+    expect(withinCard.getByRole('group', { name: '32 von 32 Beiträgen gerankt' })).toBeVisible()
+    expect(withinCard.getByLabelText('Eigene Einreichung bestätigt')).toHaveTextContent('Eigene Einreichung')
+    expect(withinCard.queryByText(/Eigene tatsächliche Einreichung:/)).not.toBeInTheDocument()
+  })
+
+  it('keeps unresolved, no-own-entry, and missing-participation states compact but distinct', async () => {
+    fetchMock.mockImplementation(async (input) => jsonResponse(String(input) === '/api/contests' ? [currentContest] : [
+      { ...shows[0], id: 2, showNumber: 2, ownEntryResolution: 'UNRESOLVED', ownEntryId: null },
+      { ...shows[0], id: 3, showNumber: 3, ownEntryResolution: 'NO_OWN_ENTRY', ownEntryId: null },
+      { ...shows[0], id: 4, showNumber: 4, ownParticipationId: null, ownEntryResolution: 'NO_OWN_ENTRY', ownEntryId: null },
+    ]))
+    render(<App />)
+
+    expect(await screen.findByLabelText('Eigene Einreichung noch ungeklärt')).toHaveTextContent('Einreichung ungeklärt')
+    expect(screen.getByLabelText('Keine eigene Einreichung bestätigt')).toHaveTextContent('Keine eigene Einreichung')
+    expect(screen.getByLabelText('Eigene Teilnahme nicht festgelegt')).toHaveTextContent('Eigene Teilnahme fehlt')
   })
 
   it('keeps the own Top-15 lifecycle separate from published-ballot progress', async () => {

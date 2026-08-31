@@ -66,6 +66,14 @@ export function ownEntryStatusForShow(show: MottoShow): string {
   return 'Eigene Einreichung bestätigt'
 }
 
+export function evaluatableEntryCountForShow(show: MottoShow): number {
+  return hasConfirmedOwnEntry(show) ? show.contestEntryCount - 1 : show.contestEntryCount
+}
+
+export function hasConfirmedOwnEntry(show: MottoShow): boolean {
+  return show.ownEntryResolution === 'OWN_ENTRY' && show.ownEntryId !== null && show.ownEntryId !== undefined
+}
+
 export function evaluationPath(showId: number, view: 'published-ballots' | 'own-entry' | 'standings') {
   return `/shows/${showId}/evaluation?view=${view}`
 }

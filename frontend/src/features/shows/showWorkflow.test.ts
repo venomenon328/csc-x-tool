@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { MottoShow } from './api'
-import { evaluationAvailabilityForShow, evaluationStatusForShow, ownEntryStatusForShow, primaryActionForShow } from './showWorkflow'
+import { evaluatableEntryCountForShow, evaluationAvailabilityForShow, evaluationStatusForShow, ownEntryStatusForShow, primaryActionForShow } from './showWorkflow'
 
 const baseShow: MottoShow = {
   id: 7,
@@ -62,5 +62,12 @@ describe('show-card workflow', () => {
     expect(evaluationStatusForShow({ ...baseShow, ballotClosedAt: '2026-08-31T00:00:00Z', assignedEntryCount: 20 })).toBe('0 von 20 Stimmzetteln erfasst')
     expect(evaluationStatusForShow({ ...baseShow, ballotClosedAt: '2026-08-31T00:00:00Z', assignedEntryCount: 20, publishedBallotVotedCount: 17, publishedBallotNotVotedCount: 1, publishedBallotUnrecordedCount: 2 })).toBe('17 von 20 Stimmzetteln erfasst')
     expect(evaluationAvailabilityForShow({ ...baseShow, ballotClosedAt: '2026-08-31T00:00:00Z', assignedEntryCount: 20 })).toBe('AVAILABLE')
+  })
+
+  it('derives the evaluatable scope only from a confirmed concrete own entry', () => {
+    expect(evaluatableEntryCountForShow({ ...baseShow, contestEntryCount: 33, ownEntryResolution: 'UNRESOLVED', ownEntryId: null })).toBe(33)
+    expect(evaluatableEntryCountForShow({ ...baseShow, contestEntryCount: 33, ownEntryResolution: 'NO_OWN_ENTRY', ownEntryId: null })).toBe(33)
+    expect(evaluatableEntryCountForShow({ ...baseShow, contestEntryCount: 33, ownEntryResolution: 'OWN_ENTRY', ownEntryId: null })).toBe(33)
+    expect(evaluatableEntryCountForShow({ ...baseShow, contestEntryCount: 33, ownEntryResolution: 'OWN_ENTRY', ownEntryId: 77 })).toBe(32)
   })
 })

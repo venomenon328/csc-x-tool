@@ -29,8 +29,18 @@ class MottoShowRepository {
                 SELECT motto_show.id, motto_show.contest_id, motto_show.show_number, motto_show.name, motto_show.entry_list_complete,
                        (SELECT COUNT(*) FROM candidate WHERE candidate.motto_show_id = motto_show.id) AS candidate_count,
                        (SELECT COUNT(*) FROM contest_entry WHERE contest_entry.motto_show_id = motto_show.id) AS contest_entry_count,
-                       (SELECT COUNT(*) FROM contest_entry WHERE contest_entry.motto_show_id = motto_show.id AND contest_entry.assessment IS NOT NULL) AS assessed_entry_count,
-                       (SELECT COUNT(*) FROM contest_entry WHERE contest_entry.motto_show_id = motto_show.id AND contest_entry.ranking_position IS NOT NULL) AS ranked_entry_count,
+                       (SELECT COUNT(*) FROM contest_entry
+                        WHERE contest_entry.motto_show_id = motto_show.id
+                          AND contest_entry.assessment IS NOT NULL
+                          AND (motto_show.own_entry_resolution <> 'OWN_ENTRY'
+                               OR motto_show.own_entry_id IS NULL
+                               OR contest_entry.id <> motto_show.own_entry_id)) AS assessed_entry_count,
+                       (SELECT COUNT(*) FROM contest_entry
+                        WHERE contest_entry.motto_show_id = motto_show.id
+                          AND contest_entry.ranking_position IS NOT NULL
+                          AND (motto_show.own_entry_resolution <> 'OWN_ENTRY'
+                               OR motto_show.own_entry_id IS NULL
+                               OR contest_entry.id <> motto_show.own_entry_id)) AS ranked_entry_count,
                        (SELECT COUNT(*) FROM contest_entry WHERE contest_entry.motto_show_id = motto_show.id AND contest_entry.contest_participation_id IS NOT NULL) AS assigned_entry_count,
                        (SELECT COUNT(*) FROM contest_participation participation
                         WHERE participation.contest_id = motto_show.contest_id AND participation.active = 1) AS active_participant_count,
@@ -63,8 +73,18 @@ class MottoShowRepository {
                 SELECT motto_show.id, motto_show.contest_id, motto_show.show_number, motto_show.name, motto_show.entry_list_complete,
                        (SELECT COUNT(*) FROM candidate WHERE candidate.motto_show_id = motto_show.id) AS candidate_count,
                        (SELECT COUNT(*) FROM contest_entry WHERE contest_entry.motto_show_id = motto_show.id) AS contest_entry_count,
-                       (SELECT COUNT(*) FROM contest_entry WHERE contest_entry.motto_show_id = motto_show.id AND contest_entry.assessment IS NOT NULL) AS assessed_entry_count,
-                       (SELECT COUNT(*) FROM contest_entry WHERE contest_entry.motto_show_id = motto_show.id AND contest_entry.ranking_position IS NOT NULL) AS ranked_entry_count,
+                       (SELECT COUNT(*) FROM contest_entry
+                        WHERE contest_entry.motto_show_id = motto_show.id
+                          AND contest_entry.assessment IS NOT NULL
+                          AND (motto_show.own_entry_resolution <> 'OWN_ENTRY'
+                               OR motto_show.own_entry_id IS NULL
+                               OR contest_entry.id <> motto_show.own_entry_id)) AS assessed_entry_count,
+                       (SELECT COUNT(*) FROM contest_entry
+                        WHERE contest_entry.motto_show_id = motto_show.id
+                          AND contest_entry.ranking_position IS NOT NULL
+                          AND (motto_show.own_entry_resolution <> 'OWN_ENTRY'
+                               OR motto_show.own_entry_id IS NULL
+                               OR contest_entry.id <> motto_show.own_entry_id)) AS ranked_entry_count,
                        (SELECT COUNT(*) FROM contest_entry WHERE contest_entry.motto_show_id = motto_show.id AND contest_entry.contest_participation_id IS NOT NULL) AS assigned_entry_count,
                        (SELECT COUNT(*) FROM contest_participation participation
                         WHERE participation.contest_id = motto_show.contest_id AND participation.active = 1) AS active_participant_count,
