@@ -52,6 +52,7 @@ class HistoricalEntryImportParser {
         names.put(HistoricalEntryImportText.normalized("Südafrika"), "ZA");
         names.put(HistoricalEntryImportText.normalized("Jamaica"), "JM");
         names.put(HistoricalEntryImportText.normalized("USA"), "US");
+        names.put(HistoricalEntryImportText.normalized("Bosnien & Herzegowina"), "BA");
         this.countryCodesByName = Map.copyOf(names);
     }
 
@@ -200,6 +201,7 @@ class HistoricalEntryImportParser {
     private List<ParsedSourceLine> deduplicateEquivalentRepresentations(List<ParsedSourceLine> parsed) {
         Map<String, ParsedSourceLine> selected = new LinkedHashMap<>();
         for (ParsedSourceLine source : parsed) {
+            if (isRedundantUnrecognizedPlainText(source, parsed)) continue;
             if (hasRepresentationConflict(source)) {
                 selected.put("conflict-" + selected.size(), source);
                 continue;
@@ -213,6 +215,26 @@ class HistoricalEntryImportParser {
             if (existing == null || informationRank(source) > informationRank(existing)) selected.put(identity, source);
         }
         return List.copyOf(selected.values());
+    }
+
+    private static boolean isRedundantUnrecognizedPlainText(ParsedSourceLine candidate, List<ParsedSourceLine> parsed) {
+        if (candidate.source().representation() != HistoricalImportSourceLine.ClipboardRepresentation.PLAIN_TEXT) return false;
+        if (candidate.source().directUrl() != null || !candidate.source().extractionWarnings().isEmpty()) return false;
+        if (hasRepresentationConflict(candidate)) return false;
+
+        HistoricalEntryImportParseResult result = candidate.result();
+        if (result.artist() != null || result.title() != null || result.firstAssignmentToken() != null
+                || result.secondAssignmentToken() != null || result.url() != null) return false;
+        if (result.warnings().size() != 1 || !"UNRECOGNIZED_FORMAT".equals(result.warnings().getFirst().code())) return false;
+
+        String visibleIdentity = HistoricalEntryImportText.normalized(candidate.source().sourceText());
+        if (visibleIdentity.isEmpty()) return false;
+        return parsed.stream().filter(other -> other != candidate).anyMatch(other ->
+                other.source().representation() == HistoricalImportSourceLine.ClipboardRepresentation.RICH_HTML
+                        && !hasRepresentationConflict(other)
+                        && !equivalentIdentity(other).isEmpty()
+                        && HistoricalEntryImportText.normalized(other.source().sourceText()).equals(visibleIdentity)
+        );
     }
 
     private static String equivalentIdentity(ParsedSourceLine source) {
