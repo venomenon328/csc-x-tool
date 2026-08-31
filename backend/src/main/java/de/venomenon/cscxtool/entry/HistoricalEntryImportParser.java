@@ -145,8 +145,17 @@ class HistoricalEntryImportParser {
             for (int right = left + 1; right < marked.size(); right++) {
                 ParsedSourceLine first = marked.get(left);
                 ParsedSourceLine second = marked.get(right);
-                if (first.source().representation() == second.source().representation()
-                        || equivalentIdentity(first).equals(equivalentIdentity(second))) continue;
+                if (first.source().representation() == second.source().representation()) continue;
+
+                String firstIdentity = equivalentIdentity(first);
+                String secondIdentity = equivalentIdentity(second);
+                if (!firstIdentity.isEmpty() && firstIdentity.equals(secondIdentity)) {
+                    if (urlsConflict(first, second)) {
+                        marked.set(left, first.withWarning(REPRESENTATION_CONFLICT));
+                        marked.set(right, second.withWarning(REPRESENTATION_CONFLICT));
+                    }
+                    continue;
+                }
                 if (assignmentIdentity(first).isPresent() && assignmentIdentity(first).equals(assignmentIdentity(second))) {
                     marked.set(left, first.withWarning(REPRESENTATION_CONFLICT));
                     marked.set(right, second.withWarning(REPRESENTATION_CONFLICT));
@@ -159,6 +168,10 @@ class HistoricalEntryImportParser {
     private List<ParsedSourceLine> deduplicateEquivalentRepresentations(List<ParsedSourceLine> parsed) {
         Map<String, ParsedSourceLine> selected = new LinkedHashMap<>();
         for (ParsedSourceLine source : parsed) {
+            if (hasRepresentationConflict(source)) {
+                selected.put("conflict-" + selected.size(), source);
+                continue;
+            }
             String identity = equivalentIdentity(source);
             if (identity.isEmpty()) {
                 selected.put("unresolved-" + selected.size(), source);
@@ -185,6 +198,16 @@ class HistoricalEntryImportParser {
         return Optional.of(List.of(
                 HistoricalEntryImportText.normalized(result.firstAssignmentToken()), HistoricalEntryImportText.normalized(result.secondAssignmentToken())
         ).stream().sorted().reduce((first, second) -> first + "\u001f" + second).orElseThrow());
+    }
+
+    private static boolean urlsConflict(ParsedSourceLine first, ParsedSourceLine second) {
+        String firstUrl = HistoricalEntryImportText.compact(first.result().url());
+        String secondUrl = HistoricalEntryImportText.compact(second.result().url());
+        return !firstUrl.isEmpty() && !secondUrl.isEmpty() && !firstUrl.equals(secondUrl);
+    }
+
+    private static boolean hasRepresentationConflict(ParsedSourceLine source) {
+        return source.result().warnings().stream().anyMatch(warning -> "REPRESENTATION_CONFLICT".equals(warning.code()));
     }
 
     private static int informationRank(ParsedSourceLine source) {
