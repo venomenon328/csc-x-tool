@@ -552,7 +552,7 @@ function EntryPoolCard({ entry, active, dragging, provided, dragHandleProps, onS
           <AssessmentControls entry={entry} onSave={onSaveAssessment} pending={pendingAssessment} />
           <Tooltip title={entry.rankingPosition === null ? 'Noch nicht gerankt' : `Rang ${entry.rankingPosition}`}><Chip aria-label={`${entry.title}: ${entry.rankingPosition === null ? 'Noch nicht gerankt' : `Rang ${entry.rankingPosition}`}`} icon={<RankIcon aria-hidden="true" fontSize="small" />} label={entry.rankingPosition === null ? 'Noch nicht gerankt' : `Rang ${entry.rankingPosition}`} size="small" sx={{ color: entry.rankingPosition === null ? 'text.secondary' : 'secondary.main', maxWidth: { xs: 'none', sm: 164 } }} /></Tooltip>
           <Tooltip title="Anhören"><IconButton aria-label={`${entry.artist} – ${entry.title} anhören`} color={active ? 'secondary' : 'primary'} onClick={onPlay} size="small"><PlayIcon aria-hidden="true" fontSize="small" /></IconButton></Tooltip>
-          <EntryOverflowMenu deleteDisabled={entry.ownEntry} entry={entry} onDelete={onDelete} onEdit={onEdit} onResetAssessment={() => onSaveAssessment(null, null)} resetDisabled={entry.assessment === null || pendingAssessment} />
+          <EntryOverflowMenu deleteDisabled={entry.ownEntry === true} entry={entry} onDelete={onDelete} onEdit={onEdit} onResetAssessment={() => onSaveAssessment(null, null)} resetDisabled={entry.assessment === null || pendingAssessment} />
         </Stack>
       </Stack>
     </CardContent>

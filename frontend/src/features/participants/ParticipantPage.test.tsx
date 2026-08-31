@@ -138,7 +138,7 @@ describe('ParticipantPage', () => {
   it('marks the existing contest participation as mine from its row', async () => {
     const user = userEvent.setup()
     const participation = { ...alex, participationId: 15, countryCode: 'DE', countryName: 'Deutschland', identityActive: true, createdAt: '', updatedAt: '' }
-    let contest = { ...cscX, ownParticipationId: null }
+    let contest = { ...cscX, ownParticipationId: null as number | null }
     fetchMock.mockImplementation(async (input, init) => {
       const path = String(input)
       if (path === '/api/contests/1/own-participation' && init?.method === 'PUT') {

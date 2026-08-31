@@ -302,7 +302,10 @@ function ParticipantTable({ participants, ownParticipationId, onEditIdentity, on
               <TableCell>{participant.aliases.length === 0 ? '—' : <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap' }}>{participant.aliases.map((alias) => <Chip key={alias} label={alias} size="small" />)}</Stack>}</TableCell>
               <TableCell>{participant.active ? 'Aktiv' : 'Inaktiv'}</TableCell>
               <TableCell align="right">
-                {participant.participationId !== undefined && <Button onClick={() => onSetOwnParticipation(participant.participationId === ownParticipationId ? null : participant.participationId)}>{participant.participationId === ownParticipationId ? 'Eigene Teilnahme aufheben' : 'Als meine Teilnahme markieren'}</Button>}
+                {participant.participationId !== undefined && <Button onClick={() => {
+                  const participationId = participant.participationId
+                  if (participationId !== undefined) onSetOwnParticipation(participationId === ownParticipationId ? null : participationId)
+                }}>{participant.participationId === ownParticipationId ? 'Eigene Teilnahme aufheben' : 'Als meine Teilnahme markieren'}</Button>}
                 <Button onClick={() => onEditParticipation(participant)}>Teilnahme bearbeiten</Button>
                 <Button onClick={() => onEditIdentity(participant)}>Identität bearbeiten</Button>
                 <Button color="error" onClick={() => onDelete(participant)}>Entfernen</Button>
