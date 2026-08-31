@@ -5,10 +5,11 @@ import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/** Format D: one linked song followed by a parenthesized country/participant assignment. */
+/** Format D: one linked song followed by a country/participant assignment, with optional parentheses. */
 final class LinkedSongSuffixHistoricalEntryFormatStrategy implements HistoricalEntryImportFormatStrategy {
 
-    private static final Pattern ASSIGNMENT = Pattern.compile("^\\((.+?)\\s+[-–—]\\s+(.+?)\\)$");
+    private static final Pattern PARENTHESIZED_ASSIGNMENT = Pattern.compile("^\\((.+?)\\s+[-–—]\\s+(.+?)\\)$");
+    private static final Pattern BARE_ASSIGNMENT = Pattern.compile("^(.+?)\\s+[-–—]\\s+(.+?)$");
     private static final Pattern FLAT_TEXT = Pattern.compile("^(.+)\\s+\\(([^()]+?)\\s+[-–—]\\s+([^()]+?)\\)\\s*$");
 
     @Override
@@ -42,8 +43,11 @@ final class LinkedSongSuffixHistoricalEntryFormatStrategy implements HistoricalE
     private static Optional<HistoricalEntryImportParseResult> fromParts(String rawSongText, String rawSuffix, String url) {
         String songText = HistoricalEntryImportText.removeBoundaryMarkdown(rawSongText);
         String suffix = HistoricalEntryImportText.removeBoundaryMarkdown(rawSuffix);
-        Matcher assignment = ASSIGNMENT.matcher(suffix);
-        if (!assignment.matches()) return Optional.empty();
+        Matcher assignment = PARENTHESIZED_ASSIGNMENT.matcher(suffix);
+        if (!assignment.matches()) {
+            assignment = BARE_ASSIGNMENT.matcher(suffix);
+            if (!assignment.matches()) return Optional.empty();
+        }
 
         String firstToken = HistoricalEntryImportText.compact(assignment.group(1));
         String secondToken = HistoricalEntryImportText.compact(assignment.group(2));
