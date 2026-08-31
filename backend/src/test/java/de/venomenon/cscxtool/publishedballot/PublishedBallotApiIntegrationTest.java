@@ -106,6 +106,73 @@ class PublishedBallotApiIntegrationTest {
                 .hasSize(2);
     }
 
+    @Test
+    void parsesTheJapanGrissomFixtureWithAttachedOpaquePointsPrefixesInPlainMarkdownAndRichHtml() {
+        List<PublishedBallotParticipant> participants = japanParticipants();
+        List<PublishedBallotEntry> entries = japanEntries();
+
+        PublishedBallotPreviewBlock plain = parser.parse("", JAPAN_FIXTURE, participants, entries, java.util.Set.of()).getFirst();
+        assertThat(plain.participationId()).isEqualTo(1);
+        assertThat(plain.displayName()).isEqualTo("Grissom");
+        assertThat(plain.countryCode()).isEqualTo("JP");
+        assertThat(plain.positions()).extracting(PublishedBallotPreviewPosition::rank)
+                .containsExactly(15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1);
+        assertThat(plain.positions()).extracting(PublishedBallotPreviewPosition::entryId)
+                .containsExactly(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L, 12L, 13L, 14L, 15L);
+        assertThat(plain.positions().getFirst()).extracting(PublishedBallotPreviewPosition::artist, PublishedBallotPreviewPosition::title)
+                .containsExactly("Nik Kershaw", "The Riddle");
+        assertThat(plain.positions().getLast()).extracting(PublishedBallotPreviewPosition::artist, PublishedBallotPreviewPosition::title)
+                .containsExactly("Adam Green", "Emily");
+
+        PublishedBallotPreviewBlock markdown = parser.parse("", japanMarkdown(), participants, entries, java.util.Set.of()).getFirst();
+        assertThat(markdown.positions()).extracting(PublishedBallotPreviewPosition::entryId)
+                .containsExactly(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L, 12L, 13L, 14L, 15L);
+
+        PublishedBallotPreviewBlock rich = parser.parse(japanRichHtml(), JAPAN_FIXTURE, participants, entries, java.util.Set.of()).getFirst();
+        assertThat(rich.positions()).extracting(PublishedBallotPreviewPosition::entryId)
+                .containsExactly(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L, 12L, 13L, 14L, 15L);
+    }
+
+    @Test
+    void treatsPointsWordsAndScriptsAsOpaquePrefixDecoration() {
+        List<PublishedBallotParticipant> participants = japanParticipants();
+        PublishedBallotEntry entry = japanEntries().getFirst();
+        for (String prefix : List.of("1 punkt", "1punkt", "1点", "1ポイント", "1نقطة", "**1**punkt**", "1**p**unkt", "**1点****")) {
+            PublishedBallotPreviewBlock preview = parser.parse(
+                    "", "[#1] Japan - Grissom\n" + prefix + " Nauru - Fletcher Cox Nik Kershaw - The Riddle",
+                    participants, List.of(entry), java.util.Set.of()
+            ).getFirst();
+            assertThat(preview.positions()).singleElement().extracting(PublishedBallotPreviewPosition::entryId).isEqualTo(1L);
+        }
+    }
+
+    @Test
+    void retainsPositionCountForActualCountsAndExplainsUnrecognizedRatingLines() {
+        List<PublishedBallotParticipant> participants = japanParticipants();
+        List<PublishedBallotEntry> entries = japanEntries();
+
+        PublishedBallotPreviewBlock fourteen = parser.parse(
+                "", japanFixtureWithPositionCount(14), participants, entries, java.util.Set.of()
+        ).getFirst();
+        assertThat(fourteen.positions()).hasSize(14);
+        assertThat(fourteen.warnings()).extracting(BallotImportWarning::code)
+                .contains("POSITION_COUNT").doesNotContain("UNRECOGNIZED_POSITION_LINES");
+
+        PublishedBallotPreviewBlock sixteen = parser.parse(
+                "", japanFixtureWithPositionCount(16), participants, entries, java.util.Set.of()
+        ).getFirst();
+        assertThat(sixteen.positions()).hasSize(16);
+        assertThat(sixteen.warnings()).extracting(BallotImportWarning::code)
+                .contains("POSITION_COUNT").doesNotContain("UNRECOGNIZED_POSITION_LINES");
+
+        PublishedBallotPreviewBlock unreadable = parser.parse(
+                "", "[#1] Japan - Grissom\n" + "1\n".repeat(15), participants, entries, java.util.Set.of()
+        ).getFirst();
+        assertThat(unreadable.positions()).isEmpty();
+        assertThat(unreadable.warnings()).extracting(BallotImportWarning::code)
+                .contains("POSITION_COUNT", "UNRECOGNIZED_POSITION_LINES");
+    }
+
     private Fixture fixture() throws Exception {
         long contestId = id(post("/api/contests", "{\"name\":\"CSC IX Test " + FIXTURE_SEQUENCE.incrementAndGet() + "\"}").body(), "id");
         Participant voter = participant(contestId, "-Frollo-", "MT");
@@ -147,6 +214,62 @@ class PublishedBallotApiIntegrationTest {
         )).toList();
         long ownEntryId = jdbc.queryForObject("SELECT id FROM contest_entry WHERE motto_show_id = ? AND artist = 'Own Artist'", Long.class, showId);
         return new Fixture(showId, voter.participationId(), entryIds, ownEntryId);
+    }
+
+    private static List<PublishedBallotParticipant> japanParticipants() {
+        List<PublishedBallotParticipant> participants = new ArrayList<>();
+        participants.add(new PublishedBallotParticipant(1, 1, "Grissom", "JP", "Japan", List.of()));
+        for (int index = 0; index < JAPAN_SONGS.size(); index++) {
+            Song song = JAPAN_SONGS.get(index);
+            participants.add(new PublishedBallotParticipant(
+                    index + 2L, index + 2L, song.submitter(), song.countryCode(), song.countryCode(), List.of()
+            ));
+        }
+        return List.copyOf(participants);
+    }
+
+    private static List<PublishedBallotEntry> japanEntries() {
+        List<PublishedBallotEntry> entries = new ArrayList<>();
+        for (int index = 0; index < JAPAN_SONGS.size(); index++) {
+            Song song = JAPAN_SONGS.get(index);
+            entries.add(new PublishedBallotEntry(
+                    index + 1L, 1, song.artist(), song.title(), japanUrl(index), index + 2L, index + 2L,
+                    song.submitter(), song.countryCode()
+            ));
+        }
+        return List.copyOf(entries);
+    }
+
+    private static String japanMarkdown() {
+        return JAPAN_FIXTURE
+                .replaceFirst("1点 ", "**1点****")
+                .replace("20点 Samoa - OMW ", "**20点****Samoa - OMW **")
+                .replace("25ポイント Niederlande - Daniel. ", "***25ポイント*** **Niederlande - Daniel. **");
+    }
+
+    private static String japanRichHtml() {
+        List<String> lines = JAPAN_FIXTURE.lines().filter(line -> !line.isBlank()).toList();
+        StringBuilder html = new StringBuilder("<p><strong>").append(lines.getFirst()).append("</strong></p>");
+        for (int index = 0; index < JAPAN_SONGS.size(); index++) {
+            String line = lines.get(index + 1);
+            Song song = JAPAN_SONGS.get(index);
+            int contentStart = line.indexOf(' ') + 1;
+            int songStart = line.indexOf(song.artist());
+            html.append("<p><strong>").append(line, 0, contentStart - 1).append("</strong><strong>")
+                    .append(line, contentStart, songStart).append("</strong><a href=\"").append(japanUrl(index))
+                    .append("\">").append(line.substring(songStart)).append("</a></p>");
+        }
+        return html.toString();
+    }
+
+    private static String japanFixtureWithPositionCount(int positionCount) {
+        List<String> lines = JAPAN_FIXTURE.lines().filter(line -> !line.isBlank()).toList();
+        String text = String.join("\n", lines.subList(0, Math.min(positionCount + 1, lines.size())));
+        return positionCount <= JAPAN_SONGS.size() ? text : text + "\n" + lines.get(1);
+    }
+
+    private static String japanUrl(int index) {
+        return "https://source.test/japan/" + (index + 1);
     }
 
     private Participant participant(long contestId, String displayName, String countryCode) throws Exception {
@@ -192,6 +315,45 @@ class PublishedBallotApiIntegrationTest {
     private record Participant(long participationId, long participantId) { }
     private record Song(String artist, String title, String submitter, String countryCode) { }
     private record Fixture(long showId, long voterParticipationId, List<Long> rankedEntryIds, long ownEntryId) { }
+
+    private static final List<Song> JAPAN_SONGS = List.of(
+            new Song("Nik Kershaw", "The Riddle", "Fletcher Cox", "NR"),
+            new Song("Eddie Murphy", "Party All The Time", "Berggorilla", "UG"),
+            new Song("S Club", "Bring It All Back", "Jamie Hayter", "NZ"),
+            new Song("The Weeknd", "Blinding Lights", "Mark Webber", "AU"),
+            new Song("IVE", "I AM", "Die Ente", "VA"),
+            new Song("Elton John", "I'm Still Standing", "Everton", "GR"),
+            new Song("Millencolin", "Da Strike", "PrettyFlamingo", "CG"),
+            new Song("Roger Whittaker", "Ein bisschen Aroma", "Contiomagus", "ZA"),
+            new Song("Linkin Park", "Somewhere I Belong", "Kenny Ospreay", "LU"),
+            new Song("P!nk", "Get The Party Started", "Scott D'Amore", "BA"),
+            new Song("Gloria Gaynor", "I Will Survive", "snaggletooth", "XS"),
+            new Song("Red Hot Chilli Peppers", "One Way Traffic", "The Red-NGA Shankmos", "NG"),
+            new Song("Goldfinger", "Superman", "Dr. King Schultz", "KR"),
+            new Song("Farin Urlaub Racing Team", "Am Strand", "OMW", "WS"),
+            new Song("Adam Green", "Emily", "Daniel.", "NL")
+    );
+
+    // Real source order is canonical: the attached Japanese point words are opaque decoration, not rank values.
+    private static final String JAPAN_FIXTURE = """
+            [#1 ]Japan - Grissom
+
+            1点 Nauru - Fletcher Cox Nik Kershaw - The Riddle
+            2点 Uganda - Berggorilla Eddie Murphy - Party All The Time
+            3点 Neuseeland - Jamie Hayter S Club - Bring It All Back
+            4点 Australien - Mark Webber The Weeknd - Blinding Lights
+            5点 Vatikanstadt - Die Ente IVE - I AM
+            6点 Griechenland - Everton Elton John - I'm Still Standing
+            7点 Kongo - PrettyFlamingo Millencolin - Da Strike
+            8点 Südafrika - Contiomagus Roger Whittaker - Ein bisschen Aroma
+            9点 Luxemburg - Kenny Ospreay Linkin Park - Somewhere I Belong
+            10点 Bosnien und Herzegowina - Scott D'Amore P!nk - Get The Party Started
+            11点 Schottland - snaggletooth Gloria Gaynor - I Will Survive
+            13点 Nigeria - The Red-NGA Shankmos Red Hot Chilli Peppers - One Way Traffic
+            16点 Südkorea - Dr. King Schultz Goldfinger - Superman
+            20点 Samoa - OMW Farin Urlaub Racing Team - Am Strand
+            25ポイント Niederlande - Daniel. Adam Green - Emily
+            """;
 
     // The documented Frollo source keeps its real edge cases: Malta/-Frollo-, `punt`/`punti`, Unicode and
     // punctuation. Source order alone establishes the ranks; neither the displayed numbers nor the points word do.

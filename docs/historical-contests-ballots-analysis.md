@@ -413,9 +413,9 @@ erste Songzeile  -> Rang 15
 letzte Songzeile -> Rang 1
 ```
 
-Das jeweils verwendete Wort wie `Punkte`, `points`, `punti` oder eine andere Sprachform wird nicht fachlich interpretiert.
+Das jeweils verwendete Wort wie `Punkte`, `points`, `punti` oder eine andere Sprachform wird nicht fachlich interpretiert. Es bleibt auch dann opak, wenn es ohne Leerzeichen an der sichtbaren Zahl hängt oder in einem anderen Schriftsystem geschrieben ist; eine Whitelist von Punktewörtern existiert nicht.
 
-Die sichtbaren Zahlen dürfen für die Zeilenerkennung ignoriert werden. Sie werden weder als Primärquelle noch als gespeicherte Punktwerte verwendet.
+Die sichtbaren Zahlen dürfen nur als strukturelles Präfixsignal dienen. Sie werden weder als Primärquelle noch als gespeicherte Punktwerte verwendet. Geschützte Leerzeichen sowie direkt benachbarte HTML- oder Markdown-Formatierung dürfen diese Trennung nicht aufheben.
 
 ### 11.4 Zuordnung zu bestehenden Beiträgen
 
