@@ -15,7 +15,9 @@ class SpaForwardingController {
             "/data",
             "/shows/{showId}/candidates",
             "/shows/{showId}/voting",
-            "/shows/{showId}/result"
+            "/shows/{showId}/result",
+            "/shows/{showId}/published-ballots",
+            "/shows/{showId}/evaluation"
     })
     String forwardToSpa() {
         return "forward:/index.html";

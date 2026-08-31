@@ -35,6 +35,7 @@ import { ApiErrorNotice } from '../../components/ApiErrorNotice'
 import { fetchShows, renameShow, ShowApiError, type MottoShow } from './api'
 import { useContest } from '../contests/ContestContext'
 import { HistoricalContestPage } from '../history/HistoricalContestPage'
+import { evaluationAvailabilityForShow, evaluationStatusForShow, ownEntryStatusForShow, primaryActionForShow } from './showWorkflow'
 
 export function ShowOverview() {
   const { selectedContest } = useContest()
@@ -165,7 +166,10 @@ function ShowCard({ show, onRename }: { show: MottoShow, onRename: () => void })
   const assessedEntryCount = show.assessedEntryCount ?? 0
   const rankedEntryCount = show.rankedEntryCount ?? 0
   const ballotClosed = show.ballotClosedAt !== null && show.ballotClosedAt !== undefined
-  const resultStatus = `${show.publishedBallotVotedCount ?? 0} abgegeben · ${show.publishedBallotNotVotedCount ?? 0} nicht abgestimmt · ${show.publishedBallotUnrecordedCount ?? 0} unerfasst`
+  const primaryAction = primaryActionForShow(show)
+  const evaluationAvailable = evaluationAvailabilityForShow(show) === 'AVAILABLE'
+  const ownEntryStatus = ownEntryStatusForShow(show)
+  const evaluationStatus = evaluationStatusForShow(show)
 
   return (
     <Card component="section" elevation={0} sx={{ border: 1, borderColor: 'divider', display: 'flex', flexDirection: 'column' }}>
@@ -190,7 +194,7 @@ function ShowCard({ show, onRename }: { show: MottoShow, onRename: () => void })
           </Stack>
         </Box>
 
-        <SubmissionBlock selectedCandidate={show.selectedCandidate} />
+        <SubmissionBlock show={show} />
 
         <Box aria-label="Arbeitsfortschritt">
           <Typography color="text.secondary" variant="overline">Arbeitsfortschritt</Typography>
@@ -204,116 +208,79 @@ function ShowCard({ show, onRename }: { show: MottoShow, onRename: () => void })
         <Box aria-label="Workflowstatus">
           <Typography color="text.secondary" variant="overline">Workflowstatus</Typography>
           <Stack divider={<Divider flexItem />} spacing={1} sx={{ mt: 0.5 }}>
-            <WorkflowStatus
-              icon={ballotClosed ? <CheckIcon fontSize="small" /> : <ClockIcon fontSize="small" />}
-              label="Top 15"
-              status={ballotClosed ? 'Abgeschlossen' : 'Offen'}
-              tone={ballotClosed ? 'success.main' : 'text.secondary'}
-            />
-            {ballotClosed && (
+            {contestEntryCount === 0 && <WorkflowStatus
+              icon={<CandidateIcon fontSize="small" />}
+              label="Vorbereitung"
+              status={candidateCount === 0 ? 'Kandidaten anlegen' : 'Beiträge vorbereiten'}
+            />}
+            {contestEntryCount > 0 && !ballotClosed && <>
+              <WorkflowStatus icon={<ClockIcon fontSize="small" />} label="Top 15" status="Offen" />
+              <WorkflowStatus icon={<SubmissionIcon fontSize="small" />} label="Eigene Einreichung" status={ownEntryStatus} />
+              <WorkflowStatus icon={<ResultIcon fontSize="small" />} label="Auswertung" status={evaluationStatus} />
+            </>}
+            {contestEntryCount > 0 && ballotClosed && !evaluationAvailable && <>
+              <WorkflowStatus icon={<CheckIcon fontSize="small" />} label="Top 15" status="Abgeschlossen" tone="success.main" />
+              <WorkflowStatus icon={<SubmissionIcon fontSize="small" />} label="Eigene Einreichung" status={ownEntryStatus} />
               <WorkflowStatus
                 icon={<CandidateIcon fontSize="small" />}
-                label="Zugeordnet"
+                label="Einreichende"
                 status={`${show.assignedEntryCount ?? 0} / ${contestEntryCount} Beiträge`}
               />
-            )}
-            <WorkflowStatus
-              icon={<ResultIcon fontSize="small" />}
-              label="Einzelwertungen"
-              status={resultStatus}
-            />
+            </>}
+            {contestEntryCount > 0 && ballotClosed && evaluationAvailable && <>
+              <WorkflowStatus icon={<CheckIcon fontSize="small" />} label="Top 15" status="Abgeschlossen" tone="success.main" />
+              <WorkflowStatus icon={<SubmissionIcon fontSize="small" />} label="Eigene Einreichung" status={ownEntryStatus} />
+              <WorkflowStatus icon={<ResultIcon fontSize="small" />} label="Auswertung" status={evaluationStatus} />
+            </>}
           </Stack>
         </Box>
       </CardContent>
-      <CardActions sx={{ borderTop: 1, borderColor: 'divider', p: 1.5 }}>
-        <Box
-          aria-label={`Arbeitsbereiche für Show ${show.showNumber}`}
-          component="nav"
-          sx={{ display: 'grid', gap: 0.5, gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', width: '100%' }}
-        >
-          <Button
-            component={RouterLink}
-            size="small"
-            startIcon={<CandidateIcon aria-hidden="true" fontSize="small" />}
-            sx={showNavigationButtonSx}
-            to={`/shows/${show.id}/candidates`}
-            variant="outlined"
-          >
-            Kandidaten
-          </Button>
-          <Button
-            component={RouterLink}
-            size="small"
-            startIcon={<PlayIcon aria-hidden="true" fontSize="small" />}
-            sx={showNavigationButtonSx}
-            to={`/shows/${show.id}/voting`}
-            variant="outlined"
-          >
-            Abstimmung
-          </Button>
-          <Button
-            component={RouterLink}
-            size="small"
-            startIcon={<ResultIcon aria-hidden="true" fontSize="small" />}
-            sx={showNavigationButtonSx}
-            to={`/shows/${show.id}/result`}
-            variant="outlined"
-          >
-            Ergebnis
-          </Button>
-          <Button
-            component={RouterLink}
-            size="small"
-            sx={showNavigationButtonSx}
-            to={`/shows/${show.id}/published-ballots`}
-            variant="outlined"
-          >
-            Einzelwertungen
-          </Button>
-          <Button
-            component={RouterLink}
-            size="small"
-            startIcon={<SubmissionIcon aria-hidden="true" fontSize="small" />}
-            sx={showNavigationButtonSx}
-            to={`/shows/${show.id}/tips`}
-            variant="outlined"
-          >
-            Tippspiel
-          </Button>
-        </Box>
+      <CardActions sx={{ alignItems: 'stretch', borderTop: 1, borderColor: 'divider', flexDirection: 'column', gap: 1, p: 1.5 }}>
+        <Button component={RouterLink} fullWidth to={primaryAction.to} variant="contained">
+          {primaryAction.label}
+        </Button>
+        <ShowNavigation evaluationAvailable={evaluationAvailable} show={show} />
       </CardActions>
     </Card>
   )
 }
 
-const showNavigationButtonSx = {
-  fontSize: '0.68rem',
-  minWidth: 0,
-  px: 0.5,
-  py: 0.5,
-  whiteSpace: 'nowrap',
-  '& .MuiButton-startIcon': {
-    marginLeft: 0,
-    marginRight: 0.35,
-  },
-  '& .MuiSvgIcon-root': {
-    fontSize: '0.95rem',
-  },
+function ShowNavigation({ evaluationAvailable, show }: { evaluationAvailable: boolean, show: MottoShow }) {
+  return <Box aria-label={`Arbeitsbereiche für Show ${show.showNumber}`} component="nav" sx={{ display: 'grid', gap: 0.5, gridTemplateColumns: 'repeat(4, minmax(44px, 1fr))', width: '100%' }}>
+    <CompactNavigationLink icon={<CandidateIcon aria-hidden="true" />} label="Kandidaten" to={`/shows/${show.id}/candidates`} />
+    <CompactNavigationLink icon={<PlayIcon aria-hidden="true" />} label="Abstimmung" to={`/shows/${show.id}/voting`} />
+    <CompactNavigationLink icon={<ResultIcon aria-hidden="true" />} label="Auswertung" notYetAvailable={!evaluationAvailable} to={`/shows/${show.id}/evaluation?view=published-ballots`} />
+    <CompactNavigationLink icon={<SubmissionIcon aria-hidden="true" />} label="Tippspiel" to={`/shows/${show.id}/tips`} />
+  </Box>
 }
 
-function SubmissionBlock({ selectedCandidate }: { selectedCandidate: MottoShow['selectedCandidate'] }) {
+function CompactNavigationLink({ icon, label, notYetAvailable = false, to }: { icon: ReactNode, label: string, notYetAvailable?: boolean, to: string }) {
+  const accessibleLabel = notYetAvailable ? `${label}: noch nicht verfügbar` : label
+  return <Tooltip title={accessibleLabel}><IconButton
+    aria-label={accessibleLabel}
+    component={RouterLink}
+    data-workflow-state={notYetAvailable ? 'not-yet-available' : 'available'}
+    size="medium"
+    sx={{ border: 1, borderColor: 'divider', borderRadius: 1, minHeight: 44, minWidth: 44, width: '100%' }}
+    to={to}
+  >{icon}</IconButton></Tooltip>
+}
+
+function SubmissionBlock({ show }: { show: MottoShow }) {
+  const selectedCandidate = show.selectedCandidate
   return (
     <Box sx={{ backgroundColor: 'action.hover', borderLeft: 3, borderColor: 'secondary.main', borderRadius: 1, p: 1.5 }}>
       <Stack direction="row" spacing={1.25} sx={{ alignItems: 'flex-start' }}>
         <SubmissionIcon aria-hidden="true" color="secondary" fontSize="small" sx={{ mt: 0.25 }} />
         <Box sx={{ minWidth: 0 }}>
-          <Typography color="text.secondary" variant="overline">Dein Beitrag</Typography>
+          <Typography color="text.secondary" variant="overline">Kandidatenplanung</Typography>
           {selectedCandidate === null || selectedCandidate === undefined
-            ? <Typography sx={{ mt: 0.25 }} variant="body2">Noch nicht festgelegt</Typography>
+            ? <Typography sx={{ mt: 0.25 }} variant="body2">Noch kein Kandidat ausgewählt</Typography>
             : <Stack spacing={0.25} sx={{ mt: 0.25 }}>
               <Typography color="text.secondary" sx={{ overflowWrap: 'anywhere' }} variant="body2">{selectedCandidate.artist}</Typography>
               <Typography sx={{ overflowWrap: 'anywhere' }} variant="body1">{selectedCandidate.title}</Typography>
             </Stack>}
+          <Typography color="text.secondary" sx={{ display: 'block', mt: 1 }} variant="caption">Eigene tatsächliche Einreichung: {ownEntryStatusForShow(show)}</Typography>
         </Box>
       </Stack>
     </Box>

@@ -10,9 +10,9 @@ const show = {
 }
 const currentContest = { id: 1, name: 'CSC X', displayOrder: 1, current: true, participantCount: 5, showCount: 12, ownParticipationId: 1, createdAt: '', updatedAt: '' }
 
-describe('ResultPage', () => {
+describe('own-entry evaluation', () => {
   const fetchMock = vi.fn<typeof fetch>()
-  beforeEach(() => { window.history.pushState({}, '', '/shows/1/result'); vi.stubGlobal('fetch', fetchMock); fetchMock.mockReset() })
+  beforeEach(() => { window.history.pushState({}, '', '/shows/1/evaluation?view=own-entry'); vi.stubGlobal('fetch', fetchMock); fetchMock.mockReset() })
   afterEach(() => vi.unstubAllGlobals())
 
   it('renders every derived ballot state without official result controls', async () => {
@@ -35,7 +35,8 @@ describe('ResultPage', () => {
     })
     render(<App />)
 
-    await screen.findByRole('heading', { name: 'Show Eins' })
+    await screen.findByRole('heading', { name: 'Show Eins – Auswertung' })
+    expect(screen.getByRole('tab', { name: 'Meine Einreichung', selected: true })).toBeVisible()
     expect(screen.getByText('Eigene Band – Eigener Song')).toBeVisible()
     expect(screen.getByText('Eigene Einreichung · nicht wählbar')).toBeVisible()
     expect(screen.getByText('In Top 15')).toBeVisible()
@@ -46,6 +47,7 @@ describe('ResultPage', () => {
     expect(screen.getByText('0 Punkte')).toBeVisible()
     expect(screen.getByText('Keine offizielle Gesamtwertung.')).toBeVisible()
     expect(screen.getByText(/Die Kandidatenplanung weicht/)).toBeVisible()
+    expect(screen.getAllByRole('link', { name: 'Stimmzettel' })[0]).toHaveAttribute('href', '/shows/1/evaluation?view=published-ballots')
     expect(screen.queryByText(/Endplatzierung/)).not.toBeInTheDocument()
   })
 
@@ -58,5 +60,21 @@ describe('ResultPage', () => {
     render(<App />)
     expect(await screen.findByText(/Markiere in der Teilnehmerliste zuerst ausdrücklich/)).toBeVisible()
     expect(screen.getByRole('link', { name: 'Teilnehmer öffnen' })).toHaveAttribute('href', '/participants')
+  })
+
+  it.each([
+    ['OWN_ENTRY_UNRESOLVED', 'Bestätige vor der Ergebnisableitung'],
+    ['OWN_ENTRY_NONE', 'ausdrücklich bestätigt, dass du keine eigene Einreichung hast'],
+    ['ENTRY_LIST_INCOMPLETE', 'vollständige Songzuordnung dieser Show ist noch nicht bestätigt'],
+    ['OWN_ENTRY_MISSING', 'noch keine tatsächliche Einreichung zugeordnet'],
+  ])('renders the clear %s empty state', async (prerequisite, message) => {
+    fetchMock.mockImplementation(async (input) => String(input) === '/api/contests'
+      ? jsonResponse([currentContest])
+      : String(input) === '/api/shows/1'
+      ? jsonResponse(show)
+      : jsonResponse({ mottoShowId: 1, prerequisite, ownParticipation: null, ownEntry: null, selectedCandidateDiffers: false, votedCount: 0, notVotedCount: 0, unrecordedCount: 0, derivedTotalPoints: 0, lines: [] }))
+    render(<App />)
+
+    expect(await screen.findByText(new RegExp(message))).toBeVisible()
   })
 })

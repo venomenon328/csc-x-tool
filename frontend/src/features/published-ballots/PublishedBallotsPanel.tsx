@@ -9,7 +9,7 @@ import { voterSelectionPatch } from './voterSelection'
 
 type EditableBlock = BallotPreviewBlock & { included: boolean, replaceExisting: boolean }
 
-export function PublishedBallotsPanel({ showId, entries, participants }: { showId: number, entries: ContestEntry[], participants: Participant[] }) {
+export function PublishedBallotsPanel({ showId, entries, participants, headingLevel = 'h2' }: { showId: number, entries: ContestEntry[], participants: Participant[], headingLevel?: 'h2' | 'h3' }) {
   const [overview, setOverview] = useState<PublishedBallotOverview | null>(null)
   const [detail, setDetail] = useState<PublishedBallotDetail | null>(null)
   const [preview, setPreview] = useState<EditableBlock[] | null>(null)
@@ -61,7 +61,7 @@ export function PublishedBallotsPanel({ showId, entries, participants }: { showI
   }
   if (overview === null) return error === null ? <Typography color="text.secondary">Einzelwertungen werden geladen …</Typography> : <ApiErrorNotice error={error.apiError} />
   const existingBallotParticipationIds = new Set(overview.participants.filter((participant) => participant.ballotExists).map((participant) => participant.participationId))
-  return <Stack component="section" spacing={2}><Box><Typography component="h2" variant="h5">Einzelwertungen</Typography><Typography color="text.secondary">Veröffentlichte Top 15 werden atomar als Ränge gespeichert. Punkte werden nur aus diesen Rängen abgeleitet; Gesamtwertungen werden nicht berechnet.</Typography></Box>
+  return <Stack component="section" spacing={2}><Box><Typography component={headingLevel} variant="h5">Einzelwertungen</Typography><Typography color="text.secondary">Veröffentlichte Top 15 werden atomar als Ränge gespeichert. Punkte werden nur aus diesen Rängen abgeleitet; Gesamtwertungen werden nicht berechnet.</Typography></Box>
     {error !== null && <ApiErrorNotice error={error.apiError} />}
     {!overview.entryListReady ? <Alert severity="warning">Die vollständige Songliste einschließlich aller Einreichenden muss vor der Stimmzettelerfassung feststehen.</Alert> : <>
       <Paper sx={{ p: 2 }}><Stack direction={{ xs: 'column', md: 'row' }} spacing={2}><Typography><strong>{overview.votedCount}</strong> abgestimmt</Typography><Typography><strong>{overview.notVotedCount}</strong> nicht abgestimmt</Typography><Typography><strong>{overview.unrecordedCount}</strong> unerfasst</Typography></Stack></Paper>

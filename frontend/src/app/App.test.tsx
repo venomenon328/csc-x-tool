@@ -9,13 +9,13 @@ const shows = [
     selectedCandidate: { id: 101, artist: 'Artist', title: 'Titel', youtubeUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' },
     contestEntryCount: 18, assessedEntryCount: 16, rankedEntryCount: 15,
     assignedEntryCount: 0, activeParticipantCount: 0, publishedBallotVotedCount: 0, publishedBallotNotVotedCount: 0, publishedBallotUnrecordedCount: 0,
-    ballotClosedAt: null,
+    ballotClosedAt: null, ownParticipationId: 1, ownEntryResolution: 'NO_OWN_ENTRY', ownEntryId: null,
   },
   {
     id: 9, contestId: 1, showNumber: 9, name: 'TBA', entryListComplete: false, candidateCount: 0, selectedCandidate: null,
     contestEntryCount: 0, assessedEntryCount: 0, rankedEntryCount: 0,
     assignedEntryCount: 0, activeParticipantCount: 0, publishedBallotVotedCount: 0, publishedBallotNotVotedCount: 0, publishedBallotUnrecordedCount: 0,
-    ballotClosedAt: null,
+    ballotClosedAt: null, ownParticipationId: 1, ownEntryResolution: 'NO_OWN_ENTRY', ownEntryId: null,
   },
 ]
 
@@ -41,7 +41,8 @@ describe('App', () => {
     vi.unstubAllGlobals()
   })
 
-  it('loads a compact accessible show overview and keeps the prepared work-area navigation', async () => {
+  it('loads a compact accessible show overview with a primary action and four stable work areas', async () => {
+    const user = userEvent.setup()
     fetchMock.mockImplementation(async (input) => jsonResponse(String(input) === '/api/contests' ? [currentContest] : shows))
     render(<App />)
 
@@ -50,7 +51,7 @@ describe('App', () => {
     expect(superMenCard).not.toBeNull()
     const card = within(superMenCard!)
 
-    expect(card.getByText('Dein Beitrag')).toBeVisible()
+    expect(card.getByText('Kandidatenplanung')).toBeVisible()
     expect(card.getByText('Artist')).toBeVisible()
     expect(card.getByText('Titel')).toBeVisible()
     expect(card.getByText('2 Kandidaten')).toBeVisible()
@@ -69,17 +70,26 @@ describe('App', () => {
     expect(within(rankedMetric).getByText('Gerankt')).toBeVisible()
 
     expect(card.getByLabelText('Top 15: Offen')).toBeVisible()
-    expect(card.getByLabelText('Einzelwertungen: 0 abgegeben · 0 nicht abgestimmt · 0 unerfasst')).toBeVisible()
-    expect(card.getByRole('link', { name: 'Kandidaten' })).toHaveAttribute('href', '/shows/1/candidates')
-    expect(card.getByRole('link', { name: 'Abstimmung' })).toHaveAttribute('href', '/shows/1/voting')
-    expect(card.getByRole('link', { name: 'Ergebnis' })).toHaveAttribute('href', '/shows/1/result')
+    expect(card.getByLabelText('Eigene Einreichung: Keine eigene Einreichung bestätigt')).toBeVisible()
+    expect(card.getByLabelText('Auswertung: Auswertung noch nicht verfügbar')).toBeVisible()
+    expect(card.getByRole('link', { name: 'Abstimmung fortsetzen' })).toHaveAttribute('href', '/shows/1/voting')
+    const navigation = card.getByRole('navigation', { name: 'Arbeitsbereiche für Show 1' })
+    expect(within(navigation).getAllByRole('link')).toHaveLength(4)
+    expect(within(navigation).getByRole('link', { name: 'Kandidaten' })).toHaveAttribute('href', '/shows/1/candidates')
+    expect(within(navigation).getByRole('link', { name: 'Abstimmung' })).toHaveAttribute('href', '/shows/1/voting')
+    const evaluationLink = within(navigation).getByRole('link', { name: /Auswertung/ })
+    expect(evaluationLink).toHaveAttribute('href', '/shows/1/evaluation?view=published-ballots')
+    await user.hover(evaluationLink)
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Auswertung: noch nicht verfügbar')
+    expect(within(navigation).getByRole('link', { name: 'Tippspiel' })).toHaveAttribute('href', '/shows/1/tips')
+    expect(within(navigation).queryByRole('link', { name: 'Ergebnis' })).not.toBeInTheDocument()
     expect(card.getByRole('button', { name: 'Name von Show 1 bearbeiten' })).toBeVisible()
     expect(card.queryByRole('button', { name: /Weitere Aktionen/ })).not.toBeInTheDocument()
 
     const tbaCard = screen.getByRole('heading', { name: 'TBA' }).closest('section')
     expect(tbaCard).not.toBeNull()
     const emptyCard = within(tbaCard!)
-    expect(emptyCard.getByText('Noch nicht festgelegt')).toBeVisible()
+    expect(emptyCard.getByText('Noch kein Kandidat ausgewählt')).toBeVisible()
     expect(emptyCard.getByText('0 Kandidaten')).toBeVisible()
     expect(emptyCard.getByRole('group', { name: '0 Beiträge' })).toBeVisible()
     expect(emptyCard.getByRole('group', { name: '0 Beiträge eingeschätzt' })).toBeVisible()
@@ -111,14 +121,13 @@ describe('App', () => {
 
   it('shows published-ballot progress without official result fields on the overview', async () => {
     fetchMock.mockImplementation(async (input) => jsonResponse(String(input) === '/api/contests' ? [currentContest] : [{
-      ...shows[0], assignedEntryCount: 17, activeParticipantCount: 20, publishedBallotVotedCount: 18, publishedBallotNotVotedCount: 1, publishedBallotUnrecordedCount: 1,
+      ...shows[0], assignedEntryCount: 18, activeParticipantCount: 20, publishedBallotVotedCount: 18, publishedBallotNotVotedCount: 1, publishedBallotUnrecordedCount: 1,
       ballotClosedAt: '2026-08-27T12:00:00Z',
     }]))
     render(<App />)
 
     expect(await screen.findByLabelText('Top 15: Abgeschlossen')).toBeVisible()
-    expect(screen.getByLabelText('Zugeordnet: 17 / 18 Beiträge')).toBeVisible()
-    expect(screen.getByLabelText('Einzelwertungen: 18 abgegeben · 1 nicht abgestimmt · 1 unerfasst')).toBeVisible()
+    expect(screen.getByLabelText('Auswertung: 18 von 20 Stimmzetteln erfasst')).toBeVisible()
     expect(screen.queryByText('Offiziell')).not.toBeInTheDocument()
     expect(screen.queryByText(/Endplatzierung/)).not.toBeInTheDocument()
   })
@@ -130,7 +139,7 @@ describe('App', () => {
     render(<App />)
 
     expect(await screen.findByLabelText('Top 15: Abgeschlossen')).toBeVisible()
-    expect(screen.getByLabelText('Einzelwertungen: 3 abgegeben · 2 nicht abgestimmt · 4 unerfasst')).toBeVisible()
+    expect(screen.getByLabelText('Einreichende: 0 / 18 Beiträge')).toBeVisible()
   })
 
   it('persists a renamed show and updates the overview from the direct edit action', async () => {

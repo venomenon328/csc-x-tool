@@ -52,5 +52,6 @@ describe('HistoricalShowPage', () => {
     expect(screen.queryByText('Link öffnen')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('YouTube-Player')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Songliste wieder öffnen' })).toBeVisible()
+    expect(screen.getByRole('link', { name: 'Auswertung öffnen' })).toHaveAttribute('href', '/shows/1/evaluation?view=published-ballots')
   })
 })
