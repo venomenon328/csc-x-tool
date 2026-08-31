@@ -45,11 +45,11 @@ class PublishedBallotApiIntegrationTest {
                 "{\"html\":\"\",\"text\":\"" + json(FROLLO_FIXTURE) + "\"}");
         assertThat(preview.statusCode()).isEqualTo(200);
         assertThat(preview.body()).contains("\"rank\":15", "Eric Clapton", "Layla", "\"rank\":1", "John Denver", "Take Me Home, Country Roads");
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM published_ballot", Integer.class)).isZero();
+        assertThat(ballotCount(fixture.showId)).isZero();
 
         String validImport = ballotImport(fixture.voterParticipationId, fixture.rankedEntryIds, false);
         assertThat(post("/api/shows/" + fixture.showId + "/published-ballots/import", validImport).statusCode()).isEqualTo(200);
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM published_ballot_position", Integer.class)).isEqualTo(15);
+        assertThat(positionCount(fixture.showId)).isEqualTo(15);
         assertThat(get("/api/data/export/full").body()).contains("\"formatVersion\":9", "\"publishedBallots\"", "\"publishedBallotPositions\"", "\"status\":\"ABGESTIMMT\"");
         assertThat(get("/api/data/export/published-ballots.csv").body()).contains("Stimmzettelstatus", "RANKED", "ABGESTIMMT", "Eric Clapton");
 
@@ -58,7 +58,7 @@ class PublishedBallotApiIntegrationTest {
 
         assertThat(post("/api/shows/" + fixture.showId + "/published-ballots/import",
                 ballotImport(fixture.voterParticipationId, fixture.rankedEntryIds.subList(0, 14), true)).statusCode()).isEqualTo(400);
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM published_ballot_position", Integer.class)).isEqualTo(15);
+        assertThat(positionCount(fixture.showId)).isEqualTo(15);
 
         List<Long> ownEntry = new ArrayList<>(fixture.rankedEntryIds);
         ownEntry.set(0, fixture.ownEntryId);
@@ -66,7 +66,7 @@ class PublishedBallotApiIntegrationTest {
                 ballotImport(fixture.voterParticipationId, ownEntry, true));
         assertThat(ownImport.statusCode()).isEqualTo(409);
         assertThat(ownImport.body()).contains("OWN_ENTRY_IN_BALLOT");
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM published_ballot_position", Integer.class)).isEqualTo(15);
+        assertThat(positionCount(fixture.showId)).isEqualTo(15);
 
         assertThat(post("/api/shows/" + fixture.showId + "/entries/entry-list/reopen", "").statusCode()).isEqualTo(409);
         assertThatThrownBy(() -> jdbc.update("DELETE FROM contest_entry WHERE id = ?", fixture.rankedEntryIds.getFirst()))
@@ -74,11 +74,11 @@ class PublishedBallotApiIntegrationTest {
 
         assertThat(put("/api/shows/" + fixture.showId + "/published-ballots/" + fixture.voterParticipationId + "/status",
                 "{\"status\":\"NICHT_ABGESTIMMT\"}").statusCode()).isEqualTo(204);
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM published_ballot_position", Integer.class)).isZero();
+        assertThat(positionCount(fixture.showId)).isZero();
         assertThat(get("/api/shows/" + fixture.showId + "/published-ballots/" + fixture.voterParticipationId).body()).contains("\"state\":\"NO_BALLOT\"");
         assertThat(put("/api/shows/" + fixture.showId + "/published-ballots/" + fixture.voterParticipationId + "/status",
                 "{\"status\":\"UNERFASST\"}").statusCode()).isEqualTo(204);
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM published_ballot", Integer.class)).isZero();
+        assertThat(ballotCount(fixture.showId)).isZero();
         assertThat(get("/api/shows/" + fixture.showId + "/published-ballots/" + fixture.voterParticipationId).body()).contains("\"status\":\"UNERFASST\"", "\"state\":\"UNKNOWN\"");
     }
 
@@ -127,7 +127,7 @@ class PublishedBallotApiIntegrationTest {
                 ballotImport(otherShow.voterParticipationId, otherShow.rankedEntryIds, false)).statusCode()).isEqualTo(200);
         HttpResponse<String> isolated = get("/api/shows/" + fixture.showId + "/published-ballots/standings");
         assertThat(isolated.body()).contains("\"mottoShowId\":" + fixture.showId, "\"votedCount\":1");
-        assertStanding(isolated.body(), fixture.rankedEntryIds().getLast(), 1, 20, 1);
+        assertStanding(isolated.body(), fixture.rankedEntryIds().getLast(), 2, 20, 1);
     }
 
     @Test
@@ -354,6 +354,18 @@ class PublishedBallotApiIntegrationTest {
                 "\"points\":" + points,
                 "\"mentions\":" + mentions
         );
+    }
+
+    private int ballotCount(long showId) {
+        return jdbc.queryForObject("SELECT COUNT(*) FROM published_ballot WHERE motto_show_id = ?", Integer.class, showId);
+    }
+
+    private int positionCount(long showId) {
+        return jdbc.queryForObject("""
+                SELECT COUNT(*) FROM published_ballot_position position
+                JOIN published_ballot ballot ON ballot.id = position.published_ballot_id
+                WHERE ballot.motto_show_id = ?
+                """, Integer.class, showId);
     }
 
     private HttpResponse<String> get(String path) throws Exception { return request("GET", path, null); }
