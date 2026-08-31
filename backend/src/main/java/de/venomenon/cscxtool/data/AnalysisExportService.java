@@ -430,7 +430,8 @@ public class AnalysisExportService {
             value.append("Participations: ").append(participations.stream().map(participation -> markdownText(contest(snapshot, participation.contestId()).name())
                     + " (" + participation.countryCode() + ")").collect(java.util.stream.Collectors.joining(", "))).append("\n\n");
             value.append("Historical entries:\n\n");
-            List<DbEntry> submitted = snapshot.entries().stream().filter(entry -> participations.stream().anyMatch(participation -> participation.id() == entry.submitterParticipationId())).toList();
+            List<DbEntry> submitted = snapshot.entries().stream().filter(entry -> participations.stream()
+                    .anyMatch(participation -> Objects.equals(participation.id(), entry.submitterParticipationId()))).toList();
             if (submitted.isEmpty()) value.append("- none in this scope\n\n");
             else {
                 for (DbEntry entry : submitted) {
