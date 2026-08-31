@@ -1,5 +1,6 @@
 import * as Flags from 'country-flag-icons/react/3x2'
-import { CscCountryFlag, isCscCountryFlagCode } from './cscCountryFlags'
+import { isCscCountryFlagCode } from './cscCountryFlagCodes'
+import { CscCountryFlag } from './cscCountryFlags'
 import { hasLocalCountryFlag } from './countryFlagUtils'
 
 type CountryFlagProps = {
