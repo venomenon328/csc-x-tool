@@ -10,7 +10,6 @@ export function ShowStandingsEvaluation({ showId }: { showId: number }) {
 
   useEffect(() => {
     let cancelled = false
-    setStandings(null)
     void fetchShowStandings(showId).then((loadedStandings) => {
       if (!cancelled) { setStandings(loadedStandings); setError(null) }
     }).catch((caught: unknown) => {
