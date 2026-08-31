@@ -327,7 +327,7 @@ class PublishedBallotApiIntegrationTest {
             new Song("Roger Whittaker", "Ein bisschen Aroma", "Contiomagus", "ZA"),
             new Song("Linkin Park", "Somewhere I Belong", "Kenny Ospreay", "LU"),
             new Song("P!nk", "Get The Party Started", "Scott D'Amore", "BA"),
-            new Song("Gloria Gaynor", "I Will Survive", "snaggletooth", "GB"),
+            new Song("Gloria Gaynor", "I Will Survive", "snaggletooth", "XS"),
             new Song("Red Hot Chilli Peppers", "One Way Traffic", "The Red-NGA Shankmos", "NG"),
             new Song("Goldfinger", "Superman", "Dr. King Schultz", "KR"),
             new Song("Farin Urlaub Racing Team", "Am Strand", "OMW", "WS"),
