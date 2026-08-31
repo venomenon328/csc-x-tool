@@ -83,13 +83,20 @@ class BallotApiIntegrationTest {
         put("/api/shows/3/ballot/reorder", reorderJson(entries.subList(0, 15), List.of(entries.get(15))));
         HttpResponse<String> closed = post("/api/shows/3/ballot/close", null);
         assertThat(closed.statusCode()).isEqualTo(200);
-        assertThat(closed.body()).contains("\"snapshotNumber\":1", "\"renderedText\":null");
+        assertThat(closed.body()).contains(
+                "\"snapshotNumber\":1",
+                "\"renderedText\":\"1. Artist 1 - Song 1\\n2. Artist 2 - Song 2"
+        );
         assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM ballot_snapshot_item WHERE ballot_snapshot_id = 1", Integer.class)).isEqualTo(15);
 
         HttpResponse<String> changedText = patch("/api/shows/3/entries/" + entries.getFirst(), entryJson("Korrigiert", "Neuer Titel"));
         assertThat(changedText.statusCode()).isEqualTo(200);
         HttpResponse<String> unchangedSnapshot = get("/api/shows/3/ballot");
-        assertThat(unchangedSnapshot.body()).contains("\"artist\":\"Artist 1\"", "\"title\":\"Song 1\"");
+        assertThat(unchangedSnapshot.body()).contains(
+                "\"artist\":\"Artist 1\"",
+                "\"title\":\"Song 1\"",
+                "\"renderedText\":\"1. Artist 1 - Song 1\\n2. Artist 2 - Song 2"
+        );
 
         HttpResponse<String> closedReorder = put("/api/shows/3/ballot/reorder", reorderJson(entries.subList(1, 16), List.of(entries.getFirst())));
         HttpResponse<String> closedDeletion = delete("/api/shows/3/entries/" + entries.getFirst());
@@ -101,6 +108,9 @@ class BallotApiIntegrationTest {
         assertThat(reopened.statusCode()).isEqualTo(200);
         assertThat(reopened.body()).contains("\"currentSnapshot\":null", "\"current\":false");
         assertThat(jdbcTemplate.queryForObject("SELECT ballot_closed_at FROM motto_show WHERE id = 3", String.class)).isNull();
+        HttpResponse<String> exportWithoutCurrentSnapshot = get("/api/shows/3/ballot/export");
+        assertThat(exportWithoutCurrentSnapshot.statusCode()).isEqualTo(409);
+        assertThat(exportWithoutCurrentSnapshot.body()).contains("BALLOT_EXPORT_REQUIRES_CURRENT_SNAPSHOT");
 
         assertThat(delete("/api/shows/3/entries/" + entries.getFirst()).statusCode()).isEqualTo(204);
         assertThat(jdbcTemplate.queryForObject("""
@@ -112,26 +122,40 @@ class BallotApiIntegrationTest {
         put("/api/shows/3/ballot/reorder", reorderJson(entries.subList(1, 16), List.of()));
         HttpResponse<String> closedAgain = post("/api/shows/3/ballot/close", null);
         assertThat(closedAgain.statusCode()).isEqualTo(200);
-        assertThat(closedAgain.body()).contains("\"snapshotNumber\":2", "\"snapshotNumber\":1", "\"current\":true", "\"current\":false", "\"renderedText\":null");
+        assertThat(closedAgain.body()).contains(
+                "\"snapshotNumber\":2",
+                "\"snapshotNumber\":1",
+                "\"current\":true",
+                "\"current\":false",
+                "\"renderedText\":\"1. Artist 2 - Song 2\\n2. Artist 3 - Song 3"
+        );
         assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM ballot_snapshot WHERE motto_show_id = 3 AND is_current = 1", Integer.class)).isEqualTo(1);
 
-        HttpResponse<String> incompleteExport = get("/api/shows/3/ballot/export");
-        assertThat(incompleteExport.statusCode()).isEqualTo(409);
-        assertThat(incompleteExport.body()).contains("BALLOT_EXPORT_REQUIRES_PARTICIPANT_ASSIGNMENTS");
+        String expectedExport = expectedExport(2);
+        HttpResponse<String> exportWithoutAssignments = get("/api/shows/3/ballot/export");
+        assertThat(exportWithoutAssignments.statusCode()).isEqualTo(200);
+        assertThat(exportWithoutAssignments.headers().firstValue("content-type").orElse("")).startsWith("text/plain;charset=UTF-8");
+        assertThat(exportWithoutAssignments.body()).isEqualTo(expectedExport);
+        assertThat(exportWithoutAssignments.body())
+                .doesNotContain("Participant", "Schottland", "Deutschland", "https://", "Punkte", "Platz #");
+
+        long currentSnapshotId = jdbcTemplate.queryForObject(
+                "SELECT id FROM ballot_snapshot WHERE motto_show_id = 3 AND is_current = 1", Long.class
+        );
+        assertThat(jdbcTemplate.update(
+                "UPDATE ballot_snapshot_item SET contest_entry_id = NULL WHERE ballot_snapshot_id = ? AND rank = 1",
+                currentSnapshotId
+        )).isEqualTo(1);
+        assertThat(get("/api/shows/3/ballot/export").body()).isEqualTo(expectedExport);
 
         assignParticipants(entries.subList(1, 16));
         HttpResponse<String> completedBallot = get("/api/shows/3/ballot");
         assertThat(completedBallot.body()).contains(
-                "\"renderedText\":\"Platz #1 - Schottland: Artist 2 - Song 2\\nPlatz #2 - Kap Verde: Artist 3 - Song 3\\nPlatz #3 - Kongo: Artist 4 - Song 4"
+                "\"renderedText\":\"1. Artist 2 - Song 2\\n2. Artist 3 - Song 3"
         );
-
-        HttpResponse<String> export = get("/api/shows/3/ballot/export");
-        assertThat(export.statusCode()).isEqualTo(200);
-        assertThat(export.headers().firstValue("content-type").orElse("")).startsWith("text/plain;charset=UTF-8");
-        assertThat(export.body())
-                .startsWith("Platz #1 - Schottland: Artist 2 - Song 2\nPlatz #2 - Kap Verde: Artist 3 - Song 3\nPlatz #3 - Kongo: Artist 4 - Song 4")
-                .contains("Platz #15 - Deutschland: Artist 16 - Song 16")
-                .doesNotContain("Punkte");
+        HttpResponse<String> exportAfterAssignments = get("/api/shows/3/ballot/export");
+        assertThat(exportAfterAssignments.statusCode()).isEqualTo(200);
+        assertThat(exportAfterAssignments.body()).isEqualTo(expectedExport);
     }
 
     @Test
@@ -143,6 +167,13 @@ class BallotApiIntegrationTest {
                 BallotPoints.pointsForRank(10), BallotPoints.pointsForRank(11), BallotPoints.pointsForRank(12),
                 BallotPoints.pointsForRank(13), BallotPoints.pointsForRank(14), BallotPoints.pointsForRank(15)
         )).containsExactly(25, 20, 16, 13, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1);
+    }
+
+    private static String expectedExport(int firstArtistNumber) {
+        return java.util.stream.IntStream.range(0, 15)
+                .mapToObj(index -> (index + 1) + ". Artist " + (firstArtistNumber + index)
+                        + " - Song " + (firstArtistNumber + index))
+                .collect(java.util.stream.Collectors.joining("\n"));
     }
 
     private void assignParticipants(List<Long> entryIds) {
