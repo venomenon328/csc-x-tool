@@ -382,33 +382,33 @@ public class ExportService {
             }
         }
 
-        uniquePositive(data.ownEntryResolutions(), ExportFormat.OwnEntryResolutionRecord::mottoShowId, "EigenauflÃ¶sung");
+        uniquePositive(data.ownEntryResolutions(), ExportFormat.OwnEntryResolutionRecord::mottoShowId, "Eigenauflösung");
         Map<Long, ExportFormat.OwnEntryResolutionRecord> ownEntryResolutions = new HashMap<>();
         for (ExportFormat.OwnEntryResolutionRecord resolution : data.ownEntryResolutions()) {
             ExportFormat.MottoShow show = shows.get(resolution.mottoShowId());
             if (show == null || resolution.resolution() == null) {
-                throw invalid("Eine EigenauflÃ¶sung verweist auf eine unbekannte Show oder ist nicht gÃ¼ltig.");
+                throw invalid("Eine Eigenauflösung verweist auf eine unbekannte Show oder ist nicht gültig.");
             }
             if (!"UNRESOLVED".equals(resolution.resolution()) && !"NO_OWN_ENTRY".equals(resolution.resolution())
                     && !"OWN_ENTRY".equals(resolution.resolution())) {
-                throw invalid("Der Status einer EigenauflÃ¶sung ist nicht gÃ¼ltig.");
+                throw invalid("Der Status einer Eigenauflösung ist nicht gültig.");
             }
             if ("UNRESOLVED".equals(resolution.resolution())
                     && (resolution.participationId() != null || resolution.entryId() != null)) {
-                throw invalid("Eine ungeklÃ¤rte EigenauflÃ¶sung darf keinen Beitrag oder Teilnehmer enthalten.");
+                throw invalid("Eine ungeklärte Eigenauflösung darf keinen Beitrag oder Teilnehmer enthalten.");
             }
             if ("NO_OWN_ENTRY".equals(resolution.resolution())
                     && (resolution.participationId() == null || resolution.entryId() != null)) {
-                throw invalid("Die BestÃ¤tigung ohne eigene Einreichung ist nicht vollstÃ¤ndig.");
+                throw invalid("Die Bestätigung ohne eigene Einreichung ist nicht vollständig.");
             }
             if ("OWN_ENTRY".equals(resolution.resolution())
                     && (resolution.participationId() == null || resolution.entryId() == null)) {
-                throw invalid("Eine eigene Einreichung benÃ¶tigt Teilnahme und vorhandenen Beitrag.");
+                throw invalid("Eine eigene Einreichung benötigt Teilnahme und vorhandenen Beitrag.");
             }
             ownEntryResolutions.put(resolution.mottoShowId(), resolution);
         }
         if (ownEntryResolutions.size() != shows.size()) {
-            throw invalid("Jede Mottoshow benÃ¶tigt einen expliziten EigenauflÃ¶sungszustand.");
+            throw invalid("Jede Mottoshow benötigt einen expliziten Eigenauflösungszustand.");
         }
 
         Set<Long> entryIds = uniquePositive(data.contestEntries(), ExportFormat.ContestEntry::id, "Wettbewerbsbeitrag");
@@ -457,13 +457,13 @@ public class ExportService {
             ExportFormat.ContestParticipation participation = participations.get(resolution.participationId());
             if (participation == null || participation.contestId() != show.contestId()
                     || contest.ownParticipationId() == null || !contest.ownParticipationId().equals(participation.id())) {
-                throw invalid("Eine EigenauflÃ¶sung muss zur gewÃ¤hlten eigenen Contest-Teilnahme gehÃ¶ren.");
+                throw invalid("Eine Eigenauflösung muss zur gewählten eigenen Contest-Teilnahme gehören.");
             }
             if ("OWN_ENTRY".equals(resolution.resolution())) {
                 ExportFormat.ContestEntry entry = entries.get(resolution.entryId());
                 if (entry == null || entry.mottoShowId() != show.id()
                         || !Long.valueOf(participation.id()).equals(entry.contestParticipationId())) {
-                    throw invalid("Die eigene Einreichung muss der gewÃ¤hlten Teilnahme in derselben Show zugeordnet sein.");
+                    throw invalid("Die eigene Einreichung muss der gewählten Teilnahme in derselben Show zugeordnet sein.");
                 }
                 if (entry.rankingPosition() != null) {
                     throw invalid("Die eigene Einreichung darf nicht in der aktiven Rangliste stehen.");
