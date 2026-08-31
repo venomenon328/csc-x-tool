@@ -114,8 +114,9 @@ class PublishedBallotImportParser {
     private static void appendText(String source, List<SourceLine> result, String url) {
         if (source == null || source.isBlank()) return;
         for (String line : source.replace('\u00a0', ' ').split("\\R")) {
-            String value = compact(line.replace(INLINE_BOUNDARY, ' '));
-            if (!value.isBlank()) result.add(new SourceLine(value, inlineStructure(line), url));
+            String decodedLine = NumericCharacterReferences.decode(line);
+            String value = compact(decodedLine.replace(INLINE_BOUNDARY, ' '));
+            if (!value.isBlank()) result.add(new SourceLine(value, inlineStructure(decodedLine), url));
         }
     }
 
