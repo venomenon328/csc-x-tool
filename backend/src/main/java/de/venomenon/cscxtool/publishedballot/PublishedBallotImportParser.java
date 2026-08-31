@@ -39,6 +39,7 @@ class PublishedBallotImportParser {
         values.put(normalized("Südafrika"), "ZA");
         values.put(normalized("Türkei"), "TR");
         values.put(normalized("Vatikan"), "VA");
+        values.put(normalized("Schottland"), "GB");
         this.countriesByName = Map.copyOf(values);
     }
 
