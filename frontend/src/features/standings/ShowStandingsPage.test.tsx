@@ -28,7 +28,7 @@ describe('show standings evaluation', () => {
     expect(screen.getByText('Null – Bleibt sichtbar')).toBeVisible()
     expect(screen.getByText('25')).toBeVisible()
     expect(screen.getAllByText('20')).toHaveLength(2)
-    expect(screen.getAllByText('0')).toHaveLength(1)
+    expect(screen.getAllByText('0')).toHaveLength(2)
     expect(screen.getByText(/Punktgleiche Beiträge erhalten denselben Zwischenrang/)).toBeVisible()
     expect(screen.getByText(/Zwischenstand ist unvollständig/)).toBeVisible()
     expect(screen.getByRole('img', { name: 'Flagge von Deutschland' })).toBeVisible()
