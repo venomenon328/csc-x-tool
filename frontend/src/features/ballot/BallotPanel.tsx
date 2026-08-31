@@ -88,12 +88,6 @@ export function BallotPanel({
         ownEntryResolved={ownEntryResolved}
       />
 
-      {ballot.currentSnapshot !== null && ballot.renderedText === null && (
-        <Alert severity="info">
-          Die Top-15-Ausgabe wird verfügbar, sobald allen 15 Snapshot-Beiträgen Teilnehmer und damit Länder zugeordnet sind.
-        </Alert>
-      )}
-
       {ballot.currentSnapshot !== null && ballot.renderedText !== null && (
         <Paper component="section" elevation={0} sx={{ border: 1, borderColor: 'success.main', p: 2 }}>
           <Stack spacing={1.25}>
