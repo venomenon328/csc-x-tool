@@ -134,6 +134,32 @@ describe('ParticipantPage', () => {
     expect(screen.getByRole('dialog')).toBeVisible()
     expect(fetchMock).not.toHaveBeenCalledWith('/api/participants', expect.objectContaining({ method: 'POST' }))
   })
+
+  it('marks the existing contest participation as mine from its row', async () => {
+    const user = userEvent.setup()
+    const participation = { ...alex, participationId: 15, countryCode: 'DE', countryName: 'Deutschland', identityActive: true, createdAt: '', updatedAt: '' }
+    let contest = { ...cscX, ownParticipationId: null as number | null }
+    fetchMock.mockImplementation(async (input, init) => {
+      const path = String(input)
+      if (path === '/api/contests/1/own-participation' && init?.method === 'PUT') {
+        contest = { ...contest, ownParticipationId: 15 }
+        return jsonResponse(contest)
+      }
+      if (path === '/api/contests') return jsonResponse([contest])
+      if (path === '/api/countries') return jsonResponse(countries)
+      if (path === '/api/contests/1/participants') return jsonResponse([participation])
+      throw new Error(`Unexpected request ${path}`)
+    })
+    render(<App />)
+
+    await screen.findByText('Alex')
+    await user.click(screen.getByRole('button', { name: 'Als meine Teilnahme markieren' }))
+
+    expect(await screen.findByText('Meine Teilnahme')).toBeVisible()
+    expect(fetchMock).toHaveBeenCalledWith('/api/contests/1/own-participation', expect.objectContaining({
+      method: 'PUT', body: JSON.stringify({ participationId: 15, confirmChange: false }),
+    }))
+  })
 })
 
 async function addExistingIdentity(user: ReturnType<typeof userEvent.setup>, country: string) {

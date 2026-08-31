@@ -80,6 +80,19 @@ class ContestService {
                     "Die eigene Teilnahme wird bereits für abgeleitete Ergebnisse verwendet und muss bewusst geändert werden."
             );
         }
+        if (!java.util.Objects.equals(contest.ownParticipationId(), nextParticipationId)
+                && nextParticipationId != null
+                && repository.currentSnapshotContainsParticipation(contestId, nextParticipationId)) {
+            throw new ApiConflictException(
+                    "OWN_PARTICIPATION_CHANGE_REQUIRES_BALLOT_REOPEN",
+                    "Die neue eigene Teilnahme besitzt einen Beitrag in einem aktuellen Top-15-Snapshot. Öffne diese Abstimmung zuerst bewusst wieder."
+            );
+        }
+        if (!java.util.Objects.equals(contest.ownParticipationId(), nextParticipationId)) {
+            List<Long> openOwnEntryIds = repository.findOpenResolvedOwnEntryIds(contestId);
+            repository.resetOwnEntryResolutions(contestId);
+            repository.clearEntryAssignments(openOwnEntryIds);
+        }
         repository.updateOwnParticipation(contestId, nextParticipationId);
         return ContestResponse.from(repository.findById(contestId).orElseThrow(() -> new ContestNotFoundException(contestId)));
     }

@@ -63,6 +63,14 @@ describe('ballot suggestion domain logic', () => {
     ])).toEqual({ rankedEntryIds: [], unrankedEntryIds: [2, 1] })
   })
 
+  it('excludes the marked own entry from the proposal and its warnings', () => {
+    const own = entry({ id: 3, ownEntry: true, assessment: 5, assessmentConfidence: 5, rankingPosition: 1 })
+    const eligible = entry({ id: 2, assessment: 4, assessmentConfidence: 4, poolPosition: 2 })
+
+    expect(suggestedBallotRanking([own, eligible])).toEqual({ rankedEntryIds: [2], unrankedEntryIds: [3] })
+    expect(deriveBallotWarnings([own])).toEqual([])
+  })
+
   it('derives the unassessed-entry warning', () => {
     expect(deriveBallotWarnings([entry({ id: 1, assessment: null, assessmentConfidence: null })])).toEqual([
       { code: 'UNASSESSED_ENTRIES', entryIds: [1] },

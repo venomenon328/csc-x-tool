@@ -43,13 +43,15 @@ class MottoShowRepository {
                           SELECT 1 FROM published_ballot ballot
                           WHERE ballot.motto_show_id = motto_show.id AND ballot.contest_participation_id = participation.id
                         )) AS published_ballot_unrecorded_count,
-                       motto_show.ballot_closed_at,
+                       motto_show.ballot_closed_at, contest.own_participation_id, motto_show.own_entry_resolution,
+                       motto_show.own_entry_id,
                        selected_candidate.id AS selected_candidate_id,
                        selected_candidate.artist AS selected_candidate_artist,
                        selected_candidate.title AS selected_candidate_title,
                        selected_candidate.youtube_url AS selected_candidate_youtube_url,
                        motto_show.created_at, motto_show.updated_at
                 FROM motto_show
+                JOIN contest ON contest.id = motto_show.contest_id
                 LEFT JOIN candidate AS selected_candidate ON selected_candidate.id = motto_show.selected_candidate_id
                 WHERE motto_show.contest_id = ?
                 ORDER BY motto_show.show_number
@@ -75,13 +77,15 @@ class MottoShowRepository {
                           SELECT 1 FROM published_ballot ballot
                           WHERE ballot.motto_show_id = motto_show.id AND ballot.contest_participation_id = participation.id
                         )) AS published_ballot_unrecorded_count,
-                       motto_show.ballot_closed_at,
+                       motto_show.ballot_closed_at, contest.own_participation_id, motto_show.own_entry_resolution,
+                       motto_show.own_entry_id,
                        selected_candidate.id AS selected_candidate_id,
                        selected_candidate.artist AS selected_candidate_artist,
                        selected_candidate.title AS selected_candidate_title,
                        selected_candidate.youtube_url AS selected_candidate_youtube_url,
                        motto_show.created_at, motto_show.updated_at
                 FROM motto_show
+                JOIN contest ON contest.id = motto_show.contest_id
                 LEFT JOIN candidate AS selected_candidate ON selected_candidate.id = motto_show.selected_candidate_id
                 WHERE motto_show.id = ?
                 """, ROW_MAPPER, id).stream().findFirst();
@@ -181,6 +185,9 @@ class MottoShowRepository {
                 resultSet.getInt("published_ballot_not_voted_count"),
                 resultSet.getInt("published_ballot_unrecorded_count"),
                 nullableInstant(resultSet, "ballot_closed_at"),
+                nullableLong(resultSet, "own_participation_id"),
+                de.venomenon.cscxtool.entry.OwnEntryResolution.valueOf(resultSet.getString("own_entry_resolution")),
+                nullableLong(resultSet, "own_entry_id"),
                 selectedCandidate(resultSet),
                 resultSet.getTimestamp("created_at").toInstant(),
                 resultSet.getTimestamp("updated_at").toInstant()
@@ -194,6 +201,11 @@ class MottoShowRepository {
 
     private static Integer nullableInt(ResultSet resultSet, String columnName) throws SQLException {
         int value = resultSet.getInt(columnName);
+        return resultSet.wasNull() ? null : value;
+    }
+
+    private static Long nullableLong(ResultSet resultSet, String columnName) throws SQLException {
+        long value = resultSet.getLong(columnName);
         return resultSet.wasNull() ? null : value;
     }
 

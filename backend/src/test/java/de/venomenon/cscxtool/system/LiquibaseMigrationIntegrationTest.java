@@ -114,6 +114,7 @@ class LiquibaseMigrationIntegrationTest {
         assertThat(jdbc.queryForObject("SELECT name FROM motto_show WHERE id = 1", String.class)).isEqualTo("Erhaltene Show");
         assertThat(jdbc.queryForObject("SELECT contest_id FROM motto_show WHERE id = 1", Long.class)).isEqualTo(1L);
         assertThat(jdbc.queryForObject("SELECT selected_candidate_id FROM motto_show WHERE id = 1", Long.class)).isEqualTo(70L);
+        assertThat(jdbc.queryForObject("SELECT own_entry_resolution FROM motto_show WHERE id = 1", String.class)).isEqualTo("UNRESOLVED");
         assertThat(jdbc.queryForList("""
                 SELECT id, participant_id, country_code, active, created_at, updated_at
                 FROM contest_participation ORDER BY id

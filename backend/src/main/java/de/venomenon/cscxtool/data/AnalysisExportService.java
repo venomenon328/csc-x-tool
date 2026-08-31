@@ -167,7 +167,10 @@ public class AnalysisExportService {
         Set<Long> includedShowIds = Set.copyOf(selectedShowIds);
         List<DbEntry> entries = jdbc.query("""
                 SELECT entry.id,entry.contest_id,entry.motto_show_id,entry.artist,entry.title,entry.youtube_url,
-                       entry.contest_participation_id,entry.pool_position
+                       CASE WHEN contest.is_current=1 AND show.ballot_closed_at IS NULL
+                                  AND (show.own_entry_id IS NULL OR entry.id <> show.own_entry_id)
+                            THEN NULL ELSE entry.contest_participation_id END,
+                       entry.pool_position
                 FROM contest_entry entry
                 JOIN motto_show show ON show.id=entry.motto_show_id
                 JOIN contest ON contest.id=show.contest_id
@@ -427,7 +430,8 @@ public class AnalysisExportService {
             value.append("Participations: ").append(participations.stream().map(participation -> markdownText(contest(snapshot, participation.contestId()).name())
                     + " (" + participation.countryCode() + ")").collect(java.util.stream.Collectors.joining(", "))).append("\n\n");
             value.append("Historical entries:\n\n");
-            List<DbEntry> submitted = snapshot.entries().stream().filter(entry -> participations.stream().anyMatch(participation -> participation.id() == entry.submitterParticipationId())).toList();
+            List<DbEntry> submitted = snapshot.entries().stream().filter(entry -> participations.stream()
+                    .anyMatch(participation -> Objects.equals(participation.id(), entry.submitterParticipationId()))).toList();
             if (submitted.isEmpty()) value.append("- none in this scope\n\n");
             else {
                 for (DbEntry entry : submitted) {

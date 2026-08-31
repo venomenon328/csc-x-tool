@@ -50,7 +50,7 @@ class PublishedBallotApiIntegrationTest {
         String validImport = ballotImport(fixture.voterParticipationId, fixture.rankedEntryIds, false);
         assertThat(post("/api/shows/" + fixture.showId + "/published-ballots/import", validImport).statusCode()).isEqualTo(200);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM published_ballot_position", Integer.class)).isEqualTo(15);
-        assertThat(get("/api/data/export/full").body()).contains("\"formatVersion\":8", "\"publishedBallots\"", "\"publishedBallotPositions\"", "\"status\":\"ABGESTIMMT\"");
+        assertThat(get("/api/data/export/full").body()).contains("\"formatVersion\":9", "\"publishedBallots\"", "\"publishedBallotPositions\"", "\"status\":\"ABGESTIMMT\"");
         assertThat(get("/api/data/export/published-ballots.csv").body()).contains("Stimmzettelstatus", "RANKED", "ABGESTIMMT", "Eric Clapton");
 
         HttpResponse<String> detail = get("/api/shows/" + fixture.showId + "/published-ballots/" + fixture.voterParticipationId);

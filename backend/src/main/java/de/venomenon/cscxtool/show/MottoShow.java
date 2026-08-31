@@ -1,5 +1,6 @@
 package de.venomenon.cscxtool.show;
 
+import de.venomenon.cscxtool.entry.OwnEntryResolution;
 import java.time.Instant;
 
 record MottoShow(
@@ -18,6 +19,9 @@ record MottoShow(
         int publishedBallotNotVotedCount,
         int publishedBallotUnrecordedCount,
         Instant ballotClosedAt,
+        Long ownParticipationId,
+        OwnEntryResolution ownEntryResolution,
+        Long ownEntryId,
         SelectedCandidate selectedCandidate,
         Instant createdAt,
         Instant updatedAt

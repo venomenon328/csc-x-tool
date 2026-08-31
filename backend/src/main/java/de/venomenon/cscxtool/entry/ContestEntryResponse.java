@@ -16,6 +16,7 @@ record ContestEntryResponse(
         Integer rankingPosition,
         Long contestParticipationId,
         Long participantId,
+        boolean ownEntry,
         Instant createdAt,
         Instant updatedAt
 ) {
@@ -35,6 +36,7 @@ record ContestEntryResponse(
                 entry.rankingPosition(),
                 entry.contestParticipationId(),
                 entry.participantId(),
+                entry.ownEntry(),
                 entry.createdAt(),
                 entry.updatedAt()
         );

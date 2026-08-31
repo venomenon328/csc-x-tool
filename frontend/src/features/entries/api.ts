@@ -12,6 +12,7 @@ export type ContestEntry = PlayableSong & {
   rankingPosition: number | null
   contestParticipationId?: number | null
   participantId: number | null
+  ownEntry?: boolean
   createdAt: string
   updatedAt: string
 }
@@ -129,6 +130,15 @@ export function updateEntryAssessment(
 
 export function updateParticipantAssignment(showId: number, entryId: number, participantId: number | null): Promise<ContestEntry> {
   return request(`/api/shows/${showId}/entries/${entryId}/participant`, json('PUT', { participantId }))
+}
+
+export function updateOwnEntryResolution(
+  showId: number,
+  resolution: 'OWN_ENTRY' | 'NO_OWN_ENTRY',
+  entryId: number | null,
+  confirmRankingRemoval = false,
+): Promise<void> {
+  return request(`/api/shows/${showId}/entries/own-entry-resolution`, json('PUT', { resolution, entryId, confirmRankingRemoval }))
 }
 
 export function deleteEntry(showId: number, entryId: number): Promise<void> {

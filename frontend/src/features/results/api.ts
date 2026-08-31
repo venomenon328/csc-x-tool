@@ -15,7 +15,7 @@ export type DerivedResultLine = {
 }
 export type ShowResult = {
   mottoShowId: number
-  prerequisite: 'OWN_PARTICIPATION_MISSING' | 'ENTRY_LIST_INCOMPLETE' | 'OWN_ENTRY_MISSING' | 'READY'
+  prerequisite: 'OWN_PARTICIPATION_MISSING' | 'OWN_ENTRY_UNRESOLVED' | 'OWN_ENTRY_NONE' | 'ENTRY_LIST_INCOMPLETE' | 'OWN_ENTRY_MISSING' | 'READY'
   ownParticipation: { participationId: number, participantId: number, displayName: string, countryCode: string } | null
   ownEntry: { entryId: number, artist: string, title: string, youtubeUrl: string | null } | null
   selectedCandidateDiffers: boolean

@@ -86,6 +86,7 @@ class TipsGameService {
 
     private TipsGameResponse response(TipsShowFacts facts, TipsGame game) {
         List<TipsParticipantResponse> participants = repository.findParticipants(facts.contestId()).stream()
+                .filter(participant -> facts.ownEntryId() == null || !java.util.Objects.equals(participant.participationId(), facts.ownParticipationId()))
                 .map(participant -> new TipsParticipantResponse(participant.participationId(), participant.participantId(), participant.displayName(),
                         participant.countryCode(), countryName(participant.countryCode()), participant.active(), participant.identityActive()))
                 .toList();
@@ -93,7 +94,8 @@ class TipsGameService {
         boolean resolved = game != null && game.status() == TipsGameStatus.RESOLVED;
         boolean actualAssignmentsComplete = facts.entryCount() > 0 && facts.unassignedEntryCount() == 0;
         List<TipsEntryResponse> responseEntries = entries.stream().map(entry -> new TipsEntryResponse(
-                entry.id(), entry.artist(), entry.title(), entry.youtubeUrl(), resolved ? actual(entry) : null, tip(entry)
+                entry.id(), entry.artist(), entry.title(), entry.youtubeUrl(), entry.ownEntry(), resolved && !entry.ownEntry() ? actual(entry) : null,
+                entry.ownEntry() ? null : tip(entry)
         )).toList();
         return new TipsGameResponse(facts.showId(), facts.contestId(), game != null, game == null ? TipsGameStatus.DRAFT : game.status(),
                 game == null ? null : game.createdAt(), game == null ? null : game.updatedAt(), game == null ? null : game.resolvedAt(),
@@ -104,8 +106,10 @@ class TipsGameService {
         if (request == null || request.assignments() == null) throw new ApiBadRequestException(
                 "INVALID_TIPS_GAME", "Die Tippzuordnungen müssen als vollständiger Entwurf übermittelt werden."
         );
-        Set<Long> entryIds = repository.findEntries(facts.showId(), null).stream().map(TipsEntry::id).collect(Collectors.toSet());
+        Set<Long> entryIds = repository.findEntries(facts.showId(), null).stream()
+                .filter(entry -> !entry.ownEntry()).map(TipsEntry::id).collect(Collectors.toSet());
         Set<Long> participationIds = repository.findParticipants(facts.contestId()).stream()
+                .filter(participant -> facts.ownEntryId() == null || !java.util.Objects.equals(participant.participationId(), facts.ownParticipationId()))
                 .map(TipsParticipant::participationId).collect(Collectors.toSet());
         Set<Long> seenEntries = new HashSet<>();
         Set<Long> seenParticipations = new HashSet<>();
@@ -114,12 +118,18 @@ class TipsGameService {
             if (assignment == null || assignment.entryId() == null || assignment.guessedParticipationId() == null) {
                 throw new ApiBadRequestException("INVALID_TIP_ASSIGNMENT", "Jeder Tipp benötigt einen Beitrag und eine vermutete Teilnahme.");
             }
-            if (!entryIds.contains(assignment.entryId())) throw new ApiConflictException(
-                    "TIP_ENTRY_NOT_IN_SHOW", "Ein Tipp darf nur einen Wettbewerbsbeitrag derselben Mottoshow verwenden."
-            );
-            if (!participationIds.contains(assignment.guessedParticipationId())) throw new ApiConflictException(
-                    "TIP_PARTICIPANT_NOT_IN_CONTEST", "Ein Tipp darf nur einen Teilnehmer derselben CSC-Ausgabe verwenden."
-            );
+            if (!entryIds.contains(assignment.entryId())) {
+                if (java.util.Objects.equals(assignment.entryId(), facts.ownEntryId())) throw new ApiConflictException(
+                        "OWN_ENTRY_CANNOT_BE_TIPPED", "Die eigene tatsächliche Einreichung darf nicht getippt werden."
+                );
+                throw new ApiConflictException("TIP_ENTRY_NOT_IN_SHOW", "Ein Tipp darf nur einen Wettbewerbsbeitrag derselben Mottoshow verwenden.");
+            }
+            if (!participationIds.contains(assignment.guessedParticipationId())) {
+                if (facts.ownEntryId() != null && java.util.Objects.equals(assignment.guessedParticipationId(), facts.ownParticipationId())) throw new ApiConflictException(
+                        "OWN_PARTICIPATION_CANNOT_BE_TIPPED", "Die eigene Teilnahme darf nicht als Tipp verwendet werden."
+                );
+                throw new ApiConflictException("TIP_PARTICIPANT_NOT_IN_CONTEST", "Ein Tipp darf nur einen Teilnehmer derselben CSC-Ausgabe verwenden.");
+            }
             if (!seenEntries.add(assignment.entryId())) throw new ApiConflictException(
                     "DUPLICATE_TIP_ENTRY", "Ein Wettbewerbsbeitrag darf im Tippstand nur einmal zugeordnet werden."
             );
@@ -166,7 +176,7 @@ class TipsGameService {
         int missing = 0;
         Map<TipsConfidence, int[]> confidence = new HashMap<>();
         for (TipsEntry entry : entries) {
-            if (entry.actualParticipationId() == null) continue;
+            if (entry.ownEntry() || entry.actualParticipationId() == null) continue;
             if (entry.guessedParticipationId() == null) {
                 missing++;
                 continue;

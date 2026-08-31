@@ -1,0 +1,132 @@
+databaseChangeLog:
+  - changeSet:
+      id: 015-own-entry-voting-workflow
+      author: venomenon328
+      runInTransaction: false
+      changes:
+        - sql:
+            sql: |-
+              -- An own entry is a resolution of the existing anonymous contest entry,
+              -- never a duplicate song or a second source of truth. Existing shows stay
+              -- deliberately unresolved after migration: absence of data must not mean
+              -- that the user had no entry in that show.
+              PRAGMA foreign_keys = OFF;
+              CREATE TABLE motto_show_new (
+                id INTEGER PRIMARY KEY,
+                contest_id INTEGER NOT NULL,
+                show_number INTEGER NOT NULL CONSTRAINT ck_motto_show_number_positive CHECK (show_number > 0),
+                name TEXT NOT NULL CONSTRAINT ck_motto_show_name_not_blank CHECK (length(trim(name)) > 0),
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                selected_candidate_id INTEGER CONSTRAINT fk_motto_show_selected_candidate REFERENCES candidate (id) ON DELETE RESTRICT,
+                ballot_closed_at TEXT,
+                entry_list_complete INTEGER NOT NULL DEFAULT 0
+                  CONSTRAINT ck_motto_show_entry_list_complete_boolean CHECK (entry_list_complete IN (0, 1)),
+                own_entry_resolution TEXT NOT NULL DEFAULT 'UNRESOLVED'
+                  CONSTRAINT ck_motto_show_own_entry_resolution CHECK (own_entry_resolution IN ('UNRESOLVED', 'NO_OWN_ENTRY', 'OWN_ENTRY')),
+                own_entry_participation_id INTEGER,
+                own_entry_id INTEGER,
+                CONSTRAINT ck_motto_show_own_entry_resolution_shape CHECK (
+                  (own_entry_resolution = 'UNRESOLVED' AND own_entry_participation_id IS NULL AND own_entry_id IS NULL)
+                  OR (own_entry_resolution = 'NO_OWN_ENTRY' AND own_entry_participation_id IS NOT NULL AND own_entry_id IS NULL)
+                  OR (own_entry_resolution = 'OWN_ENTRY' AND own_entry_participation_id IS NOT NULL AND own_entry_id IS NOT NULL)
+                ),
+                CONSTRAINT fk_motto_show_contest FOREIGN KEY (contest_id) REFERENCES contest (id) ON DELETE RESTRICT,
+                CONSTRAINT fk_motto_show_own_entry_participation FOREIGN KEY (own_entry_participation_id) REFERENCES contest_participation (id) ON DELETE RESTRICT,
+                CONSTRAINT fk_motto_show_own_entry FOREIGN KEY (own_entry_id) REFERENCES contest_entry (id) ON DELETE RESTRICT,
+                CONSTRAINT uq_motto_show_contest_number UNIQUE (contest_id, show_number),
+                CONSTRAINT uq_motto_show_id_contest UNIQUE (id, contest_id)
+              );
+              INSERT INTO motto_show_new (
+                id, contest_id, show_number, name, created_at, updated_at, selected_candidate_id, ballot_closed_at, entry_list_complete,
+                own_entry_resolution, own_entry_participation_id, own_entry_id
+              )
+              SELECT id, contest_id, show_number, name, created_at, updated_at, selected_candidate_id, ballot_closed_at, entry_list_complete,
+                     'UNRESOLVED', NULL, NULL
+              FROM motto_show;
+              DROP TABLE motto_show;
+              ALTER TABLE motto_show_new RENAME TO motto_show;
+              CREATE INDEX ix_motto_show_contest ON motto_show (contest_id);
+              CREATE INDEX ix_motto_show_own_entry_participation ON motto_show (own_entry_participation_id);
+
+              CREATE TRIGGER trg_motto_show_selected_candidate_matches_show
+              BEFORE UPDATE OF selected_candidate_id ON motto_show
+              WHEN NEW.selected_candidate_id IS NOT NULL
+                AND NOT EXISTS (SELECT 1 FROM candidate WHERE candidate.id = NEW.selected_candidate_id AND candidate.motto_show_id = NEW.id)
+              BEGIN
+                SELECT RAISE(ABORT, 'The selected candidate must belong to the same motto show.');
+              END;
+
+              -- A resolved entry must be the existing entry of the currently selected
+              -- participation in precisely this show. The service intentionally resets
+              -- resolutions before changing the contest-wide own participation.
+              CREATE TRIGGER trg_motto_show_own_entry_resolution_matches_show
+              BEFORE UPDATE OF own_entry_resolution, own_entry_participation_id, own_entry_id ON motto_show
+              WHEN NEW.own_entry_resolution <> 'UNRESOLVED'
+                AND NOT EXISTS (
+                  SELECT 1 FROM contest
+                  JOIN contest_participation participation ON participation.id = NEW.own_entry_participation_id
+                  WHERE contest.id = NEW.contest_id
+                    AND contest.own_participation_id = participation.id
+                    AND participation.contest_id = NEW.contest_id
+                )
+              BEGIN
+                SELECT RAISE(ABORT, 'The own entry resolution must use the selected participation of the same contest.');
+              END;
+              CREATE TRIGGER trg_motto_show_own_entry_resolution_matches_show_on_insert
+              BEFORE INSERT ON motto_show
+              WHEN NEW.own_entry_resolution <> 'UNRESOLVED'
+                AND NOT EXISTS (
+                  SELECT 1 FROM contest
+                  JOIN contest_participation participation ON participation.id = NEW.own_entry_participation_id
+                  WHERE contest.id = NEW.contest_id
+                    AND contest.own_participation_id = participation.id
+                    AND participation.contest_id = NEW.contest_id
+                )
+              BEGIN
+                SELECT RAISE(ABORT, 'The own entry resolution must use the selected participation of the same contest.');
+              END;
+              CREATE TRIGGER trg_motto_show_own_entry_matches_show
+              BEFORE UPDATE OF own_entry_resolution, own_entry_participation_id, own_entry_id ON motto_show
+              WHEN NEW.own_entry_resolution = 'OWN_ENTRY'
+                AND NOT EXISTS (
+                  SELECT 1 FROM contest_entry
+                  WHERE id = NEW.own_entry_id
+                    AND motto_show_id = NEW.id
+                    AND contest_participation_id = NEW.own_entry_participation_id
+                )
+              BEGIN
+                SELECT RAISE(ABORT, 'The own entry must belong to the resolved participation in the same show.');
+              END;
+              CREATE TRIGGER trg_motto_show_own_entry_matches_show_on_insert
+              BEFORE INSERT ON motto_show
+              WHEN NEW.own_entry_resolution = 'OWN_ENTRY'
+                AND NOT EXISTS (
+                  SELECT 1 FROM contest_entry
+                  WHERE id = NEW.own_entry_id
+                    AND motto_show_id = NEW.id
+                    AND contest_participation_id = NEW.own_entry_participation_id
+                )
+              BEGIN
+                SELECT RAISE(ABORT, 'The own entry must belong to the resolved participation in the same show.');
+              END;
+              CREATE TRIGGER trg_contest_entry_resolved_own_entry_cannot_change
+              BEFORE UPDATE OF contest_participation_id ON contest_entry
+              WHEN EXISTS (
+                SELECT 1 FROM motto_show
+                WHERE own_entry_resolution = 'OWN_ENTRY'
+                  AND own_entry_id = OLD.id
+                  AND own_entry_participation_id IS NOT NEW.contest_participation_id
+              )
+              BEGIN
+                SELECT RAISE(ABORT, 'The resolved own entry cannot be reassigned.');
+              END;
+              CREATE TRIGGER trg_contest_entry_resolved_own_entry_cannot_delete
+              BEFORE DELETE ON contest_entry
+              WHEN EXISTS (SELECT 1 FROM motto_show WHERE own_entry_resolution = 'OWN_ENTRY' AND own_entry_id = OLD.id)
+              BEGIN
+                SELECT RAISE(ABORT, 'The resolved own entry cannot be deleted.');
+              END;
+
+              PRAGMA foreign_key_check;
+              PRAGMA foreign_keys = ON;

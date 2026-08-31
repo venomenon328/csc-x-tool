@@ -16,6 +16,7 @@ record ContestEntry(
         Integer rankingPosition,
         Long contestParticipationId,
         Long participantId,
+        boolean ownEntry,
         Instant createdAt,
         Instant updatedAt
 ) {

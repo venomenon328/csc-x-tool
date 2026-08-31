@@ -34,6 +34,7 @@ export type TipsEntry = {
   artist: string
   title: string
   youtubeUrl: string | null
+  ownEntry: boolean
   actualAssignment: TipsActualAssignment | null
   tip: TipsAssignment | null
 }

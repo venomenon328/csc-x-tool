@@ -27,10 +27,18 @@ class ResultService {
         OwnParticipationResponse own = new OwnParticipationResponse(
                 ownParticipation.id(), ownParticipation.participantId(), ownParticipation.displayName(), ownParticipation.countryCode()
         );
+        if (show.currentContest() && "UNRESOLVED".equals(show.ownEntryResolution())) {
+            return new ResultResponse(showId, "OWN_ENTRY_UNRESOLVED", own, null, false, 0, 0, 0, 0, List.of());
+        }
+        if (show.currentContest() && "NO_OWN_ENTRY".equals(show.ownEntryResolution())) {
+            return new ResultResponse(showId, "OWN_ENTRY_NONE", own, null, false, 0, 0, 0, 0, List.of());
+        }
         if (!show.entryListReady()) {
             return new ResultResponse(showId, "ENTRY_LIST_INCOMPLETE", own, null, false, 0, 0, 0, 0, List.of());
         }
-        ResultRepository.OwnEntry ownEntry = repository.findOwnEntry(showId, ownParticipation.id()).orElse(null);
+        ResultRepository.OwnEntry ownEntry = show.currentContest()
+                ? show.ownEntryId() == null ? null : repository.findEntry(showId, show.ownEntryId()).orElse(null)
+                : repository.findOwnEntry(showId, ownParticipation.id()).orElse(null);
         if (ownEntry == null) {
             return new ResultResponse(showId, "OWN_ENTRY_MISSING", own, null, false, 0, 0, 0, 0, List.of());
         }

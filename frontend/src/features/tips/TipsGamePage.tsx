@@ -45,7 +45,8 @@ export function TipsGamePage() {
   const participantsById = useMemo(() => new Map(game?.participants.map((participant) => [participant.participationId, participant]) ?? []), [game])
   const visibleEntries = useMemo(() => game?.entries.filter((entry) => visible(entry, participantsById, search, filter, game.status)) ?? [], [filter, game, participantsById, search])
   const unusedParticipants = useMemo(() => game?.participants.filter((participant) => !game.entries.some((entry) => entry.tip?.guessedParticipationId === participant.participationId)) ?? [], [game])
-  const assignments = game?.entries.filter((entry) => entry.tip !== null).length ?? 0
+  const eligibleEntryCount = game?.entries.filter((entry) => !entry.ownEntry).length ?? 0
+  const assignments = game?.entries.filter((entry) => !entry.ownEntry && entry.tip !== null).length ?? 0
   const allActualAssignmentsKnown = game?.actualAssignmentsComplete ?? false
   const editable = game?.status === 'DRAFT' && !saving
 
@@ -62,6 +63,7 @@ export function TipsGamePage() {
 
   function changeAssignment(entryId: number, participationId: number | null) {
     if (game === null || !editable) return
+    if (game.entries.find((entry) => entry.id === entryId)?.ownEntry) return
     const displaced = participationId === null ? null : game.entries.find((entry) => entry.id !== entryId && entry.tip?.guessedParticipationId === participationId)
     const participant = participationId === null ? null : participantsById.get(participationId)
     if (displaced !== undefined && displaced !== null && participant !== null && participant !== undefined) {
@@ -92,7 +94,7 @@ export function TipsGamePage() {
     if (result.destination === null || !result.destination.droppableId.startsWith('tips-entry-')) return
     const participationId = Number(result.draggableId.replace('tips-participant-', ''))
     const entryId = Number(result.destination.droppableId.replace('tips-entry-', ''))
-    if (Number.isSafeInteger(participationId) && Number.isSafeInteger(entryId)) changeAssignment(entryId, participationId)
+    if (Number.isSafeInteger(participationId) && Number.isSafeInteger(entryId) && !game?.entries.find((entry) => entry.id === entryId)?.ownEntry) changeAssignment(entryId, participationId)
   }
 
   async function changeResolution() {
@@ -113,7 +115,7 @@ export function TipsGamePage() {
     </Box>
     {error !== null && <ApiErrorNotice error={error.apiError} />}
     {movedNotice !== null && <Alert onClose={() => setMovedNotice(null)} severity="info">{movedNotice}</Alert>}
-    <TipsStatus game={game} assignments={assignments} allActualAssignmentsKnown={allActualAssignmentsKnown} onResolve={() => setResolutionAction('resolve')} onReopen={() => setResolutionAction('reopen')} saving={saving} />
+    <TipsStatus game={game} assignments={assignments} eligibleEntryCount={eligibleEntryCount} allActualAssignmentsKnown={allActualAssignmentsKnown} onResolve={() => setResolutionAction('resolve')} onReopen={() => setResolutionAction('reopen')} saving={saving} />
     {game.entries.length === 0 && <Alert severity="info">Sobald die anonyme Songliste erfasst ist, kann hier ein Tippstand begonnen werden.</Alert>}
     {game.participants.length === 0 && <Alert severity="info">Pflege zuerst das Teilnehmerfeld der aktuellen CSC-Ausgabe.</Alert>}
     {game.statistics !== null && <TipsStatistics statistics={game.statistics} />}
@@ -156,11 +158,11 @@ export function TipsGamePage() {
   </Stack>
 }
 
-function TipsStatus({ game, assignments, allActualAssignmentsKnown, saving, onResolve, onReopen }: { game: TipsGame, assignments: number, allActualAssignmentsKnown: boolean, saving: boolean, onResolve: () => void, onReopen: () => void }) {
+function TipsStatus({ game, assignments, eligibleEntryCount, allActualAssignmentsKnown, saving, onResolve, onReopen }: { game: TipsGame, assignments: number, eligibleEntryCount: number, allActualAssignmentsKnown: boolean, saving: boolean, onResolve: () => void, onReopen: () => void }) {
   const unused = game.participants.length - assignments
   return <Paper sx={{ border: 1, borderColor: game.status === 'RESOLVED' ? 'success.main' : 'secondary.main', p: 2 }}><Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ alignItems: { md: 'center' }, justifyContent: 'space-between' }}>
     <Stack spacing={0.5}><Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}><Typography sx={{ fontWeight: 700 }}>{game.status === 'RESOLVED' ? 'Aufgelöster Tippstand' : 'Tippstand im Entwurf'}</Typography><Chip color={game.status === 'RESOLVED' ? 'success' : 'secondary'} label={game.status === 'RESOLVED' ? 'Schreibgeschützt' : 'Entwurf'} size="small" /></Stack>
-      <Typography color="text.secondary" variant="body2">{assignments} von {game.entries.length} Beiträgen zugeordnet · {unused} Teilnehmer noch ungenutzt{game.status === 'RESOLVED' && !allActualAssignmentsKnown ? ' · tatsächliche Zuordnung wurde später wieder geändert' : ''}</Typography>
+      <Typography color="text.secondary" variant="body2">{assignments} von {eligibleEntryCount} Beiträgen zugeordnet · {unused} Teilnehmer noch ungenutzt{game.status === 'RESOLVED' && !allActualAssignmentsKnown ? ' · tatsächliche Zuordnung wurde später wieder geändert' : ''}</Typography>
     </Stack>
     {game.status === 'RESOLVED'
       ? <Button color="warning" disabled={saving} onClick={onReopen} variant="outlined">Tippstand wieder öffnen</Button>
@@ -175,17 +177,17 @@ function TipsEntryCard({ entry, participants, participantsById, gameStatus, edit
 }) {
   const guessed = entry.tip === null ? null : participantsById.get(entry.tip.guessedParticipationId) ?? null
   const outcome = outcomeFor(entry, gameStatus)
-  return <Droppable droppableId={`tips-entry-${entry.id}`} isDropDisabled={!editable}>
+  return <Droppable droppableId={`tips-entry-${entry.id}`} isDropDisabled={!editable || entry.ownEntry}>
     {(provided, snapshot) => <Card ref={provided.innerRef} {...provided.droppableProps} sx={{ border: 1, borderColor: snapshot.isDraggingOver ? 'secondary.main' : outcome === 'CORRECT' ? 'success.main' : outcome === 'INCORRECT' ? 'error.main' : 'divider' }}>
       <CardContent><Stack spacing={1.25}>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ justifyContent: 'space-between' }}>
-          <Box sx={{ minWidth: 0 }}><Typography color="text.secondary" variant="overline">Anonymer Beitrag</Typography><Typography sx={{ overflowWrap: 'anywhere' }} variant="h6">{entry.title}</Typography><Typography color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>{entry.artist}</Typography></Box>
+          <Box sx={{ minWidth: 0 }}><Typography color="text.secondary" variant="overline">{entry.ownEntry ? 'Eigene tatsächliche Einreichung' : 'Anonymer Beitrag'}</Typography><Typography sx={{ overflowWrap: 'anywhere' }} variant="h6">{entry.title}</Typography><Typography color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>{entry.artist}</Typography>{entry.ownEntry && <Chip color="warning" label="Eigene Einreichung · kein Tipp" size="small" sx={{ mt: 0.75 }} />}</Box>
           {outcome !== null && <Chip color={outcome === 'CORRECT' ? 'success' : outcome === 'INCORRECT' ? 'error' : 'warning'} label={outcome === 'CORRECT' ? 'Korrekt' : outcome === 'INCORRECT' ? 'Falsch' : 'Nicht getippt'} size="small" sx={{ alignSelf: { xs: 'start', sm: 'center' } }} />}
         </Stack>
-        {editable && <FormControl fullWidth size="small"><InputLabel id={`tip-select-label-${entry.id}`}>Vermuteter Teilnehmer</InputLabel><Select label="Vermuteter Teilnehmer" labelId={`tip-select-label-${entry.id}`} onChange={(event) => onAssign(entry.id, String(event.target.value) === '' ? null : Number(event.target.value))} value={entry.tip?.guessedParticipationId ?? ''}><MenuItem value="">Kein Tipp</MenuItem>{participants.map((participant) => <MenuItem key={participant.participationId} value={participant.participationId}>{participant.displayName} · {participant.countryName}{participant.active ? '' : ' (inaktiv)'}</MenuItem>)}</Select></FormControl>}
-        {editable && snapshot.isDraggingOver && <Alert severity="info">Teilnehmer hier zuordnen</Alert>}
+        {editable && !entry.ownEntry && <FormControl fullWidth size="small"><InputLabel id={`tip-select-label-${entry.id}`}>Vermuteter Teilnehmer</InputLabel><Select label="Vermuteter Teilnehmer" labelId={`tip-select-label-${entry.id}`} onChange={(event) => onAssign(entry.id, String(event.target.value) === '' ? null : Number(event.target.value))} value={entry.tip?.guessedParticipationId ?? ''}><MenuItem value="">Kein Tipp</MenuItem>{participants.map((participant) => <MenuItem key={participant.participationId} value={participant.participationId}>{participant.displayName} · {participant.countryName}{participant.active ? '' : ' (inaktiv)'}</MenuItem>)}</Select></FormControl>}
+        {editable && !entry.ownEntry && snapshot.isDraggingOver && <Alert severity="info">Teilnehmer hier zuordnen</Alert>}
         {guessed !== null && <ParticipantSummary label="Tipp" participant={guessed} onFocus={() => onFocusParticipant(guessed.participationId)} />}
-        {gameStatus === 'RESOLVED' && <ActualSummary actual={entry.actualAssignment} />}
+        {gameStatus === 'RESOLVED' && !entry.ownEntry && <ActualSummary actual={entry.actualAssignment} />}
         {entry.tip !== null && editable && <TipMetadataEditor assignment={entry.tip} key={`${entry.id}-${entry.tip.confidence ?? ''}-${entry.tip.note ?? ''}`} onSave={(patch) => onSaveMetadata(entry.id, patch)} />}
         {entry.youtubeUrl !== null && <Button component="a" href={entry.youtubeUrl} rel="noreferrer" size="small" sx={{ alignSelf: 'start' }} target="_blank">Quelle öffnen</Button>}
         {provided.placeholder}
@@ -229,14 +231,14 @@ function visible(entry: TipsEntry, participants: Map<number, TipsParticipant>, s
   const actual = status === 'RESOLVED' ? entry.actualAssignment?.displayName ?? '' : ''
   const match = `${entry.artist} ${entry.title} ${guessed} ${actual}`.toLocaleLowerCase('de-DE').includes(search.trim().toLocaleLowerCase('de-DE'))
   if (!match) return false
-  if (filter === 'UNASSIGNED') return entry.tip === null
+  if (filter === 'UNASSIGNED') return !entry.ownEntry && entry.tip === null
   if (filter === 'LOW') return entry.tip?.confidence === 'LOW'
   const outcome = outcomeFor(entry, status)
   return filter === 'CORRECT' ? outcome === 'CORRECT' : filter === 'INCORRECT' ? outcome === 'INCORRECT' : true
 }
 
 function outcomeFor(entry: TipsEntry, status: TipsGameStatus): 'CORRECT' | 'INCORRECT' | 'MISSING' | null {
-  if (status !== 'RESOLVED' || entry.actualAssignment === null) return null
+  if (entry.ownEntry || status !== 'RESOLVED' || entry.actualAssignment === null) return null
   if (entry.tip === null) return 'MISSING'
   return entry.tip.guessedParticipationId === entry.actualAssignment.participationId ? 'CORRECT' : 'INCORRECT'
 }

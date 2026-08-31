@@ -1,5 +1,6 @@
 package de.venomenon.cscxtool.show;
 
+import de.venomenon.cscxtool.entry.OwnEntryResolution;
 import java.time.Instant;
 
 record MottoShowResponse(
@@ -18,6 +19,9 @@ record MottoShowResponse(
         int publishedBallotNotVotedCount,
         int publishedBallotUnrecordedCount,
         Instant ballotClosedAt,
+        Long ownParticipationId,
+        OwnEntryResolution ownEntryResolution,
+        Long ownEntryId,
         SelectedCandidateResponse selectedCandidate
 ) {
 
@@ -38,6 +42,9 @@ record MottoShowResponse(
                 show.publishedBallotNotVotedCount(),
                 show.publishedBallotUnrecordedCount(),
                 show.ballotClosedAt(),
+                show.ownParticipationId(),
+                show.ownEntryResolution(),
+                show.ownEntryId(),
                 show.selectedCandidate() == null ? null : SelectedCandidateResponse.from(show.selectedCandidate())
         );
     }
