@@ -18,8 +18,15 @@ import tools.jackson.databind.ObjectMapper;
 public class CountryCatalog {
 
     private static final String CATALOG_RESOURCE = "countries/countries-de.json";
-    // X* is the ISO 3166-1 user-assigned range. Scotland is a real CSC country but has no own alpha-2 code.
-    private static final Country CSC_SCOTLAND = new Country("XS", "Schottland");
+    // X* is the ISO 3166-1 user-assigned range. These codes preserve real historical CSC country choices
+    // that do not have their own ISO 3166-1 alpha-2 code and must not be folded into GB or DE.
+    private static final List<Country> CSC_COUNTRIES = List.of(
+            new Country("XE", "England"),
+            new Country("XN", "Nordirland"),
+            new Country("XL", "Saarland"),
+            new Country("XS", "Schottland"),
+            new Country("XW", "Wales")
+    );
 
     private final List<Country> countries;
     private final Map<String, Country> countriesByCode;
@@ -27,7 +34,7 @@ public class CountryCatalog {
     public CountryCatalog(ObjectMapper objectMapper) {
         List<Country> loadedCountries = new ArrayList<>(load(objectMapper));
         loadedCountries.replaceAll(CountryCatalog::withCscDisplayName);
-        loadedCountries.add(CSC_SCOTLAND);
+        loadedCountries.addAll(CSC_COUNTRIES);
         Collator germanCollator = Collator.getInstance(Locale.GERMAN);
         List<Country> sortedCountries = loadedCountries.stream()
                 .sorted(Comparator.comparing(Country::name, germanCollator))

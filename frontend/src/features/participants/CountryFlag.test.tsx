@@ -6,13 +6,26 @@ import { CountryFlag } from './CountryFlag'
 import { hasLocalCountryFlag } from './countryFlagUtils'
 
 describe('CountryFlag', () => {
-  it('renders bundled regular and CSC-specific flags and a neutral fallback without an image request', () => {
+  it('renders bundled regular and all CSC-specific flags and a neutral fallback without an image request', () => {
     const { rerender } = render(<CountryFlag code="DE" countryName="Deutschland" />)
     expect(screen.getByRole('img', { name: 'Flagge von Deutschland' }).tagName).toBe('svg')
 
-    rerender(<CountryFlag code="XS" countryName="Schottland" />)
-    expect(screen.getByRole('img', { name: 'Flagge von Schottland' }).tagName).toBe('svg')
-    expect(hasLocalCountryFlag('XS')).toBe(true)
+    const cscCountries = [
+      ['XE', 'England'],
+      ['XN', 'Nordirland'],
+      ['XL', 'Saarland'],
+      ['XS', 'Schottland'],
+      ['XW', 'Wales'],
+    ] as const
+
+    for (const [code, name] of cscCountries) {
+      rerender(<CountryFlag code={code} countryName={name} />)
+      const flag = screen.getByRole('img', { name: `Flagge von ${name}` })
+      expect(flag.tagName).toBe('svg')
+      expect(flag).toHaveAttribute('data-csc-country', code)
+      expect(flag.getAttribute('src')).toBeNull()
+      expect(hasLocalCountryFlag(code)).toBe(true)
+    }
 
     rerender(<CountryFlag code="XX" countryName="Unbekannt" />)
     expect(screen.getByRole('img', { name: 'Flagge unbekannt' }).tagName).toBe('SPAN')
