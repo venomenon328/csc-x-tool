@@ -92,6 +92,8 @@ class HistoricalEntryImportParser {
     }
 
     private void appendHtmlBlock(Element block, List<HistoricalImportSourceLine> target) {
+        if (appendLineSeparatedHtmlBlock(block, target)) return;
+
         String visibleText = HistoricalEntryImportText.compact(block.text());
         if (!HistoricalEntryImportText.looksLikePotentialEntry(visibleText)) return;
         List<Element> links = block.select("a[href]");
@@ -117,6 +119,34 @@ class HistoricalEntryImportParser {
                     visibleText, HistoricalImportSourceLine.ClipboardRepresentation.RICH_HTML, null, null, null, List.of()
             ));
         }
+    }
+
+    private boolean appendLineSeparatedHtmlBlock(Element block, List<HistoricalImportSourceLine> target) {
+        List<Element> originalLinks = block.select("a[href]");
+        if (originalLinks.size() <= 1 || block.select("br").isEmpty()) return false;
+
+        String[] fragments = block.html().split("(?i)<br\\b[^>]*>");
+        if (fragments.length < 2) return false;
+
+        List<Element> logicalBlocks = new ArrayList<>();
+        int isolatedLinks = 0;
+        for (String fragment : fragments) {
+            if (fragment.isBlank()) continue;
+            Element logicalBlock = Jsoup.parseBodyFragment(fragment).body();
+            List<Element> links = logicalBlock.select("a[href]");
+            if (links.size() > 1) return false;
+            if (links.size() == 1) {
+                Element withoutLink = logicalBlock.clone();
+                withoutLink.select("a[href]").remove();
+                if (HistoricalEntryImportText.compact(withoutLink.text()).isBlank()) return false;
+                isolatedLinks++;
+            }
+            logicalBlocks.add(logicalBlock);
+        }
+        if (isolatedLinks != originalLinks.size() || isolatedLinks < 2) return false;
+
+        logicalBlocks.forEach(logicalBlock -> appendHtmlBlock(logicalBlock, target));
+        return true;
     }
 
     private static void appendText(String text, List<HistoricalImportSourceLine> target) {

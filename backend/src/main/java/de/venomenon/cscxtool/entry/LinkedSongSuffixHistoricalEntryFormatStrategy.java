@@ -9,6 +9,7 @@ import java.util.regex.Pattern;
 final class LinkedSongSuffixHistoricalEntryFormatStrategy implements HistoricalEntryImportFormatStrategy {
 
     private static final Pattern ASSIGNMENT = Pattern.compile("^\\((.+?)\\s+[-–—]\\s+(.+?)\\)$");
+    private static final Pattern FLAT_TEXT = Pattern.compile("^(.+)\\s+\\(([^()]+?)\\s+[-–—]\\s+([^()]+?)\\)\\s*$");
 
     @Override
     public Optional<HistoricalEntryImportParseResult> parse(HistoricalImportSourceLine source) {
@@ -16,11 +17,26 @@ final class LinkedSongSuffixHistoricalEntryFormatStrategy implements HistoricalE
             String visible = HistoricalEntryImportText.compact(source.sourceText());
             String anchor = HistoricalEntryImportText.compact(source.htmlAnchorText());
             if (visible.startsWith(anchor)) {
-                return fromParts(anchor, visible.substring(anchor.length()), source.directUrl());
+                Optional<HistoricalEntryImportParseResult> html = fromParts(
+                        anchor, visible.substring(anchor.length()), source.directUrl()
+                );
+                if (html.isPresent()) return html;
             }
         }
-        return markdownParts(source.sourceText())
-                .flatMap(markdown -> fromParts(markdown.songText(), markdown.suffix(), markdown.url()));
+
+        Optional<MarkdownParts> markdown = markdownParts(source.sourceText());
+        if (markdown.isPresent()) {
+            MarkdownParts parts = markdown.get();
+            return fromParts(parts.songText(), parts.suffix(), parts.url());
+        }
+
+        Matcher flatText = FLAT_TEXT.matcher(HistoricalEntryImportText.compact(source.sourceText()));
+        if (!flatText.matches()) return Optional.empty();
+        return fromParts(
+                flatText.group(1),
+                "(" + flatText.group(2) + " - " + flatText.group(3) + ")",
+                source.directUrl()
+        );
     }
 
     private static Optional<HistoricalEntryImportParseResult> fromParts(String rawSongText, String rawSuffix, String url) {
