@@ -1,11 +1,12 @@
 import { Alert, Box, Button, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, MenuItem, Paper, Select, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { Link as RouterLink, useParams } from 'react-router-dom'
 import { ApiErrorNotice } from '../../components/ApiErrorNotice'
 import { ClipboardImportArea } from '../entries/ClipboardImportArea'
 import { completeHistoricalEntryList, createEntry, deleteEntry, fetchEntries, importHistoricalEntries, previewHistoricalImport, reopenHistoricalEntryList, updateHistoricalEntry, type ContestEntry, type ContestEntryInput, type EntryApiError, EntryApiError as EntryError, type HistoricalImportPreviewLine } from '../entries/api'
 import { fetchParticipants, type Participant } from '../participants/api'
 import { fetchShow, type MottoShow } from '../shows/api'
+import { evaluationPath } from '../shows/showWorkflow'
 import { PublishedBallotsPanel } from '../published-ballots/PublishedBallotsPanel'
 
 type EditablePreviewLine = HistoricalImportPreviewLine & { included: boolean, replaceExisting: boolean }
@@ -91,7 +92,7 @@ export function HistoricalShowPage() {
   if (show === null) return error === null ? <Typography>Archivshow wird geladen …</Typography> : <ApiErrorNotice error={error.apiError} />
   const complete = show.entryListComplete
   return <Stack spacing={3}>
-    <Box><Typography component="h1" variant="h4">Show {show.showNumber} · {show.name}</Typography><Typography color="text.secondary">Historische vollständige Songliste mit Einreichenden und veröffentlichten persönlichen Top 15. Eine Gesamtwertung wird hier nicht berechnet.</Typography></Box>
+    <Box><Typography component="h1" variant="h4">Show {show.showNumber} · {show.name}</Typography><Typography color="text.secondary">Historische vollständige Songliste mit Einreichenden und veröffentlichten persönlichen Top 15. Eine Gesamtwertung wird hier nicht berechnet.</Typography>{complete && <Button component={RouterLink} sx={{ mt: 1.5 }} to={evaluationPath(showId, 'published-ballots')} variant="outlined">Auswertung öffnen</Button>}</Box>
     {error !== null && <ApiErrorNotice error={error.apiError} />}
     <Paper sx={{ border: 1, borderColor: complete ? 'success.main' : 'divider', p: 2 }}><Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ alignItems: { sm: 'center' }, justifyContent: 'space-between' }}><Box><Typography sx={{ fontWeight: 700 }}>Songliste: {complete ? 'vollständig bestätigt' : 'offen'}</Typography><Typography color="text.secondary" variant="body2">{complete ? 'Korrekturen erfordern ein bewusstes Wiederöffnen.' : 'Alle Einreichenden zuordnen und anschließend bewusst bestätigen.'}</Typography></Box><Button color={complete ? 'warning' : 'success'} onClick={() => setConfirmAction(complete ? 'reopen' : 'complete')} variant="contained">{complete ? 'Songliste wieder öffnen' : 'Vollständigkeit bestätigen'}</Button></Stack></Paper>
     {!complete && <Stack spacing={2}><Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}><Button onClick={() => setEditor(null)} variant="outlined">Beitrag manuell anlegen</Button></Stack><ClipboardImportArea onPasteData={previewPaste} />{preview !== null && <HistoricalImportPreview importing={importing} lines={preview} participants={participants} onCancel={() => setPreview(null)} onChange={setPreview} onImport={importSelected} />}</Stack>}

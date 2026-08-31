@@ -14,18 +14,17 @@ import {
   Autocomplete,
   TextField,
 } from '@mui/material'
-import { BrowserRouter, Link as RouterLink, Route, Routes, useLocation } from 'react-router-dom'
+import { BrowserRouter, Link as RouterLink, Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { ShowOverview } from '../features/shows/ShowOverview'
 import { CandidatePage } from '../features/candidates/CandidatePage'
 import { EntryPage } from '../features/entries/EntryPage'
 import { ParticipantPage } from '../features/participants/ParticipantPage'
-import { ResultPage } from '../features/results/ResultPage'
 import { DataManagementPage } from '../features/data/DataManagementPage'
 import { ContestPage } from '../features/contests/ContestPage'
 import { HistoricalShowPage } from '../features/history/HistoricalShowPage'
-import { PublishedBallotPage } from '../features/published-ballots/PublishedBallotPage'
 import { TipsGamePage } from '../features/tips/TipsGamePage'
+import { EvaluationPage } from '../features/evaluation/EvaluationPage'
 import { ContestProvider, useContest } from '../features/contests/ContestContext'
 import { ErrorBoundary } from './ErrorBoundary'
 import { theme } from './theme'
@@ -49,6 +48,11 @@ function PlaceholderPage({ title }: { title: string }) {
       </Typography>
     </Stack>
   )
+}
+
+function LegacyEvaluationRedirect({ view }: { view: 'published-ballots' | 'own-entry' }) {
+  const showId = useParams().showId
+  return <Navigate replace to={showId === undefined ? '/' : `/shows/${showId}/evaluation?view=${view}`} />
 }
 
 function AppShell() {
@@ -149,9 +153,10 @@ function AppShell() {
           <Route element={<DataManagementPage />} path="/data" />
           <Route element={<CandidatePage />} path="/shows/:showId/candidates" />
           <Route element={<EntryPage />} path="/shows/:showId/voting" />
-          <Route element={<ResultPage />} path="/shows/:showId/result" />
+          <Route element={<EvaluationPage />} path="/shows/:showId/evaluation" />
+          <Route element={<LegacyEvaluationRedirect view="own-entry" />} path="/shows/:showId/result" />
           <Route element={<HistoricalShowPage />} path="/historical-shows/:showId" />
-          <Route element={<PublishedBallotPage />} path="/shows/:showId/published-ballots" />
+          <Route element={<LegacyEvaluationRedirect view="published-ballots" />} path="/shows/:showId/published-ballots" />
           <Route element={<TipsGamePage />} path="/shows/:showId/tips" />
           <Route element={<PlaceholderPage title="Seite nicht gefunden" />} path="*" />
         </Routes>

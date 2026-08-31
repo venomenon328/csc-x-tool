@@ -88,7 +88,9 @@ class ProductionArtifactSmokeTest {
                 "/data",
                 "/shows/bootstrap/candidates",
                 "/shows/bootstrap/voting",
-                "/shows/bootstrap/result"
+                "/shows/bootstrap/result",
+                "/shows/bootstrap/published-ballots",
+                "/shows/bootstrap/evaluation"
         };
 
         for (String route : spaRoutes) {
