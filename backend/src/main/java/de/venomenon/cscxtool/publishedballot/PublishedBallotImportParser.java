@@ -26,7 +26,8 @@ import org.springframework.stereotype.Component;
 @Component
 class PublishedBallotImportParser {
 
-    private static final Pattern HEADER = Pattern.compile("^\\s*\\[\\s*#?\\d+\\s*]\\s*(.*?)\\s*[-\\u2010-\\u2014]\\s*(.*?)\\s*$");
+    private static final Pattern STANDARD_HEADER = Pattern.compile("^\\s*\\[\\s*#?\\s*\\d+\\s*]\\s*(.*?)\\s*$");
+    private static final Pattern ENCLOSED_HEADER = Pattern.compile("^\\s*\\[\\s*#?\\s*\\d+\\s+(.+?)\\s*]\\s*$");
     private static final char INLINE_BOUNDARY = '\u001f';
 
     private final Map<String, String> countriesByName;
@@ -113,9 +114,9 @@ class PublishedBallotImportParser {
         List<Block> blocks = new ArrayList<>();
         Block current = null;
         for (SourceLine line : lines) {
-            Matcher header = HEADER.matcher(withoutMarkdownDecoration(line.text()));
-            if (header.matches()) {
-                current = new Block(line.text(), compact(header.group(1)), compact(header.group(2)));
+            HeaderTokens header = parseHeader(line.text());
+            if (header != null) {
+                current = new Block(line.text(), header.firstToken(), header.secondToken());
                 blocks.add(current);
             } else if (current != null && isSongLine(line)) {
                 current.songLines().add(line);
@@ -132,6 +133,42 @@ class PublishedBallotImportParser {
             blocks.add(unknown);
         }
         return blocks;
+    }
+
+    private static HeaderTokens parseHeader(String source) {
+        String value = withoutMarkdownDecoration(source);
+        Matcher standard = STANDARD_HEADER.matcher(value);
+        Matcher enclosed = ENCLOSED_HEADER.matcher(value);
+        String payload;
+        if (standard.matches()) payload = compact(standard.group(1));
+        else if (enclosed.matches()) payload = compact(enclosed.group(1));
+        else return null;
+
+        List<Integer> preferredSeparators = new ArrayList<>();
+        List<Integer> allSeparators = new ArrayList<>();
+        for (int index = 0; index < payload.length(); index++) {
+            if (!isHeaderSeparator(payload.charAt(index))) continue;
+            allSeparators.add(index);
+            boolean spacedLeft = index > 0 && isHeaderSpace(payload.charAt(index - 1));
+            boolean spacedRight = index + 1 < payload.length() && isHeaderSpace(payload.charAt(index + 1));
+            if (spacedLeft && spacedRight) preferredSeparators.add(index);
+        }
+        int separator;
+        if (preferredSeparators.size() == 1) separator = preferredSeparators.getFirst();
+        else if (preferredSeparators.size() > 1 || allSeparators.size() != 1) return null;
+        else separator = allSeparators.getFirst();
+
+        String first = compact(payload.substring(0, separator));
+        String second = compact(payload.substring(separator + 1));
+        return first.isBlank() || second.isBlank() ? null : new HeaderTokens(first, second);
+    }
+
+    private static boolean isHeaderSeparator(char value) {
+        return value == '-' || value >= '\u2010' && value <= '\u2014';
+    }
+
+    private static boolean isHeaderSpace(char value) {
+        return Character.isWhitespace(value) || Character.isSpaceChar(value);
     }
 
     private PublishedBallotPreviewBlock toPreview(
@@ -443,6 +480,7 @@ class PublishedBallotImportParser {
     }
 
     private record SourceLine(String text, String structure, String url) { }
+    private record HeaderTokens(String firstToken, String secondToken) { }
     private record Block(
             String header,
             String firstHeaderToken,
