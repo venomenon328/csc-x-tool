@@ -49,7 +49,7 @@ describe('BallotPanel', () => {
   })
 
   it('keeps snapshot output and the matching text-file endpoint available without participant assignments', () => {
-    const snapshotText = '1. Snapshot Artist - Snapshot Title'
+    const snapshotText = '1. Snapshot Artist - Snapshot Title - 25 Punkte'
     renderPanel({
       ballotClosedAt: '2026-08-27T12:00:00Z',
       currentSnapshot: { id: 1, snapshotNumber: 1, createdAt: '2026-08-27T12:00:00Z', current: true, items: [] },
