@@ -151,7 +151,7 @@ class PublishedBallotImportParser {
             allSeparators.add(index);
             boolean spacedLeft = index > 0 && isHeaderSpace(payload.charAt(index - 1));
             boolean spacedRight = index + 1 < payload.length() && isHeaderSpace(payload.charAt(index + 1));
-            if (spacedLeft || spacedRight) preferredSeparators.add(index);
+            if (spacedLeft && spacedRight) preferredSeparators.add(index);
         }
         int separator;
         if (preferredSeparators.size() == 1) separator = preferredSeparators.getFirst();
