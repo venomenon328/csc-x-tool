@@ -51,6 +51,19 @@ class BallotRepository {
         );
     }
 
+    OwnEntryState findOwnEntryState(long showId) {
+        return jdbcTemplate.query("""
+                SELECT contest.own_participation_id, show.own_entry_resolution, show.own_entry_id
+                FROM motto_show show
+                JOIN contest ON contest.id = show.contest_id
+                WHERE show.id = ?
+                """, (resultSet, rowNumber) -> new OwnEntryState(
+                nullableLong(resultSet, "own_participation_id"),
+                de.venomenon.cscxtool.entry.OwnEntryResolution.valueOf(resultSet.getString("own_entry_resolution")),
+                nullableLong(resultSet, "own_entry_id")
+        ), showId).stream().findFirst().orElseThrow(() -> new IllegalStateException("The validated motto show disappeared."));
+    }
+
     List<RankedEntry> findRankedEntries(long showId) {
         return jdbcTemplate.query("""
                 SELECT id, ranking_position, artist, title, youtube_url
@@ -205,6 +218,11 @@ class BallotRepository {
         );
     }
 
+    private static Long nullableLong(ResultSet resultSet, String column) throws SQLException {
+        long value = resultSet.getLong(column);
+        return resultSet.wasNull() ? null : value;
+    }
+
     private static BallotSnapshotItem mapSnapshotItem(ResultSet resultSet, int rowNumber) throws SQLException {
         long entryId = resultSet.getLong("contest_entry_id");
         return new BallotSnapshotItem(
@@ -218,5 +236,8 @@ class BallotRepository {
     }
 
     record RankedEntry(long id, int rankingPosition, String artist, String title, String youtubeUrl) {
+    }
+
+    record OwnEntryState(Long currentOwnParticipationId, de.venomenon.cscxtool.entry.OwnEntryResolution resolution, Long ownEntryId) {
     }
 }

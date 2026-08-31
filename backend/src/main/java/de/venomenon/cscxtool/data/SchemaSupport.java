@@ -11,7 +11,7 @@ import liquibase.integration.spring.SpringLiquibase;
 
 final class SchemaSupport {
 
-    static final int CURRENT_SCHEMA_VERSION = 14;
+    static final int CURRENT_SCHEMA_VERSION = 15;
     static final String CHANGELOG = "classpath:/db/changelog/db.changelog-master.yaml";
     static final String CHANGELOG_RESOURCE = "db/changelog/db.changelog-master.yaml";
 

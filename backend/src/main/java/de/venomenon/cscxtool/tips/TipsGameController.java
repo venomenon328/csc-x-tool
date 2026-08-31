@@ -55,8 +55,8 @@ record TipsGameResponse(
 ) { }
 record TipsParticipantResponse(long participationId, long participantId, String displayName, String countryCode, String countryName,
                                boolean active, boolean identityActive) { }
-record TipsEntryResponse(long id, String artist, String title, String youtubeUrl, TipsActualAssignmentResponse actualAssignment,
-                         TipsAssignmentResponse tip) { }
+record TipsEntryResponse(long id, String artist, String title, String youtubeUrl, boolean ownEntry,
+                         TipsActualAssignmentResponse actualAssignment, TipsAssignmentResponse tip) { }
 record TipsActualAssignmentResponse(long participationId, long participantId, String displayName, String countryCode, String countryName) { }
 record TipsAssignmentResponse(long entryId, long guessedParticipationId, TipsConfidence confidence, String note) { }
 record TipsGameStatisticsResponse(int correct, int incorrect, int missing, int tipsSubmitted, Double hitRate,

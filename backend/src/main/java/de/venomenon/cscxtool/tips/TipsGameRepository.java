@@ -26,12 +26,13 @@ class TipsGameRepository {
                 SELECT show.id, show.contest_id, contest.is_current,
                        (SELECT COUNT(*) FROM contest_entry WHERE motto_show_id = show.id),
                        (SELECT COUNT(*) FROM contest_entry WHERE motto_show_id = show.id AND contest_participation_id IS NULL),
-                       (SELECT COUNT(*) FROM contest_participation WHERE contest_id = show.contest_id)
+                       (SELECT COUNT(*) FROM contest_participation WHERE contest_id = show.contest_id),
+                       contest.own_participation_id, show.own_entry_id
                 FROM motto_show show
                 JOIN contest ON contest.id = show.contest_id
                 WHERE show.id = ?
                 """, (result, row) -> new TipsShowFacts(result.getLong(1), result.getLong(2), result.getBoolean(3),
-                result.getInt(4), result.getInt(5), result.getInt(6)), showId).stream().findFirst();
+                result.getInt(4), result.getInt(5), result.getInt(6), nullableLong(result, 7), nullableLong(result, 8)), showId).stream().findFirst();
     }
 
     Optional<TipsGame> findGame(long showId) {
@@ -112,8 +113,10 @@ class TipsGameRepository {
         return jdbc.query("""
                 SELECT entry.id,entry.artist,entry.title,entry.youtube_url,
                        actual_participation.id,actual_participant.id,actual_participant.display_name,actual_participation.country_code,
-                       assignment.id,assignment.guessed_participation_id,assignment.confidence,assignment.note
+                       assignment.id,assignment.guessed_participation_id,assignment.confidence,assignment.note,
+                       entry.id = show.own_entry_id
                 FROM contest_entry entry
+                JOIN motto_show show ON show.id = entry.motto_show_id
                 LEFT JOIN contest_participation actual_participation ON actual_participation.id = entry.contest_participation_id
                 LEFT JOIN participant actual_participant ON actual_participant.id = actual_participation.participant_id
                 LEFT JOIN tips_game_assignment assignment ON assignment.contest_entry_id = entry.id AND assignment.tips_game_id = ?
@@ -122,7 +125,7 @@ class TipsGameRepository {
                 """, (result, row) -> new TipsEntry(
                 result.getLong(1), result.getString(2), result.getString(3), result.getString(4),
                 nullableLong(result, 5), nullableLong(result, 6), result.getString(7), result.getString(8),
-                nullableLong(result, 9), nullableLong(result, 10), nullableEnum(result.getString(11)), result.getString(12)
+                nullableLong(result, 9), nullableLong(result, 10), nullableEnum(result.getString(11)), result.getString(12), result.getBoolean(13)
         ), safeGameId, showId);
     }
 
@@ -178,12 +181,13 @@ class TipsGameRepository {
     }
 }
 
-record TipsShowFacts(long showId, long contestId, boolean currentContest, int entryCount, int unassignedEntryCount, int participationCount) { }
+record TipsShowFacts(long showId, long contestId, boolean currentContest, int entryCount, int unassignedEntryCount, int participationCount,
+                     Long ownParticipationId, Long ownEntryId) { }
 record TipsGame(long id, long showId, long contestId, TipsGameStatus status, Instant createdAt, Instant updatedAt, Instant resolvedAt) { }
 record TipsAssignmentCommand(long entryId, long guessedParticipationId, TipsConfidence confidence, String note) { }
 record TipsParticipant(long participationId, long participantId, String displayName, String countryCode, boolean active, boolean identityActive) { }
 record TipsEntry(long id, String artist, String title, String youtubeUrl, Long actualParticipationId, Long actualParticipantId,
                  String actualDisplayName, String actualCountryCode, Long tipId, Long guessedParticipationId,
-                 TipsConfidence confidence, String note) { }
+                 TipsConfidence confidence, String note, boolean ownEntry) { }
 record TipsSubmissionHistoryItem(long entryId, long showId, int showNumber, String showName, long contestId, String contestName,
                                  boolean currentContest, String countryCode, String artist, String title, String youtubeUrl) { }

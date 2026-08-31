@@ -36,18 +36,20 @@ public class CsvExportService {
     }
 
     public byte[] contestEntries() {
-        return csv(List.of("CSC-Ausgabe", "Show", "Songliste vollständig", "Interpret", "Titel", "Quell- oder YouTube-URL", "Kommentar", "Einschätzung (1–5)", "Sicherheit (1–5)", "Manuelle Position", "Rangposition", "Teilnehmer", "Land"),
+        return csv(List.of("CSC-Ausgabe", "Show", "Songliste vollständig", "Interpret", "Titel", "Quell- oder YouTube-URL", "Kommentar", "Einschätzung (1–5)", "Sicherheit (1–5)", "Manuelle Position", "Rangposition", "Eigene Einreichung", "Teilnehmer", "Land"),
                 jdbc.query("""
                         SELECT contest.name,motto_show.show_number,motto_show.name,motto_show.entry_list_complete,contest_entry.artist,contest_entry.title,contest_entry.youtube_url,
                                contest_entry.comment,contest_entry.assessment,contest_entry.assessment_confidence,contest_entry.pool_position,
-                               contest_entry.ranking_position,participant.display_name,participation.country_code
+                               contest_entry.ranking_position,participant.display_name,participation.country_code,
+                               motto_show.ballot_closed_at IS NOT NULL,contest_entry.id=motto_show.own_entry_id
                         FROM contest_entry JOIN motto_show ON motto_show.id=contest_entry.motto_show_id
                         JOIN contest ON contest.id=motto_show.contest_id
                         LEFT JOIN contest_participation participation ON participation.id=contest_entry.contest_participation_id
                         LEFT JOIN participant ON participant.id=participation.participant_id
                         ORDER BY contest.display_order,motto_show.show_number,contest_entry.pool_position
                         """, (r,n) -> List.of(r.getString(1),show(r.getInt(2),r.getString(3)),yesNo(r.getBoolean(4)),r.getString(5),r.getString(6),nullable(r,7),nullable(r,8),
-                        nullableNumber(r,9),nullableNumber(r,10),Integer.toString(r.getInt(11)),nullableNumber(r,12),nullable(r,13),nullable(r,14))));
+                        nullableNumber(r,9),nullableNumber(r,10),Integer.toString(r.getInt(11)),nullableNumber(r,12),yesNo(r.getBoolean(16)),
+                        r.getBoolean(15) ? nullable(r,13) : "",r.getBoolean(15) ? nullable(r,14) : "")));
     }
 
     public byte[] participants() {
@@ -124,7 +126,10 @@ public class CsvExportService {
                 jdbc.query("""
                         SELECT contest.name,motto_show.show_number,motto_show.name,voter.display_name,voter_participation.country_code,
                                COALESCE(ballot.status, 'UNERFASST'),position.rank,entry.artist,entry.title,entry.youtube_url,
-                               submitter.display_name,submitter_participation.country_code
+                               CASE WHEN contest.is_current = 0 OR motto_show.ballot_closed_at IS NOT NULL
+                                          OR entry.id = motto_show.own_entry_id THEN submitter.display_name ELSE NULL END,
+                               CASE WHEN contest.is_current = 0 OR motto_show.ballot_closed_at IS NOT NULL
+                                          OR entry.id = motto_show.own_entry_id THEN submitter_participation.country_code ELSE NULL END
                         FROM motto_show
                         JOIN contest ON contest.id=motto_show.contest_id
                         JOIN contest_participation voter_participation ON voter_participation.contest_id=contest.id
@@ -149,13 +154,14 @@ public class CsvExportService {
 
     /** The exported guess remains separate from the authoritative entry assignment. */
     public byte[] tipsGame() {
-        return csv(List.of("CSC-Ausgabe", "Show", "Interpret", "Titel", "Tipp", "Land Tipp", "Tatsächlicher Einreichender", "Land tatsächlich", "Sicherheit", "Notiz", "Tippstand", "Trefferstatus"),
+        return csv(List.of("CSC-Ausgabe", "Show", "Interpret", "Titel", "Eigene Einreichung", "Tipp", "Land Tipp", "Tatsächlicher Einreichender", "Land tatsächlich", "Sicherheit", "Notiz", "Tippstand", "Trefferstatus"),
                 jdbc.query("""
                         SELECT contest.name,motto_show.show_number,motto_show.name,entry.artist,entry.title,
                                guessed.display_name,guessed_participation.country_code,
                                actual.display_name,actual_participation.country_code,
                                assignment.confidence,assignment.note,game.status,
-                               entry.contest_participation_id,assignment.guessed_participation_id
+                               entry.contest_participation_id,assignment.guessed_participation_id,
+                               entry.id=motto_show.own_entry_id
                         FROM tips_game game
                         JOIN motto_show ON motto_show.id=game.motto_show_id
                         JOIN contest ON contest.id=game.contest_id
@@ -171,12 +177,14 @@ public class CsvExportService {
                     boolean actualKnown = !r.wasNull();
                     long guessedParticipation = r.getLong(14);
                     boolean guessed = !r.wasNull();
-                    String hit = !"RESOLVED".equals(r.getString(12)) ? "NOCH_NICHT_AUFGELOEST"
+                    boolean ownEntry = r.getBoolean(15);
+                    boolean resolved = "RESOLVED".equals(r.getString(12));
+                    String hit = ownEntry ? "EIGENE_EINREICHUNG" : !resolved ? "NOCH_NICHT_AUFGELOEST"
                             : !actualKnown ? "TATSAECHLICH_UNBEKANNT"
                             : !guessed ? "NICHT_GETIPPT"
                             : actualParticipation == guessedParticipation ? "KORREKT" : "FALSCH";
-                    return List.of(r.getString(1),show(r.getInt(2),r.getString(3)),r.getString(4),r.getString(5),nullable(r,6),nullable(r,7),
-                            nullable(r,8),nullable(r,9),nullable(r,10),nullable(r,11),r.getString(12),hit);
+                    return List.of(r.getString(1),show(r.getInt(2),r.getString(3)),r.getString(4),r.getString(5),yesNo(ownEntry),nullable(r,6),nullable(r,7),
+                            resolved && !ownEntry ? nullable(r,8) : "",resolved && !ownEntry ? nullable(r,9) : "",nullable(r,10),nullable(r,11),r.getString(12),hit);
                 }));
     }
 

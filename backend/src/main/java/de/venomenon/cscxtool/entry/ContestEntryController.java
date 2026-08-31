@@ -71,6 +71,15 @@ class ContestEntryController {
         return ContestEntryResponse.from(service.updateParticipantAssignment(showId, entryId, request));
     }
 
+    @PutMapping("/own-entry-resolution")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void updateOwnEntryResolution(
+            @PathVariable long showId,
+            @RequestBody(required = false) UpdateOwnEntryResolutionRequest request
+    ) {
+        service.updateOwnEntryResolution(showId, request);
+    }
+
     @DeleteMapping("/{entryId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     void delete(@PathVariable long showId, @PathVariable long entryId) {

@@ -41,3 +41,6 @@ databaseChangeLog:
   - include:
       file: 014-tips-game.yaml
       relativeToChangelogFile: true
+  - include:
+      file: 015-own-entry-voting-workflow.yaml
+      relativeToChangelogFile: true

@@ -144,6 +144,48 @@ public class ContestRepository {
         return jdbcTemplate.update("UPDATE contest SET own_participation_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", participationId, contestId) == 1;
     }
 
+    public boolean currentSnapshotContainsParticipation(long contestId, long participationId) {
+        return Boolean.TRUE.equals(jdbcTemplate.queryForObject("""
+                SELECT EXISTS(
+                  SELECT 1
+                  FROM ballot_snapshot snapshot
+                  JOIN motto_show show ON show.id = snapshot.motto_show_id
+                  JOIN ballot_snapshot_item item ON item.ballot_snapshot_id = snapshot.id
+                  JOIN contest_entry entry ON entry.id = item.contest_entry_id
+                  WHERE snapshot.is_current = 1
+                    AND show.contest_id = ?
+                    AND entry.contest_participation_id = ?
+                )
+                """, Boolean.class, contestId, participationId));
+    }
+
+    /** IDs are captured before resetting their show resolutions, so triggers retain their protection. */
+    public List<Long> findOpenResolvedOwnEntryIds(long contestId) {
+        return jdbcTemplate.query("""
+                SELECT own_entry_id FROM motto_show
+                WHERE contest_id = ? AND ballot_closed_at IS NULL AND own_entry_resolution = 'OWN_ENTRY'
+                """, (resultSet, rowNumber) -> resultSet.getLong(1), contestId);
+    }
+
+    public void clearEntryAssignments(List<Long> entryIds) {
+        for (Long entryId : entryIds) {
+            jdbcTemplate.update("""
+                    UPDATE contest_entry
+                    SET contest_participation_id = NULL, updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                    """, entryId);
+        }
+    }
+
+    public void resetOwnEntryResolutions(long contestId) {
+        jdbcTemplate.update("""
+                UPDATE motto_show
+                SET own_entry_resolution = 'UNRESOLVED', own_entry_participation_id = NULL, own_entry_id = NULL,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE contest_id = ? AND own_entry_resolution <> 'UNRESOLVED'
+                """, contestId);
+    }
+
     public boolean hasDerivedOwnResults(long contestId, long participationId) {
         return jdbcTemplate.query("""
                 SELECT show.entry_list_complete, contest.is_current,

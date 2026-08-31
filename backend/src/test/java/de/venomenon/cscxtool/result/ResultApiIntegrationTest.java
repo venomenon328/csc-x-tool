@@ -35,6 +35,7 @@ class ResultApiIntegrationTest {
     @BeforeEach
     void resetFixture() {
         jdbc.update("UPDATE contest SET own_participation_id = NULL WHERE id = 1");
+        jdbc.update("UPDATE motto_show SET own_entry_resolution = 'UNRESOLVED', own_entry_participation_id = NULL, own_entry_id = NULL WHERE id = 1");
         jdbc.update("DELETE FROM published_ballot_position WHERE published_ballot_id IN (SELECT id FROM published_ballot WHERE motto_show_id = 1)");
         jdbc.update("DELETE FROM published_ballot WHERE motto_show_id = 1");
         jdbc.update("DELETE FROM legacy_received_score WHERE motto_show_id = 1");
@@ -78,12 +79,14 @@ class ResultApiIntegrationTest {
     }
 
     @Test
-    void reportsMissingOwnParticipationAndOwnEntryExplicitly() throws Exception {
+    void reportsMissingOwnParticipationAndTheExplicitOwnEntryStates() throws Exception {
         assertThat(get("/api/shows/1/results").body()).contains("\"prerequisite\":\"OWN_PARTICIPATION_MISSING\"");
         insertParticipant(1, "Ich", "DE");
         jdbc.update("UPDATE contest SET own_participation_id = 1 WHERE id = 1");
         jdbc.update("UPDATE motto_show SET entry_list_complete = 1 WHERE id = 1");
-        assertThat(get("/api/shows/1/results").body()).contains("\"prerequisite\":\"OWN_ENTRY_MISSING\"");
+        assertThat(get("/api/shows/1/results").body()).contains("\"prerequisite\":\"OWN_ENTRY_UNRESOLVED\"");
+        jdbc.update("UPDATE motto_show SET own_entry_resolution = 'NO_OWN_ENTRY', own_entry_participation_id = 1 WHERE id = 1");
+        assertThat(get("/api/shows/1/results").body()).contains("\"prerequisite\":\"OWN_ENTRY_NONE\"");
     }
 
     @Test
@@ -94,6 +97,11 @@ class ResultApiIntegrationTest {
                 INSERT INTO contest_entry (id,motto_show_id,contest_id,artist,title,youtube_url,pool_position,contest_participation_id,created_at,updated_at)
                 VALUES (100,1,1,'Band','Song','https://example.test/100',1,1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP),
                        (101,1,1,'Other Band','Other Song','https://example.test/101',2,NULL,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+                """);
+        jdbc.update("""
+                UPDATE motto_show
+                SET own_entry_resolution = 'OWN_ENTRY', own_entry_participation_id = 1, own_entry_id = 100
+                WHERE id = 1
                 """);
 
         assertThat(get("/api/shows/1/results").body()).contains("\"prerequisite\":\"ENTRY_LIST_INCOMPLETE\"");
@@ -144,6 +152,11 @@ class ResultApiIntegrationTest {
                     """, id, "Band " + id, "Song " + id, "https://example.test/" + id, id - 99, participation);
         }
         jdbc.update("""
+                UPDATE motto_show
+                SET own_entry_resolution = 'OWN_ENTRY', own_entry_participation_id = 1, own_entry_id = 100
+                WHERE id = 1
+                """);
+        jdbc.update("""
                 INSERT INTO published_ballot (id,motto_show_id,contest_id,contest_participation_id,status,created_at,updated_at)
                 VALUES (200,1,1,2,'ABGESTIMMT',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP),
                        (201,1,1,3,'NICHT_ABGESTIMMT',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP),
@@ -166,6 +179,11 @@ class ResultApiIntegrationTest {
                     """, id, "Band " + id, "Song " + id, "https://example.test/" + id, id - 99, participationId);
         }
         jdbc.update("UPDATE motto_show SET entry_list_complete=0,ballot_closed_at=CURRENT_TIMESTAMP WHERE id=1");
+        jdbc.update("""
+                UPDATE motto_show
+                SET own_entry_resolution = 'OWN_ENTRY', own_entry_participation_id = 1, own_entry_id = 100
+                WHERE id = 1
+                """);
         jdbc.update("INSERT INTO ballot_snapshot (id,motto_show_id,snapshot_number,created_at,is_current) VALUES (500,1,1,CURRENT_TIMESTAMP,1)");
         jdbc.update("""
                 INSERT INTO published_ballot (id,motto_show_id,contest_id,contest_participation_id,status,created_at,updated_at)

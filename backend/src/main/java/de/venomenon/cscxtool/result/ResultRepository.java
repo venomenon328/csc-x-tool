@@ -19,10 +19,11 @@ class ResultRepository {
                 SELECT show.id, show.contest_id, contest.own_participation_id, contest.is_current,
                        show.entry_list_complete,
                        EXISTS(SELECT 1 FROM contest_entry WHERE motto_show_id = show.id),
-                       NOT EXISTS(SELECT 1 FROM contest_entry WHERE motto_show_id = show.id AND contest_participation_id IS NULL)
+                       NOT EXISTS(SELECT 1 FROM contest_entry WHERE motto_show_id = show.id AND contest_participation_id IS NULL),
+                       show.own_entry_resolution, show.own_entry_id
                 FROM motto_show show JOIN contest ON contest.id = show.contest_id WHERE show.id = ?
                 """, (r, n) -> new ShowFacts(r.getLong(1), r.getLong(2), nullableLong(r, 3), r.getBoolean(4),
-                r.getBoolean(5), r.getBoolean(6), r.getBoolean(7)), showId).stream().findFirst();
+                r.getBoolean(5), r.getBoolean(6), r.getBoolean(7), r.getString(8), nullableLong(r, 9)), showId).stream().findFirst();
     }
 
     Optional<OwnParticipation> findOwnParticipation(long contestId, long participationId) {
@@ -39,6 +40,14 @@ class ResultRepository {
                 SELECT id, artist, title, youtube_url FROM contest_entry
                 WHERE motto_show_id = ? AND contest_participation_id = ?
                 """, (r, n) -> new OwnEntry(r.getLong(1), r.getString(2), r.getString(3), r.getString(4)), showId, participationId)
+                .stream().findFirst();
+    }
+
+    Optional<OwnEntry> findEntry(long showId, long entryId) {
+        return jdbc.query("""
+                SELECT id, artist, title, youtube_url FROM contest_entry
+                WHERE motto_show_id = ? AND id = ?
+                """, (r, n) -> new OwnEntry(r.getLong(1), r.getString(2), r.getString(3), r.getString(4)), showId, entryId)
                 .stream().findFirst();
     }
 
@@ -92,7 +101,7 @@ class ResultRepository {
 
     record ShowFacts(
             long showId, long contestId, Long ownParticipationId, boolean currentContest, boolean entryListComplete,
-            boolean hasEntries, boolean allEntriesAssigned
+            boolean hasEntries, boolean allEntriesAssigned, String ownEntryResolution, Long ownEntryId
     ) {
         boolean entryListReady() {
             return EntryListReadiness.isReady(entryListComplete, currentContest, hasEntries, allEntriesAssigned);

@@ -139,6 +139,12 @@ class ContestEntryService {
         }
         ContestEntry entry = repository.findByIdAndShowId(entryId, showId)
                 .orElseThrow(() -> new ContestEntryNotFoundException(entryId, showId));
+        if (entry.ownEntry()) {
+            throw new ApiConflictException(
+                    "OWN_ENTRY_CHANGE_REQUIRES_REOPEN",
+                    "Die eigene Einreichung wird vor dem Abschluss bewusst aufgelöst. Eine Änderung erfordert zuerst das Wiederöffnen der Abstimmung."
+            );
+        }
         Long participantId = request == null ? null : request.participantId();
         Long participationId = null;
         if (participantId != null) {
@@ -149,6 +155,13 @@ class ContestEntryService {
                     "PARTICIPANT_NOT_IN_CONTEST",
                     "Der Teilnehmer nimmt nicht an der CSC-Ausgabe dieser Mottoshow teil."
             ));
+            ContestEntryRepository.OwnEntryState ownState = ownEntryState(showId);
+            if (Long.valueOf(participation.id()).equals(ownState.currentOwnParticipationId())) {
+                throw new ApiConflictException(
+                        "OWN_ENTRY_CHANGE_REQUIRES_REOPEN",
+                        "Die eigene Einreichung wird vor dem Abschluss bewusst aufgelÃ¶st. Eine geschlossene Abstimmung muss dafÃ¼r zuerst wieder geÃ¶ffnet werden."
+                );
+            }
             if (!participation.active() && !participantId.equals(entry.participantId())) {
                 throw new ApiConflictException(
                         "INACTIVE_PARTICIPANT_CANNOT_BE_ASSIGNED",
@@ -183,11 +196,83 @@ class ContestEntryService {
     }
 
     @Transactional
+    void updateOwnEntryResolution(long showId, UpdateOwnEntryResolutionRequest request) {
+        requireCurrentShow(showId);
+        if (request == null || request.resolution() == null
+                || (request.resolution() != OwnEntryResolution.OWN_ENTRY && request.resolution() != OwnEntryResolution.NO_OWN_ENTRY)) {
+            throw new ApiBadRequestException(
+                    "INVALID_OWN_ENTRY_RESOLUTION",
+                    "Lege bewusst die eigene Einreichung fest oder bestÃ¤tige, dass keine eigene Einreichung existiert."
+            );
+        }
+        ContestEntryRepository.OwnEntryState state = ownEntryState(showId);
+        Long ownParticipationId = state.currentOwnParticipationId();
+        if (ownParticipationId == null) {
+            throw new ApiConflictException(
+                    "OWN_PARTICIPATION_REQUIRED",
+                    "Markiere zuerst im Teilnehmerfeld dieser CSC-Ausgabe deine eigene Teilnahme."
+            );
+        }
+        if (repository.isBallotClosed(showId)) {
+            throw new ApiConflictException(
+                    "OWN_ENTRY_CHANGE_REQUIRES_REOPEN",
+                    "Die abgeschlossene Abstimmung muss vor einer Ã„nderung der eigenen Einreichung bewusst wieder geÃ¶ffnet werden."
+            );
+        }
+        if (request.resolution() == OwnEntryResolution.NO_OWN_ENTRY) {
+            if (request.entryId() != null) {
+                throw new ApiBadRequestException(
+                        "INVALID_OWN_ENTRY_RESOLUTION", "Die BestÃ¤tigung ohne eigene Einreichung darf keinen Beitrag enthalten."
+                );
+            }
+            clearResolvedOwnEntry(showId, state);
+            repository.clearOwnEntryParticipationAssignments(showId, ownParticipationId);
+            repository.updateOwnEntryResolution(showId, OwnEntryResolution.NO_OWN_ENTRY, ownParticipationId, null);
+            return;
+        }
+
+        if (request.entryId() == null) {
+            throw new ApiBadRequestException(
+                    "OWN_ENTRY_REQUIRED", "WÃ¤hle den vorhandenen Wettbewerbsbeitrag aus, der deine eigene Einreichung ist."
+            );
+        }
+        ContestEntry target = repository.findByIdAndShowId(request.entryId(), showId)
+                .orElseThrow(() -> new ContestEntryNotFoundException(request.entryId(), showId));
+        Long targetActualParticipationId = repository.findActualParticipationId(target.id(), showId).orElse(null);
+        if (targetActualParticipationId != null && !targetActualParticipationId.equals(ownParticipationId)) {
+            throw new ApiConflictException(
+                    "OWN_ENTRY_ALREADY_ASSIGNED_TO_OTHER_PARTICIPANT",
+                    "Ein bereits anders zugeordneter Beitrag kann nicht als eigene Einreichung markiert werden."
+            );
+        }
+        if (target.rankingPosition() != null && !request.confirmsRankingRemoval()) {
+            throw new ApiConflictException(
+                    "OWN_ENTRY_RANKING_REMOVAL_CONFIRMATION_REQUIRED",
+                    "Der Beitrag ist bereits gerankt. BestÃ¤tige bewusst, dass er atomar aus deiner Rangliste entfernt wird."
+            );
+        }
+        clearResolvedOwnEntry(showId, state);
+        repository.clearOwnEntryParticipationAssignments(showId, ownParticipationId);
+        repository.assignOwnEntry(showId, target.id(), ownParticipationId);
+        if (target.rankingPosition() != null) {
+            repository.replaceRanking(showId, repository.findRankedEntryIds(showId).stream()
+                    .filter(entryId -> entryId != target.id()).toList());
+        }
+        repository.updateOwnEntryResolution(showId, OwnEntryResolution.OWN_ENTRY, ownParticipationId, target.id());
+    }
+
+    @Transactional
     void delete(long showId, long entryId) {
         ShowContext context = requireShowContext(showId);
         if (!context.currentContest()) requireHistoricalListOpen(context);
         ContestEntry entry = repository.findByIdAndShowId(entryId, showId)
                 .orElseThrow(() -> new ContestEntryNotFoundException(entryId, showId));
+        if (entry.ownEntry()) {
+            throw new ApiConflictException(
+                    "OWN_ENTRY_RESOLUTION_REQUIRED",
+                    "Die markierte eigene Einreichung kann erst nach einer bewussten Änderung der Eigenauflösung gelöscht werden."
+            );
+        }
         if (entry.rankingPosition() != null && repository.isBallotClosed(showId)) {
             throw new ApiConflictException(
                     "BALLOT_REOPEN_REQUIRED",
@@ -405,6 +490,19 @@ class ContestEntryService {
                     "CURRENT_SHOW_REQUIRED",
                     "Diese Funktion gehört zum aktuellen CSC-X-Workflow und ist für Archivshows nicht verfügbar."
             );
+        }
+    }
+
+    private ContestEntryRepository.OwnEntryState ownEntryState(long showId) {
+        return repository.findOwnEntryState(showId).orElseThrow(() -> new ShowNotFoundException(showId));
+    }
+
+    private void clearResolvedOwnEntry(long showId, ContestEntryRepository.OwnEntryState state) {
+        if (state.resolution() != OwnEntryResolution.UNRESOLVED) {
+            repository.updateOwnEntryResolution(showId, OwnEntryResolution.UNRESOLVED, null, null);
+        }
+        if (state.resolvedParticipationId() != null) {
+            repository.clearOwnEntryParticipationAssignments(showId, state.resolvedParticipationId());
         }
     }
 

@@ -40,6 +40,14 @@ class ContestEntryRepository {
                 .stream().findFirst();
     }
 
+    Optional<Long> findActualParticipationId(long entryId, long showId) {
+        List<Long> values = jdbcTemplate.query("""
+                SELECT contest_participation_id FROM contest_entry
+                WHERE id = ? AND motto_show_id = ?
+                """, (resultSet, rowNumber) -> nullableLong(resultSet, 1), entryId, showId);
+        return values.isEmpty() ? Optional.empty() : Optional.ofNullable(values.getFirst());
+    }
+
     ContestEntry create(long showId, String artist, String title, String youtubeUrl, String comment) {
         return create(showId, artist, title, youtubeUrl, comment, null);
     }
@@ -135,6 +143,49 @@ class ContestEntryRepository {
                 SET contest_participation_id = ?, updated_at = CURRENT_TIMESTAMP
                 WHERE id = ? AND motto_show_id = ?
                 """, participationId, entryId, showId) == 1;
+    }
+
+    Optional<OwnEntryState> findOwnEntryState(long showId) {
+        return jdbcTemplate.query("""
+                SELECT show.contest_id, contest.own_participation_id, show.own_entry_resolution,
+                       show.own_entry_participation_id, show.own_entry_id
+                FROM motto_show show
+                JOIN contest ON contest.id = show.contest_id
+                WHERE show.id = ?
+                """, (resultSet, rowNumber) -> new OwnEntryState(
+                resultSet.getLong(1), nullableLong(resultSet, 2), OwnEntryResolution.valueOf(resultSet.getString(3)),
+                nullableLong(resultSet, 4), nullableLong(resultSet, 5)
+        ), showId).stream().findFirst();
+    }
+
+    void clearOwnEntryParticipationAssignments(long showId, long participationId) {
+        jdbcTemplate.update("""
+                UPDATE contest_entry
+                SET contest_participation_id = NULL, updated_at = CURRENT_TIMESTAMP
+                WHERE motto_show_id = ? AND contest_participation_id = ?
+                """, showId, participationId);
+    }
+
+    void assignOwnEntry(long showId, long entryId, long participationId) {
+        int changed = jdbcTemplate.update("""
+                UPDATE contest_entry
+                SET contest_participation_id = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ? AND motto_show_id = ?
+                """, participationId, entryId, showId);
+        if (changed != 1) {
+            throw new IllegalStateException("The validated own contest entry disappeared during assignment.");
+        }
+    }
+
+    void updateOwnEntryResolution(long showId, OwnEntryResolution resolution, Long participationId, Long entryId) {
+        int changed = jdbcTemplate.update("""
+                UPDATE motto_show
+                SET own_entry_resolution = ?, own_entry_participation_id = ?, own_entry_id = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+                """, resolution.name(), participationId, entryId, showId);
+        if (changed != 1) {
+            throw new IllegalStateException("The validated motto show disappeared while resolving its own entry.");
+        }
     }
 
     List<Long> findRankedEntryIds(long showId) {
@@ -252,9 +303,16 @@ class ContestEntryRepository {
                 SELECT contest_entry.id, contest_entry.motto_show_id, contest_entry.contest_id,
                        contest_entry.artist, contest_entry.title, contest_entry.youtube_url, contest_entry.comment,
                        contest_entry.assessment, contest_entry.assessment_confidence, contest_entry.pool_position,
-                       contest_entry.ranking_position, contest_entry.contest_participation_id,
-                       participation.participant_id, contest_entry.created_at, contest_entry.updated_at
+                       contest_entry.ranking_position,
+                       CASE WHEN contest.is_current = 0 OR motto_show.ballot_closed_at IS NOT NULL OR contest_entry.id = motto_show.own_entry_id
+                            THEN contest_entry.contest_participation_id ELSE NULL END AS contest_participation_id,
+                       CASE WHEN contest.is_current = 0 OR motto_show.ballot_closed_at IS NOT NULL OR contest_entry.id = motto_show.own_entry_id
+                            THEN participation.participant_id ELSE NULL END AS participant_id,
+                       contest_entry.id = motto_show.own_entry_id AS own_entry,
+                       contest_entry.created_at, contest_entry.updated_at
                 FROM contest_entry
+                JOIN motto_show ON motto_show.id = contest_entry.motto_show_id
+                JOIN contest ON contest.id = motto_show.contest_id
                 LEFT JOIN contest_participation participation ON participation.id = contest_entry.contest_participation_id
                 """ + whereClause;
     }
@@ -280,6 +338,7 @@ class ContestEntryRepository {
                 nullableRankingPosition,
                 nullableParticipationId,
                 nullableParticipantId,
+                resultSet.getBoolean("own_entry"),
                 resultSet.getTimestamp("created_at").toInstant(),
                 resultSet.getTimestamp("updated_at").toInstant()
         );
@@ -290,8 +349,18 @@ class ContestEntryRepository {
         return resultSet.wasNull() ? null : value;
     }
 
+    private static Long nullableLong(ResultSet resultSet, int columnIndex) throws SQLException {
+        long value = resultSet.getLong(columnIndex);
+        return resultSet.wasNull() ? null : value;
+    }
+
     private static List<String> splitAliases(String aliases) {
         if (aliases == null || aliases.isBlank()) return List.of();
         return List.of(aliases.split(String.valueOf((char) 31)));
     }
+
+    record OwnEntryState(
+            long contestId, Long currentOwnParticipationId, OwnEntryResolution resolution,
+            Long resolvedParticipationId, Long ownEntryId
+    ) { }
 }

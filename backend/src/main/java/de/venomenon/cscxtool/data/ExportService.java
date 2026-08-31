@@ -81,7 +81,7 @@ public class ExportService {
                 return new ExportFormat.FullExport(
                         ExportFormat.FORMAT, ExportFormat.VERSION, Instant.now().toString(), applicationVersion(),
                         schemaVersion(connection), new ExportFormat.Data(
-                                contests(connection), shows, candidates(connection), participants(connection),
+                                contests(connection), shows, ownEntryResolutions(connection), candidates(connection), participants(connection),
                                 contestParticipations(connection), participantAliases(connection), contestEntries(connection),
                                 ballotSnapshots(connection), ballotSnapshotItems(connection), legacyResults(connection), legacyReceivedScores(connection),
                                 publishedBallots(connection), publishedBallotPositions(connection), tipsGames(connection), tipsGameAssignments(connection)
@@ -119,6 +119,7 @@ public class ExportService {
                 case ExportFormat.VERSION_5 -> upgradeV6(upgradeV5(strictMapper.readValue(input, ExportFormat.FullExportV5.class)));
                 case ExportFormat.VERSION_6 -> upgradeV6(strictMapper.readValue(input, ExportFormat.FullExportV6.class));
                 case ExportFormat.VERSION_7 -> upgradeV7(strictMapper.readValue(input, ExportFormat.FullExportV7.class));
+                case ExportFormat.VERSION_8 -> upgradeV8(strictMapper.readValue(input, ExportFormat.FullExportV8.class));
                 case ExportFormat.VERSION -> strictMapper.readValue(input, ExportFormat.FullExport.class);
                 default -> throw invalid("Das JSON-Format wird von dieser Anwendung nicht unterstützt.");
             };
@@ -260,6 +261,13 @@ public class ExportService {
             for (ExportFormat.Contest row : data.contests()) {
                 stage.update("UPDATE contest SET own_participation_id = ? WHERE id = ?", row.ownParticipationId(), row.id());
             }
+            for (ExportFormat.OwnEntryResolutionRecord row : data.ownEntryResolutions()) {
+                stage.update("""
+                        UPDATE motto_show
+                        SET own_entry_resolution = ?, own_entry_participation_id = ?, own_entry_id = ?
+                        WHERE id = ?
+                        """, row.resolution(), row.participationId(), row.entryId(), row.mottoShowId());
+            }
         } catch (DataAccessException exception) {
             throw new BackupStorageException("Die vorgeprüften JSON-Daten konnten nicht in die Staging-Datenbank geschrieben werden.", exception);
         }
@@ -281,7 +289,7 @@ public class ExportService {
         requireText(export.applicationVersion(), "Der JSON-Export enthält keine Anwendungsversionsangabe.");
         if (export.data() == null) throw invalid("Der JSON-Export enthält keine vollständigen fachlichen Daten.");
         ExportFormat.Data data = export.data();
-        if (data.contests() == null || data.mottoShows() == null || data.candidates() == null || data.participants() == null
+        if (data.contests() == null || data.mottoShows() == null || data.ownEntryResolutions() == null || data.candidates() == null || data.participants() == null
                 || data.contestParticipations() == null || data.participantAliases() == null || data.contestEntries() == null
                 || data.ballotSnapshots() == null || data.ballotSnapshotItems() == null || data.legacyResults() == null || data.legacyReceivedScores() == null
                 || data.publishedBallots() == null || data.publishedBallotPositions() == null || data.tipsGames() == null
@@ -374,6 +382,35 @@ public class ExportService {
             }
         }
 
+        uniquePositive(data.ownEntryResolutions(), ExportFormat.OwnEntryResolutionRecord::mottoShowId, "EigenauflÃ¶sung");
+        Map<Long, ExportFormat.OwnEntryResolutionRecord> ownEntryResolutions = new HashMap<>();
+        for (ExportFormat.OwnEntryResolutionRecord resolution : data.ownEntryResolutions()) {
+            ExportFormat.MottoShow show = shows.get(resolution.mottoShowId());
+            if (show == null || resolution.resolution() == null) {
+                throw invalid("Eine EigenauflÃ¶sung verweist auf eine unbekannte Show oder ist nicht gÃ¼ltig.");
+            }
+            if (!"UNRESOLVED".equals(resolution.resolution()) && !"NO_OWN_ENTRY".equals(resolution.resolution())
+                    && !"OWN_ENTRY".equals(resolution.resolution())) {
+                throw invalid("Der Status einer EigenauflÃ¶sung ist nicht gÃ¼ltig.");
+            }
+            if ("UNRESOLVED".equals(resolution.resolution())
+                    && (resolution.participationId() != null || resolution.entryId() != null)) {
+                throw invalid("Eine ungeklÃ¤rte EigenauflÃ¶sung darf keinen Beitrag oder Teilnehmer enthalten.");
+            }
+            if ("NO_OWN_ENTRY".equals(resolution.resolution())
+                    && (resolution.participationId() == null || resolution.entryId() != null)) {
+                throw invalid("Die BestÃ¤tigung ohne eigene Einreichung ist nicht vollstÃ¤ndig.");
+            }
+            if ("OWN_ENTRY".equals(resolution.resolution())
+                    && (resolution.participationId() == null || resolution.entryId() == null)) {
+                throw invalid("Eine eigene Einreichung benÃ¶tigt Teilnahme und vorhandenen Beitrag.");
+            }
+            ownEntryResolutions.put(resolution.mottoShowId(), resolution);
+        }
+        if (ownEntryResolutions.size() != shows.size()) {
+            throw invalid("Jede Mottoshow benÃ¶tigt einen expliziten EigenauflÃ¶sungszustand.");
+        }
+
         Set<Long> entryIds = uniquePositive(data.contestEntries(), ExportFormat.ContestEntry::id, "Wettbewerbsbeitrag");
         Set<String> poolPositions = new HashSet<>();
         Set<String> rankingPositions = new HashSet<>();
@@ -413,6 +450,26 @@ public class ExportService {
                 }
             }
         }
+        for (ExportFormat.OwnEntryResolutionRecord resolution : data.ownEntryResolutions()) {
+            if ("UNRESOLVED".equals(resolution.resolution())) continue;
+            ExportFormat.MottoShow show = shows.get(resolution.mottoShowId());
+            ExportFormat.Contest contest = contestsById.get(show.contestId());
+            ExportFormat.ContestParticipation participation = participations.get(resolution.participationId());
+            if (participation == null || participation.contestId() != show.contestId()
+                    || contest.ownParticipationId() == null || !contest.ownParticipationId().equals(participation.id())) {
+                throw invalid("Eine EigenauflÃ¶sung muss zur gewÃ¤hlten eigenen Contest-Teilnahme gehÃ¶ren.");
+            }
+            if ("OWN_ENTRY".equals(resolution.resolution())) {
+                ExportFormat.ContestEntry entry = entries.get(resolution.entryId());
+                if (entry == null || entry.mottoShowId() != show.id()
+                        || !Long.valueOf(participation.id()).equals(entry.contestParticipationId())) {
+                    throw invalid("Die eigene Einreichung muss der gewÃ¤hlten Teilnahme in derselben Show zugeordnet sein.");
+                }
+                if (entry.rankingPosition() != null) {
+                    throw invalid("Die eigene Einreichung darf nicht in der aktiven Rangliste stehen.");
+                }
+            }
+        }
         for (ExportFormat.MottoShow show : data.mottoShows()) {
             if (!show.entryListComplete()) continue;
             if (contestsById.get(show.contestId()).current()) {
@@ -446,6 +503,12 @@ public class ExportService {
                 requireReference(entryIds, item.contestEntryId(), "Ein Abstimmungssnapshot-Element verweist auf einen unbekannten Wettbewerbsbeitrag.");
                 if (entries.get(item.contestEntryId()).mottoShowId() != snapshots.get(item.ballotSnapshotId()).mottoShowId()) {
                     throw invalid("Ein Abstimmungssnapshot-Element verweist auf einen Wettbewerbsbeitrag einer anderen Mottoshow.");
+                }
+                ExportFormat.BallotSnapshot snapshot = snapshots.get(item.ballotSnapshotId());
+                ExportFormat.OwnEntryResolutionRecord ownResolution = ownEntryResolutions.get(snapshot.mottoShowId());
+                if (snapshot.current() && ownResolution != null && "OWN_ENTRY".equals(ownResolution.resolution())
+                        && item.contestEntryId().equals(ownResolution.entryId())) {
+                    throw invalid("Ein aktueller Top-15-Snapshot darf die eigene Einreichung nicht enthalten.");
                 }
             }
             if (item.rank() < 1 || item.rank() > 15 || !snapshotRanks.add(key(item.ballotSnapshotId(), item.rank()))
@@ -707,6 +770,18 @@ public class ExportService {
                         data.publishedBallotPositions()));
     }
 
+    private static ExportFormat.FullExport upgradeV8(ExportFormat.FullExportV8 legacy) {
+        if (legacy == null || legacy.data() == null) return new ExportFormat.FullExport(
+                legacy == null ? null : legacy.format(), ExportFormat.VERSION, legacy == null ? null : legacy.exportedAt(),
+                legacy == null ? null : legacy.applicationVersion(), legacy == null ? 0 : legacy.schemaVersion(), null);
+        ExportFormat.DataV8 data = legacy.data();
+        return new ExportFormat.FullExport(legacy.format(), ExportFormat.VERSION, legacy.exportedAt(), legacy.applicationVersion(),
+                legacy.schemaVersion(), new ExportFormat.Data(data.contests(), data.mottoShows(), data.candidates(), data.participants(),
+                        data.contestParticipations(), data.participantAliases(), data.contestEntries(), data.ballotSnapshots(),
+                        data.ballotSnapshotItems(), data.legacyResults(), data.legacyReceivedScores(), data.publishedBallots(),
+                        data.publishedBallotPositions(), data.tipsGames(), data.tipsGameAssignments()));
+    }
+
     private static boolean validAssessmentPair(Integer assessment, Integer confidence) {
         return (assessment == null && confidence == null)
                 || (assessment != null && confidence != null && assessment >= 1 && assessment <= 5 && confidence >= 1 && confidence <= 5);
@@ -745,6 +820,10 @@ public class ExportService {
         return query(connection, "SELECT id,contest_id,show_number,name,entry_list_complete,selected_candidate_id,ballot_closed_at,created_at,updated_at FROM motto_show ORDER BY id",
                 r -> new ExportFormat.MottoShow(r.getLong(1), r.getLong(2), r.getInt(3), r.getString(4), r.getBoolean(5), nullableLong(r, 6),
                         r.getString(7), r.getString(8), r.getString(9)));
+    }
+    private static List<ExportFormat.OwnEntryResolutionRecord> ownEntryResolutions(Connection connection) throws SQLException {
+        return query(connection, "SELECT id,own_entry_resolution,own_entry_participation_id,own_entry_id FROM motto_show ORDER BY id",
+                r -> new ExportFormat.OwnEntryResolutionRecord(r.getLong(1), r.getString(2), nullableLong(r, 3), nullableLong(r, 4)));
     }
     private static List<ExportFormat.Candidate> candidates(Connection connection) throws SQLException {
         return query(connection, "SELECT id,motto_show_id,artist,title,youtube_url,comment,status,manual_position,created_at,updated_at FROM candidate ORDER BY id",

@@ -45,6 +45,10 @@ class BallotService {
                     "Die Rangliste und der ungeordnete Pool m\u00fcssen zusammen jeden aktuellen Beitrag dieser Mottoshow genau einmal enthalten."
             );
         }
+        BallotRepository.OwnEntryState ownEntry = repository.findOwnEntryState(showId);
+        if (ownEntry.ownEntryId() != null && rankedEntryIds.contains(ownEntry.ownEntryId())) {
+            throw ownEntryCannotBeRanked();
+        }
 
         repository.replaceRanking(showId, rankedEntryIds);
         return new BallotRankingResponse(List.copyOf(rankedEntryIds), List.copyOf(unrankedEntryIds));
@@ -57,8 +61,10 @@ class BallotService {
             throw new ApiConflictException("BALLOT_ALREADY_CLOSED", "Die Abstimmung ist bereits abgeschlossen.");
         }
 
+        BallotRepository.OwnEntryState ownEntry = repository.findOwnEntryState(showId);
+        validateOwnEntryResolution(ownEntry);
         List<BallotRepository.RankedEntry> rankedEntries = repository.findRankedEntries(showId);
-        validateTopFifteen(rankedEntries);
+        validateTopFifteen(rankedEntries, ownEntry.ownEntryId());
         repository.makeAllSnapshotsHistorical(showId);
         long snapshotId = repository.createSnapshot(showId, repository.nextSnapshotNumber(showId));
         repository.createSnapshotItems(snapshotId, rankedEntries.subList(0, 15));
@@ -100,7 +106,7 @@ class BallotService {
         return BallotResponse.from(ballotClosedAt, currentSnapshot, snapshots, renderer);
     }
 
-    private void validateTopFifteen(List<BallotRepository.RankedEntry> rankedEntries) {
+    private void validateTopFifteen(List<BallotRepository.RankedEntry> rankedEntries, Long ownEntryId) {
         if (rankedEntries.size() < 15) {
             throw new ApiConflictException(
                     "BALLOT_CLOSE_REQUIRES_TOP_15",
@@ -115,6 +121,9 @@ class BallotService {
                         "BALLOT_CLOSE_INVALID_RANKING",
                         "Die Rangliste muss l\u00fcckenlos bei Rang 1 beginnen."
                 );
+            }
+            if (ownEntryId != null && entry.id() == ownEntryId) {
+                throw ownEntryCannotBeRanked();
             }
             if (index < 15) {
                 if (!topFifteenIds.add(entry.id()) || blank(entry.artist()) || blank(entry.title()) || blank(entry.youtubeUrl())) {
@@ -135,6 +144,25 @@ class BallotService {
         return new ApiConflictException(
                 "BALLOT_REOPEN_REQUIRED",
                 "Die abgeschlossene Abstimmung muss vor einer Rang\u00e4nderung bewusst wieder ge\u00f6ffnet werden."
+        );
+    }
+
+    private void validateOwnEntryResolution(BallotRepository.OwnEntryState state) {
+        if (state.currentOwnParticipationId() != null && state.resolution() == de.venomenon.cscxtool.entry.OwnEntryResolution.UNRESOLVED) {
+            throw new ApiConflictException(
+                    "OWN_ENTRY_RESOLUTION_REQUIRED",
+                    "Vor dem Abschluss muss bewusst geklÃ¤rt werden, welcher Beitrag deine eigene Einreichung ist oder dass du keinen Beitrag eingereicht hast."
+            );
+        }
+        if (state.resolution() == de.venomenon.cscxtool.entry.OwnEntryResolution.OWN_ENTRY && state.ownEntryId() == null) {
+            throw new IllegalStateException("A resolved own entry must reference an existing contest entry.");
+        }
+    }
+
+    private static ApiConflictException ownEntryCannotBeRanked() {
+        return new ApiConflictException(
+                "OWN_ENTRY_CANNOT_BE_RANKED",
+                "Die eigene Einreichung bleibt sichtbar, ist aber nicht wÃ¤hlbar und darf nicht in der Rangliste stehen."
         );
     }
 
