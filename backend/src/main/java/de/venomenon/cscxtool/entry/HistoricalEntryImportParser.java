@@ -36,6 +36,7 @@ class HistoricalEntryImportParser {
     private final Map<String, String> countryCodesByName;
     private final List<HistoricalEntryImportFormatStrategy> formats = List.of(
             new LinkedParticipantPrefixHistoricalEntryFormatStrategy(),
+            new LinkedSongSuffixHistoricalEntryFormatStrategy(),
             new ParentheticalHistoricalEntryFormatStrategy(),
             new AnnouncementHistoricalEntryFormatStrategy()
     );
@@ -50,6 +51,7 @@ class HistoricalEntryImportParser {
         names.put(HistoricalEntryImportText.normalized("Türkei"), "TR");
         names.put(HistoricalEntryImportText.normalized("Südafrika"), "ZA");
         names.put(HistoricalEntryImportText.normalized("Jamaica"), "JM");
+        names.put(HistoricalEntryImportText.normalized("USA"), "US");
         this.countryCodesByName = Map.copyOf(names);
     }
 
