@@ -8,9 +8,16 @@ import java.util.regex.Pattern;
 /** Format D: one linked song followed by a country/participant assignment, with optional parentheses. */
 final class LinkedSongSuffixHistoricalEntryFormatStrategy implements HistoricalEntryImportFormatStrategy {
 
-    private static final Pattern PARENTHESIZED_ASSIGNMENT = Pattern.compile("^\\((.+?)\\s+[-–—]\\s+(.+?)\\)$");
-    private static final Pattern BARE_ASSIGNMENT = Pattern.compile("^(.+?)\\s+[-–—]\\s+(.+?)$");
-    private static final Pattern FLAT_TEXT = Pattern.compile("^(.+)\\s+\\(([^()]+?)\\s+[-–—]\\s+([^()]+?)\\)\\s*$");
+    private static final String ASSIGNMENT_SEPARATOR = "(?:\\s+[-–—]\\s*|\\s*[-–—]\\s+)";
+    private static final Pattern PARENTHESIZED_ASSIGNMENT = Pattern.compile(
+            "^\\((.+?)" + ASSIGNMENT_SEPARATOR + "(.+?)\\)$"
+    );
+    private static final Pattern BARE_ASSIGNMENT = Pattern.compile(
+            "^(.+?)" + ASSIGNMENT_SEPARATOR + "(.+?)$"
+    );
+    private static final Pattern FLAT_TEXT = Pattern.compile(
+            "^(.+)\\s+\\(([^()]+?)" + ASSIGNMENT_SEPARATOR + "([^()]+?)\\)\\s*$"
+    );
 
     @Override
     public Optional<HistoricalEntryImportParseResult> parse(HistoricalImportSourceLine source) {
@@ -38,6 +45,11 @@ final class LinkedSongSuffixHistoricalEntryFormatStrategy implements HistoricalE
                 "(" + flatText.group(2) + " - " + flatText.group(3) + ")",
                 source.directUrl()
         );
+    }
+
+    static boolean isParenthesizedAssignmentSuffix(String rawSuffix) {
+        String suffix = HistoricalEntryImportText.removeBoundaryMarkdown(rawSuffix);
+        return PARENTHESIZED_ASSIGNMENT.matcher(suffix).matches();
     }
 
     private static Optional<HistoricalEntryImportParseResult> fromParts(String rawSongText, String rawSuffix, String url) {
