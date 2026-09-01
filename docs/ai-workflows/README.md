@@ -32,7 +32,9 @@ CSC/
   Analyseexport/
     current/
       analysis.json
+      analysis.txt
       manifest.json
+      manifest.txt
       participants.csv
       participations.csv
       entries.csv
@@ -44,7 +46,24 @@ CSC/
         ...
 ```
 
-`current` enthält immer den zuletzt freigegebenen vollständigen Export. `archive` bewahrt nur die tatsächlich veröffentlichten vorherigen `current`-Stände auf. `upload-meta.json` ergänzt insbesondere Dateiname und SHA-256 des ursprünglichen ZIPs. Ein neuer Analyselauf protokolliert `generatedAt`, Exportformat, Formatversion, Dateiname und soweit verfügbar SHA-256 des verwendeten Stands.
+`current` enthält immer den zuletzt freigegebenen vollständigen Export. `archive` bewahrt nur die tatsächlich veröffentlichten vorherigen `current`-Stände auf. `upload-meta.json` ergänzt insbesondere Dateiname und SHA-256 des ursprünglichen ZIPs sowie SHA-256 der kanonischen JSON-Kerndateien. Ein neuer Analyselauf protokolliert `generatedAt`, Exportformat, Formatversion, Dateiname und soweit verfügbar SHA-256 des verwendeten Stands.
+
+#### Connectorfreundliche Textspiegel
+
+Google Drive kann rohe JSON- oder CSV-Dateien korrekt synchronisieren, ohne dass ein angebundener Analyse-Connector diese Dateitypen zuverlässig findet oder als Text ausliefert. Deshalb erzeugt der lokale Publisher zusätzlich:
+
+- `analysis.txt` als byteidentischen Spiegel von `analysis.json`;
+- `manifest.txt` als byteidentischen Spiegel von `manifest.json`.
+
+Diese Dateien sind **keine zweite fachliche Datenquelle**. `analysis.json` und `manifest.json` bleiben kanonisch. Der Publisher kopiert die Bytes unverändert und vergleicht anschließend jeweils SHA-256 von Original und Spiegel. Nur bei Gleichheit gilt der Spiegel als veröffentlicht.
+
+Für einen über Google Drive angebundenen KI-Lauf gilt deshalb die Lesereihenfolge:
+
+1. `current/analysis.json` und `current/manifest.json`, wenn der Connector beide tatsächlich lesen kann;
+2. andernfalls `current/analysis.txt` und `current/manifest.txt` als geprüfte Transportspiegel derselben Inhalte;
+3. erst wenn auch diese nicht vollständig lesbar sind, der dokumentierte CSV-Fallback.
+
+Bei Verwendung der `.txt`-Spiegel wird im Analyselauf ausdrücklich vermerkt, dass transporttechnisch die Spiegel gelesen wurden, fachlich aber weiterhin der Inhalt des kanonischen JSON-Vertrags ausgewertet wird.
 
 ### Automatisierte Veröffentlichung über Google Drive for Desktop
 
@@ -78,9 +97,12 @@ Das Script:
 3. prüft `manifest.json`, `analysis.json`, Format, Formatversion, `generatedAt` und alle im Manifest gelisteten Dateien;
 4. berechnet SHA-256 des ursprünglichen ZIPs;
 5. kopiert den neuen Stand zunächst nach `_incoming` im Drive-Verzeichnis und prüft die Kern-Dateien erneut;
-6. verschiebt einen vorhandenen `current`-Stand anhand seines `generatedAt` nach `archive`;
-7. aktiviert den neuen Stand als `current` und schreibt abschließend `upload-meta.json`;
-8. versucht bei einem Fehler während des Umschaltens den vorherigen `current`-Stand wiederherzustellen.
+6. erzeugt `analysis.txt` und `manifest.txt` als byteidentische Connector-Spiegel und prüft die Identität per SHA-256;
+7. verschiebt einen vorhandenen `current`-Stand anhand seines `generatedAt` nach `archive`;
+8. aktiviert den neuen Stand als `current` und schreibt abschließend `upload-meta.json`;
+9. versucht bei einem Fehler während des Umschaltens den vorherigen `current`-Stand wiederherzustellen.
+
+Wird dasselbe ZIP erneut veröffentlicht, erfolgt keine unnötige Archivrotation. Fehlende oder veraltete Connector-Spiegel und `upload-meta.json` werden trotzdem nachgezogen. Dadurch kann nach einem Publisher-Update der bereits aktuelle Export einfach erneut verarbeitet werden.
 
 Lokale Maschinenpfade werden nicht im öffentlichen Repository gespeichert. Die Quell-ZIP wird nicht gelöscht.
 
@@ -103,17 +125,19 @@ archive/<generatedAt>/
 
 Ein Binär-ZIP im Repository ist für den GitHub-Connector nicht zuverlässig lesbar. Git LFS ist ebenfalls kein bevorzugter Analyseweg, weil ein Connector statt des Inhalts nur den LFS-Zeiger erhalten kann.
 
-### Fallback bei sehr großen JSON-Dateien
+### Fallback bei sehr großen oder nicht indexierten JSON-Dateien
 
-Kann `analysis.json` trotz direkter Textübergabe nicht vollständig gelesen werden, werden gemeinsam verwendet:
+Kann `analysis.json` nicht direkt gelesen werden, wird bei Google-Drive-Ablage zuerst der byteidentische Transportspiegel `analysis.txt` zusammen mit `manifest.txt` verwendet.
 
-- `manifest.json`
-- `participants.csv`
-- `participations.csv`
-- `entries.csv`
-- `ballots.csv`
-- `assessment-matrix.csv`
-- optional `candidates.csv`
+Kann auch dieser trotz direkter Textübergabe beziehungsweise Drive-Ablage nicht vollständig gelesen werden, werden gemeinsam verwendet:
+
+- `manifest.json` oder der byteidentische Spiegel `manifest.txt`;
+- `participants.csv`;
+- `participations.csv`;
+- `entries.csv`;
+- `ballots.csv`;
+- `assessment-matrix.csv`;
+- optional `candidates.csv`.
 
 Die Dateien müssen aus demselben Export stammen. Manuell zusammenkopierte Ausschnitte oder voneinander abweichende Exportstände sind nicht zulässig.
 
@@ -126,7 +150,7 @@ Vor der eigentlichen Analyse muss die KI knapp bestätigen:
 - Scope und enthaltene Contests/Shows;
 - aktiver Wettbewerb;
 - Zahl der aktiven Teilnahmen im aktiven Wettbewerb;
-- ob `analysis.json` vollständig lesbar war oder ein dokumentierter Fallback verwendet wird;
+- ob kanonisches `analysis.json`, der geprüfte `analysis.txt`-Spiegel oder ein dokumentierter CSV-Fallback tatsächlich vollständig gelesen wurde;
 - erkennbare Identitäts- oder Vollständigkeitsblocker.
 
 Kann die Quelle nicht tatsächlich gelesen werden, darf kein neuer offizieller Profilstand erzeugt und kein vermeintlich datenbasierter Tipp ausgegeben werden.
