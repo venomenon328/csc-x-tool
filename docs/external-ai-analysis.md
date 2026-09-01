@@ -11,9 +11,11 @@ Dieses Dokument definiert das reproduzierbare Verfahren, mit dem der versioniert
 Es unterstützt zwei voneinander getrennte Anwendungsfälle:
 
 1. **Tippspiel:** Für die anonymen Beiträge einer laufenden Mottoshow werden plausible Song-/Teilnehmer-Zuordnungen ermittelt.
-2. **Kandidatenbewertung:** Die strategische Bewertung eigener Einreichungskandidaten wird um den erwartbaren Fit zum konkreten aktuellen Teilnehmerfeld ergänzt.
+2. **Ausführliche Kandidatenbewertung nach Nutzerfreigabe:** Bereits vom Nutzer ausgewählte eigene Einreichungskandidaten werden ergänzend gegen das konkrete aktuelle Teilnehmerfeld bewertet.
 
-Das CSC X Tool bleibt dabei Datenquelle und Arbeitsoberfläche. Es führt selbst keine KI-Prognosen, automatische Genreklassifikation oder Teilnehmerprofilierung aus.
+Die allgemeine Kandidatenrecherche, erste Vorschlagslisten und iterative Erweiterungssuchen sind ausdrücklich nicht Teil der teilnehmerbezogenen Analyse. Dort bleibt der Nutzer das Gate: Er prüft die profilfrei recherchierten Vorschläge und entscheidet selbst, welche Songs in seine persönliche Kandidatenliste aufgenommen werden.
+
+Das CSC X Tool bleibt Datenquelle und Arbeitsoberfläche. Es führt selbst keine KI-Prognosen, automatische Genreklassifikation oder Teilnehmerprofilierung aus.
 
 ## 2. Verbindliche Grundlagen und Rangfolge
 
@@ -25,7 +27,7 @@ Ergänzend gelten:
 2. dieses Dokument für die externe Analyse und deren Versionierung;
 3. die externe CSC-Ausschlussliste ausschließlich für die Zulässigkeitsprüfung eigener Kandidaten;
 4. das Dokument `Mottoshows` für die fachlichen Showregeln;
-5. das Dokument `Workflow und Strategie` für persönlichen Repräsentations-Fit und allgemeine strategische Bewertung;
+5. das Dokument `Workflow und Strategie` für Recherche, persönlichen Repräsentations-Fit und allgemeine strategische Bewertung;
 6. das Google-Sheet `Teilnehmer` für versionierte Teilnehmerprofile, Songmerkmale, Belege und Analyseläufe.
 
 Harte Motto- und Ausschlussregeln werden durch keine statistische oder KI-basierte Einschätzung relativiert.
@@ -37,6 +39,8 @@ Harte Motto- und Ausschlussregeln werden durch keine statistische oder KI-basier
 Teilnehmer werden ausschließlich über `participant_id` verbunden. Anzeigenamen und Aliase dienen der Darstellung und Suche, niemals als Primärschlüssel.
 
 Contestbezogene Eigenschaften wie Teilnahme-ID und vertretenes Land werden nicht dauerhaft dem Teilnehmer zugeschrieben.
+
+Doppelte oder widersprüchliche Teilnehmeridentitäten sind vor einer offiziellen Profilbildung zu bereinigen. Daten verschiedener `participant_id`-Werte dürfen nicht allein aufgrund gleicher Anzeigenamen stillschweigend zusammengeführt werden.
 
 ### 3.2 Drei klar getrennte Erkenntnisarten
 
@@ -78,6 +82,20 @@ Unbekannte Teilnehmer werden über einen neutralen Feld-Prior berücksichtigt. S
 
 Profile enthalten nur musik- und contestrelevante Eigenschaften. Alter, Geschlecht, Beruf, politische Haltung, Persönlichkeit oder sonstige private Eigenschaften werden nicht aus Songwahlen geraten.
 
+### 3.7 Verbindliches Nutzer-Gate für Kandidaten
+
+Teilnehmerprofile dürfen vor der persönlichen Vorauswahl des Nutzers nicht verwendet werden.
+
+Damit gilt verbindlich:
+
+- Allgemeine Kandidatenrecherche und erste Vorschlagslisten werden ohne Teilnehmerprofile erstellt.
+- Auch iterative Suchen nach weiteren Vorschlägen verwenden keine Teilnehmerprofile.
+- Der Nutzer hört und filtert die Vorschläge selbst und übernimmt interessante Songs in seine persönliche Kandidatenliste.
+- Erst wenn der Nutzer für einen oder mehrere bereits ausgewählte Kandidaten ausdrücklich eine ausführliche Bewertung anfordert, werden Teilnehmerprofile ergänzend herangezogen.
+- Vor diesem Gate dürfen Profile weder Suchraum, Sortierung, Aufnahme noch Ablehnung eines Vorschlags beeinflussen.
+
+Das Nutzer-Gate verhindert, dass ein statistisch vermuteter Feldgeschmack die musikalische Breite der Recherche vorzeitig verengt oder interessante Nischenkandidaten unsichtbar macht.
+
 ## 4. Eingabepaket und effizienteste Übergabe
 
 ### 4.1 Bevorzugtes Format
@@ -91,13 +109,17 @@ Innerhalb des Pakets gilt:
 - CSV-Dateien dienen der Kontrolle, Filterung und punktuellen Tabellenarbeit;
 - `analysis.md` und `README.md` dienen der menschlichen Plausibilitätsprüfung.
 
+Der vollständige JSON-Export des Tools ist davon zu unterscheiden. Er ist ein schema- und restoreorientiertes Datenaustauschformat mit internen Rohdaten. Er kann im Notfall als zusätzliche Prüfquelle dienen, ist aber nicht der reguläre semantische Vertrag für externe KI-Analysen. Insbesondere müssen dort Bewertungszustände und weitere Beziehungen erneut aus internen Tabellen hergeleitet werden.
+
 Ein Datenbankdump, Screenshots oder manuell zusammenkopierte Listen sind weder nötig noch vorzuziehen.
 
 ### 4.2 Empfohlener Scope
 
-Für die erste Profilbildung wird ein **vollständiger Archivexport** erzeugt. Er soll alle hinreichend gepflegten historischen Contests und Shows sowie die aktuelle Zielshow enthalten.
+Für die erste Profilbildung wird ein **vollständiger Archivexport** erzeugt. Er soll alle hinreichend gepflegten historischen Contests und Shows sowie die aktuelle Ausgabe enthalten.
 
 Für spätere Aktualisierungen ist erneut ein vollständiger Export die bevorzugte Variante. Dadurch bleiben Löschungen, Korrekturen, Aliasänderungen und nachträglich ergänzte Stimmzettel erkennbar. Ein Deltaexport wird nur verwendet, wenn das vollständige Paket praktisch zu groß wird; dann müssen letzter vollständiger Basisexport und Delta gemeinsam vorliegen.
+
+Die optionale Kandidatenliste wird für einen Profil-Basislauf nicht benötigt. Sie wird nur mitexportiert, wenn bereits ausgewählte Kandidaten nach ausdrücklicher Nutzeranforderung ausführlich bewertet werden sollen.
 
 ### 4.3 Mindestinhalt
 
@@ -107,13 +129,15 @@ Für eine belastbare Analyse werden mindestens benötigt:
 - Teilnehmer mit stabiler `participant_id` und Aliasen;
 - contestbezogene Teilnahmen und Länder;
 - Contests und Shows in fachlicher Reihenfolge;
-- vollständige Einreichungen mit Interpret, Titel, Version/URL und zugeordneter Teilnahme, soweit die Zuordnung bereits aufgelöst sein darf;
+- vollständige Einreichungen mit Interpret, Titel, Version beziehungsweise URL und zugeordneter Teilnahme, soweit die Zuordnung bereits aufgelöst sein darf;
 - veröffentlichte Stimmzettel mit Rang 1 bis 15;
 - die abgeleiteten Zustände für eigene Einreichung und außerhalb der Top 15;
 - das aktuelle Teilnehmerfeld;
-- die anonymen Beiträge der aktuellen Zielshow.
+- für ein Tippspiel die anonymen Beiträge der aktuellen Zielshow.
 
-Für die Kandidatenbewertung kann optional die aktuelle Kandidatenliste mitexportiert werden. Sie ersetzt nicht die separate Motto- und Ausschlussprüfung.
+Die ausführlichen Mottoregeln und musikalischen Songmerkmale sind bewusst keine Bestandteile des Analyseexports. Sie werden aus den verbindlichen externen Dokumenten beziehungsweise durch dokumentierte Recherche und Einschätzung ergänzt.
+
+Für die ausführliche Kandidatenbewertung kann optional die persönliche Kandidatenliste mitexportiert werden. Sie ersetzt weder das Nutzer-Gate noch die separate Motto- und Ausschlussprüfung.
 
 ### 4.4 Fallback bei Uploadproblemen
 
@@ -128,6 +152,8 @@ Falls das ZIP nicht verarbeitet werden kann, reicht zunächst `analysis.json`. N
 
 Bei einer CSV-Übergabe müssen `manifest.json` und die Exporterzeugungszeit zusätzlich vorliegen.
 
+Der vollständige JSON-Export ist nur ein nachrangiger technischer Fallback. Seine Verwendung muss im Analyselauf ausdrücklich protokolliert werden.
+
 ### 4.5 Laufidentität
 
 Jede Analyse erhält eine eindeutige `run_id`, beispielsweise:
@@ -140,7 +166,7 @@ Im Blatt `Analyseläufe` werden mindestens Exportdateiname, SHA-256, `generatedA
 
 ## 5. Qualitätsprüfung vor jeder Analyse
 
-Vor Profilbildung, Tippspiel oder Kandidatenbewertung wird ein Quality Gate durchgeführt.
+Vor Profilbildung, Tippspiel oder ausführlicher Kandidatenbewertung wird ein Quality Gate durchgeführt.
 
 ### 5.1 Harte Blocker
 
@@ -148,12 +174,12 @@ Eine Show wird nicht für Teilnehmerprofile verwendet, wenn mindestens einer die
 
 - die Einreichungsliste ist nicht als vollständig bestätigt;
 - Einreichungen besitzen bei einer aufgelösten historischen Show unbekannte Einreichende;
-- Teilnehmeridentitäten oder Teilnahmen sind widersprüchlich;
+- Teilnehmeridentitäten oder Teilnahmen sind doppelt, widersprüchlich oder nicht stabil verbunden;
 - Ranglisten enthalten doppelte oder fehlende Ränge innerhalb 1 bis 15;
 - die Zielshow des Tippspiels besitzt keine vollständige anonyme Songliste;
 - das aktuelle Teilnehmerfeld ist nicht hinreichend bekannt.
 
-Ein harter Blocker kann auf eine einzelne Show begrenzt werden. Er entwertet nicht automatisch den gesamten Export.
+Ein harter Blocker kann auf eine einzelne Show oder Teilnehmeridentität begrenzt werden. Er entwertet nicht automatisch den gesamten Export.
 
 ### 5.2 Weiche Einschränkungen
 
@@ -163,6 +189,7 @@ Folgende Zustände reduzieren Abdeckung oder Konfidenz, blockieren aber nicht gr
 - Teilnehmer mit nur einer oder wenigen historischen Einreichungen;
 - fehlende YouTube- oder Quellenlinks bei ansonsten eindeutiger Songidentität;
 - Shows mit ungewöhnlich engem oder stark stilprägendem Motto;
+- nur über den Shownamen und nicht über vollständig dokumentierte historische Mottoregeln bekannter Kontext;
 - widersprüchliche externe Genre- oder Veröffentlichungsangaben;
 - erkennbare bewusste Spaß-, Troll- oder Extrembeiträge.
 
@@ -176,7 +203,7 @@ Jeder Lauf dokumentiert mindestens:
 - Anzahl vollständiger Einreichungslisten;
 - Anzahl veröffentlichter und fehlender Stimmzettel;
 - Anteil bereits angereicherter Songmerkmale;
-- ausgeschlossene Shows und Gründe.
+- ausgeschlossene Shows, Teilnehmeridentitäten und Gründe.
 
 ## 6. Wiederverwendbare Songmerkmale
 
@@ -208,15 +235,15 @@ Auf einer dokumentierten Skala werden unter anderem eingeschätzt:
 - Energie;
 - Härte;
 - Anteil harschen Gesangs;
-- Komplexität/Sperrigkeit;
+- Komplexität beziehungsweise Sperrigkeit;
 - Melodik;
 - Atmosphäre;
 - Zugänglichkeit;
-- Hook-/Refrain-Stärke;
-- Neuheitsgrad/Eigenständigkeit;
+- Hook- beziehungsweise Refrain-Stärke;
+- Neuheitsgrad beziehungsweise Eigenständigkeit;
 - vermutete Mainstream-Bekanntheit;
 - Nostalgiepotenzial;
-- Humor-/Gimmickanteil;
+- Humor- beziehungsweise Gimmickanteil;
 - dominante Stimmungsmerkmale.
 
 Faktische und bewertende Konfidenz werden getrennt angegeben.
@@ -236,6 +263,8 @@ Beispiele:
 - Ein Song aus den 1950er- oder 1960er-Jahren in `Twist & Shout` beweist keine allgemeine Oldiespräferenz.
 
 Andere, nicht erzwungene Eigenschaften derselben Einreichung dürfen weiterhin Signale liefern.
+
+Ist der historische Mottokontext nicht ausreichend bekannt, werden nur eindeutig nicht erzwungene Eigenschaften verallgemeinert; andernfalls sinkt die Konfidenz.
 
 ## 7. Bildung der Teilnehmerprofile
 
@@ -266,7 +295,7 @@ Jede bekannte eigene Einreichung liefert ein positives Auswahlsignal mit Basisge
 Das Signal wird merkmalsweise gefiltert:
 
 - vom Motto erzwungene Merkmale werden nicht generalisiert;
-- extrem enge Mottos reduzieren die Zahl frei interpretierbarer Merkmale;
+- extrem enge oder nur teilweise dokumentierte Mottos reduzieren die Zahl frei interpretierbarer Merkmale;
 - erkennbare Spaß- oder Trollbeiträge werden gekennzeichnet und höchstens mit reduziertem Gewicht verwendet;
 - wiederholte Künstler, Genres, Epochen, Sprachen oder strategische Muster erhöhen die Evidenz erst über mehrere unabhängige Shows hinweg.
 
@@ -416,7 +445,7 @@ Mindestens gespeichert werden:
 - Mean Reciprocal Rank der tatsächlichen Person in der Paar-Rangliste;
 - Ergebnis der globalen Zuordnung;
 - Vergleich mit einer Zufallsbaseline;
-- Vergleich mit einer einfachen Häufigkeits-/Wiederholungsbaseline;
+- Vergleich mit einer einfachen Häufigkeits- beziehungsweise Wiederholungsbaseline;
 - Abdeckung und Teilnehmerzahl der Testshow.
 
 ### 9.3 Anpassungsregeln
@@ -430,9 +459,20 @@ Gewichte, Schwellen oder Dimensionen werden nur geändert, wenn:
 
 Gewichte werden nicht nach einer einzelnen spektakulär falschen Zuordnung hektisch umgebaut. Ein Tippspiel ist keine Kernschmelze, auch wenn die Tabelle gelegentlich so aussehen mag.
 
-## 10. Teilnehmerfeldbezogene Kandidatenbewertung
+## 10. Teilnehmerfeldbezogene Bewertung bereits ausgewählter Kandidaten
 
-### 10.1 Unveränderte harte und persönliche Kriterien
+### 10.1 Voraussetzung: ausdrückliche Nutzeranforderung
+
+Die in diesem Kapitel beschriebene Profilanalyse beginnt erst hinter dem Nutzer-Gate aus Abschnitt 3.7.
+
+Sie darf nur ausgeführt werden, wenn:
+
+- der Nutzer den oder die Kandidaten bereits selbst aus profilfrei recherchierten Vorschlägen ausgewählt oder anderweitig benannt hat;
+- der Nutzer ausdrücklich eine ausführliche Bewertung unter Einbeziehung der Teilnehmerprofile verlangt.
+
+Sie dient nicht dazu, allgemeine Kandidaten zu finden, Vorschlagslisten vorzusortieren oder vermeintlich feldschwache Songs vor der persönlichen Sichtung auszuscheiden.
+
+### 10.2 Unveränderte harte und persönliche Kriterien
 
 Die bestehende Kandidatenbewertung bleibt maßgeblich:
 
@@ -443,13 +483,15 @@ Die bestehende Kandidatenbewertung bleibt maßgeblich:
 
 Der persönliche Repräsentations-Fit bleibt etwas wichtiger als die reine Gewinnchance.
 
-Die Teilnehmerprofile ergänzen Punkt 4. Sie ersetzen weder die harte Prüfung noch den persönlichen Fit.
+Die Teilnehmerprofile ergänzen erst bei der ausführlichen Bewertung Punkt 4. Sie ersetzen weder die harte Prüfung noch den persönlichen Fit.
 
-### 10.2 Kandidatenmerkmale
+### 10.3 Kandidatenmerkmale
 
-Jeder ernsthafte Kandidat wird mit derselben Merkmalslogik wie historische Songs angereichert. Dadurch kann er gegen die Geschmacksmodelle des aktuellen Feldes verglichen werden.
+Jeder ausdrücklich zur ausführlichen Bewertung benannte Kandidat wird mit derselben Merkmalslogik wie historische Songs angereichert. Dadurch kann er gegen die Geschmacksmodelle des aktuellen Feldes verglichen werden.
 
-### 10.3 Voter-Fit
+Nicht zur Bewertung benannte Vorschläge werden nicht profilbezogen angereichert oder vorsortiert.
+
+### 10.4 Voter-Fit
 
 Für jeden aktuellen Teilnehmer außer dem Einreichenden wird ein relativer Kandidaten-Fit berechnet. Das Geschmacksmodell hat hierbei deutlich höheren Stellenwert als das Auswahlmodell.
 
@@ -465,7 +507,7 @@ Zu betrachten sind insbesondere:
 
 Die eigene Teilnahme wird aus der potenziellen Punktevergabe ausgeschlossen, da die eigene Einreichung nicht bewertet werden darf.
 
-### 10.4 Feldabdeckung
+### 10.5 Feldabdeckung
 
 Für unbekannte Teilnehmer wird ein neutraler Feld-Prior verwendet. Der Einfluss des Profilmodells auf die strategische Gesamtbewertung steigt nur mit der tatsächlichen Feldabdeckung.
 
@@ -482,7 +524,7 @@ combined_strategy =
 
 Die drei Werte `generic_strategy`, `field_fit` und `field_coverage` werden zusätzlich immer getrennt ausgegeben. Die kombinierte Zahl ist keine Gewinnwahrscheinlichkeit.
 
-### 10.5 Pflichtausgabe pro Kandidat
+### 10.6 Pflichtausgabe pro Kandidat
 
 Zusätzlich zu den Angaben aus `Workflow und Strategie` werden ausgegeben:
 
@@ -502,7 +544,7 @@ Ein Tabellenblatt pro Teilnehmer wird bewusst nicht verwendet. Normalisierte Tab
 
 ### 11.1 `Hinweise`
 
-Enthält Zweck, Erkenntnisklassen, Konfidenzregeln, Verweise auf das Analyseprotokoll und kurze Pflegehinweise.
+Enthält Zweck, Erkenntnisklassen, Konfidenzregeln, das Nutzer-Gate, Verweise auf das Analyseprotokoll und kurze Pflegehinweise.
 
 ### 11.2 `Teilnehmer`
 
@@ -691,7 +733,7 @@ aktiv
 ### 12.1 Erster Aufbau
 
 1. Vollständigen Analyseexport erzeugen und übergeben.
-2. Quality Gate durchführen.
+2. Quality Gate einschließlich Prüfung stabiler Teilnehmeridentitäten durchführen.
 3. `Analyseläufe` um einen Profil-Basislauf ergänzen.
 4. Teilnehmerstamm und Abdeckungswerte aus stabilen IDs aufbauen.
 5. Noch fehlende Songs recherchieren und in `Songmerkmale` ergänzen.
@@ -704,7 +746,7 @@ aktiv
 
 Bei neuen historischen Daten oder einer abgeschlossenen aktuellen Show:
 
-1. neuen vollständigen Export erzeugen;
+1. neuen vollständigen Analyseexport erzeugen;
 2. SHA-256 und `generatedAt` gegen den letzten Lauf prüfen;
 3. geänderte Contests, Shows, Teilnahmen, Einreichungen und Stimmzettel bestimmen;
 4. nur neue oder geänderte Songs anreichern;
@@ -752,7 +794,9 @@ Danach folgen:
 - Teilnehmer mit zu geringer Datenbasis;
 - verwendete Protokoll- und Profilversion.
 
-### 13.3 Kandidatenbewertung
+### 13.3 Ausführliche Kandidatenbewertung nach Nutzer-Gate
+
+Dieses Format wird nur verwendet, wenn der Nutzer ausdrücklich eine ausführliche Bewertung bereits ausgewählter Kandidaten verlangt.
 
 Zusätzlich zur bestehenden Kandidatendarstellung:
 
@@ -768,6 +812,8 @@ Interpret – Titel
 - Gesamturteil
 ```
 
+Das Ergebnis darf keine weiteren Kandidaten aus Teilnehmerprofilen erzeugen oder die vorausgegangene allgemeine Recherche rückwirkend profilbasiert umsortieren.
+
 ## 14. Wiederverwendbare Arbeitsaufträge
 
 ### 14.1 Profile aktualisieren
@@ -782,10 +828,10 @@ Aktualisiere die Teilnehmerprofile nach docs/external-ai-analysis.md auf Basis d
 Erstelle für die aktuelle Zielshow eine Tippspielanalyse nach docs/external-ai-analysis.md. Verwende ausschließlich Informationen, die vor Auflösung der Zielshow verfügbar sind, berechne eine globale eindeutige Song-/Teilnehmer-Zuordnung und gib pro Song Primärtipp, Konfidenz, Alternativen, Indizien und Gegenargumente aus. Führe vorher das Quality Gate durch und nenne die verwendete Profil- und Protokollversion.
 ```
 
-### 14.3 Kandidaten bewerten
+### 14.3 Bereits ausgewählte Kandidaten ausführlich bewerten
 
 ```text
-Bewerte die genannten Kandidaten nach Workflow und Strategie sowie zusätzlich nach docs/external-ai-analysis.md gegen das aktuelle Teilnehmerfeld. Motto und Ausschlussliste bleiben harte Bedingungen. Weise allgemeinen strategischen Score, Teilnehmerfeld-Fit, Feldabdeckung, Unterstützerstruktur und Unsicherheit getrennt aus; niedrige Profilabdeckung darf das allgemeine Urteil nur entsprechend schwach beeinflussen.
+Der Nutzer hat die folgenden Kandidaten bereits selbst ausgewählt und verlangt ausdrücklich eine ausführliche Bewertung. Bewerte ausschließlich diese Kandidaten nach Workflow und Strategie sowie zusätzlich nach docs/external-ai-analysis.md gegen das aktuelle Teilnehmerfeld. Verwende Teilnehmerprofile weder zur Erzeugung weiterer Vorschläge noch zur Erweiterung oder Vorsortierung der allgemeinen Kandidatenrecherche. Motto und Ausschlussliste bleiben harte Bedingungen. Weise allgemeinen strategischen Score, Teilnehmerfeld-Fit, Feldabdeckung, Unterstützerstruktur und Unsicherheit getrennt aus; niedrige Profilabdeckung darf das allgemeine Urteil nur entsprechend schwach beeinflussen.
 ```
 
 ## 15. Versionierung
@@ -799,6 +845,7 @@ Bewerte die genannten Kandidaten nach Workflow und Strategie sowie zusätzlich n
 - Paar-Scoring des Tippspiels;
 - Matching- oder Backtestverfahren;
 - kombinierte Kandidatenbewertung;
+- Nutzer-Gate oder zulässiger Einsatzbereich der Teilnehmerprofile;
 - Tabellenstruktur mit semantischer Auswirkung.
 
 Inkompatible Änderungen am Bedeutungsgehalt bestehender Felder erhöhen die Major-Version.
@@ -810,6 +857,7 @@ Alte Analyseläufe behalten ihre ursprüngliche `protocol_version`. Sie werden n
 Auch bei vollständigen Daten bleibt die Analyse probabilistisch und kontextabhängig:
 
 - Mottos erzwingen Auswahlentscheidungen.
+- Historische Mottoregeln können unvollständig dokumentiert sein.
 - Teilnehmer können bewusst atypisch oder taktisch einreichen.
 - Geschmack verändert sich über Jahre.
 - Stimmzettel zeigen nur eine Top 15 und keine vollständige Rangfolge.
@@ -817,5 +865,6 @@ Auch bei vollständigen Daten bleibt die Analyse probabilistisch und kontextabh�
 - Genre- und Wirkungseinschätzungen enthalten subjektive Modellanteile.
 - Kleine Stichproben erlauben keine belastbaren individuellen Aussagen.
 - Eine globale Zuordnung kann mehrere lokal plausible Paarungen zugunsten einer insgesamt konsistenten Lösung verschieben.
+- Teilnehmerprofile werden bewusst erst nach der persönlichen Kandidatenauswahl eingesetzt und können daher keine allgemeine Recherche optimieren; genau das ist die gewollte Grenze.
 
 Das Verfahren soll bessere, nachvollziehbare Indizien liefern. Es soll nicht so tun, als hätten historische Stimmzettel heimlich die Persönlichkeit der Teilnehmer als CSV exportiert.
