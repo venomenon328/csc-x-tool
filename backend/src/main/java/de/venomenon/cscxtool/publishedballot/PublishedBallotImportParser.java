@@ -9,6 +9,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -33,6 +34,9 @@ class PublishedBallotImportParser {
     );
     private static final Pattern PARENTHETICAL_ASSIGNMENT = Pattern.compile(
             "\\(([^()]+?)\\s+[-–—]\\s+([^()]+?)\\)"
+    );
+    private static final Pattern BARE_ASSIGNMENT = Pattern.compile(
+            "^([^()]+?)\\s+[-–—]\\s+([^()]+?)$"
     );
     private static final char INLINE_BOUNDARY = '\u001f';
 
@@ -384,6 +388,9 @@ class PublishedBallotImportParser {
         while (parenthetical.find()) {
             hintSource.append(' ').append(parenthetical.group(1)).append(' ').append(parenthetical.group(2));
         }
+        trailingBareAssignment(source, selected).ifPresent(assignment ->
+                hintSource.append(' ').append(assignment.firstToken()).append(' ').append(assignment.secondToken())
+        );
         String hint = normalized(hintSource.toString());
         boolean participantMatches = hint.contains(normalized(submitter.displayName()))
                 || submitter.aliases().stream().anyMatch(alias -> hint.contains(normalized(alias)));
@@ -405,6 +412,30 @@ class PublishedBallotImportParser {
             ));
         }
         return List.of();
+    }
+
+    private static Optional<AssignmentTokens> trailingBareAssignment(String source, PublishedBallotEntry selected) {
+        String lowerSource = source.toLowerCase(Locale.ROOT);
+        String lowerArtist = selected.artist().toLowerCase(Locale.ROOT);
+        String lowerTitle = selected.title().toLowerCase(Locale.ROOT);
+        int artistStart = lowerSource.indexOf(lowerArtist);
+        if (artistStart < 0) return Optional.empty();
+        int titleStart = lowerSource.indexOf(lowerTitle, artistStart + lowerArtist.length());
+        if (titleStart < 0) return Optional.empty();
+
+        String suffix = compact(source.substring(titleStart + selected.title().length()));
+        if (suffix.startsWith("](")) {
+            int urlEnd = suffix.indexOf(')');
+            if (urlEnd < 0) return Optional.empty();
+            suffix = compact(suffix.substring(urlEnd + 1));
+        }
+        suffix = withoutMarkdownDecoration(suffix);
+        Matcher assignment = BARE_ASSIGNMENT.matcher(suffix);
+        if (!assignment.matches()) return Optional.empty();
+        String firstToken = compact(assignment.group(1));
+        String secondToken = compact(assignment.group(2));
+        if (firstToken.isBlank() || secondToken.isBlank()) return Optional.empty();
+        return Optional.of(new AssignmentTokens(firstToken, secondToken));
     }
 
     private ResolvedParticipant resolveParticipant(
@@ -586,6 +617,7 @@ class PublishedBallotImportParser {
     private record SourceLine(String text, String structure, String url) { }
     private record HeaderTokens(String firstToken, String secondToken) { }
     private record ExplicitRankedLine(int rank, String songText) { }
+    private record AssignmentTokens(String firstToken, String secondToken) { }
     private record Block(
             String header,
             String firstHeaderToken,
