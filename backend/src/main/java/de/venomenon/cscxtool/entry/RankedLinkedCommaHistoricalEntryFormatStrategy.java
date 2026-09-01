@@ -50,24 +50,19 @@ final class RankedLinkedCommaHistoricalEntryFormatStrategy implements Historical
         String songText = HistoricalEntryImportText.removeBoundaryMarkdown(rawSongText);
         Optional<AssignmentTokens> assignment = assignmentTokens(rawAssignmentAndDecoration);
         if (assignment.isEmpty()) return Optional.empty();
-        String country = canonicalCountryToken(assignment.get().country());
 
         Optional<HistoricalEntryImportText.SongParts> song = HistoricalEntryImportText.songParts(songText);
         if (song.isEmpty()) {
             return Optional.of(new HistoricalEntryImportParseResult(
-                    null, null, country, assignment.get().participant(), url,
+                    null, null, assignment.get().country(), assignment.get().participant(), url,
                     List.of(new ImportWarning(
                             "MISSING_ARTIST_OR_TITLE", "Interpret und Titel konnten nicht eindeutig getrennt werden."
                     ))
             ));
         }
         return Optional.of(new HistoricalEntryImportParseResult(
-                song.get().artist(), song.get().title(), country, assignment.get().participant(), url, List.of()
+                song.get().artist(), song.get().title(), assignment.get().country(), assignment.get().participant(), url, List.of()
         ));
-    }
-
-    private static String canonicalCountryToken(String country) {
-        return "St. Kitts and Nevis".equalsIgnoreCase(country) ? "St. Kitts und Nevis" : country;
     }
 
     private static Optional<AssignmentTokens> assignmentTokens(String rawValue) {

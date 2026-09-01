@@ -52,7 +52,10 @@ final class HistoricalEntryImportText {
     }
 
     static String normalized(String value) {
-        return Normalizer.normalize(compact(value), Normalizer.Form.NFKC).toLowerCase(Locale.ROOT);
+        String normalized = Normalizer.normalize(compact(value), Normalizer.Form.NFKC).toLowerCase(Locale.ROOT);
+        // Exact historical country spelling used by real CSC sources. Keep the raw token for preview/source fidelity;
+        // only its lookup identity is aligned with the catalog's German display name.
+        return "st. kitts and nevis".equals(normalized) ? "st. kitts und nevis" : normalized;
     }
 
     static boolean validHttpUrl(String value) {

@@ -44,7 +44,7 @@ class HistoricalEntryRankedLinkedCommaFormatTest {
         assertThat(lines.get(6)).satisfies(line -> {
             assertThat(line.artist()).isEqualTo("Elmo ‘n’ Patsy");
             assertThat(line.participantDisplayName()).isEqualTo("OldManWaterfall");
-            assertThat(line.countryToken()).isEqualTo("St. Kitts und Nevis");
+            assertThat(line.countryToken()).isEqualTo("St. Kitts and Nevis");
         });
         assertThat(lines.get(7).title()).isEqualTo("Christmas Eve (Sarajevo 12/24)");
         assertThat(lines.get(11).title()).isEqualTo("Winter Wonderland/Don’t Worry Be Happy");
