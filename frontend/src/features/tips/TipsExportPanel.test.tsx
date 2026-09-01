@@ -34,7 +34,7 @@ describe('TipsExportPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Zuordnungen kopieren' }))
 
     await waitFor(() => expect(writeText).toHaveBeenCalledWith(exported))
-    expect(fetchMock).toHaveBeenCalledWith('/api/shows/7/tips/export', expect.objectContaining({ credentials: 'same-origin' }))
+    expect(fetchMock).toHaveBeenCalledWith('/api/shows/7/tips/export')
     expect(screen.getByText(/in die Zwischenablage kopiert/)).toBeInTheDocument()
   })
 })
