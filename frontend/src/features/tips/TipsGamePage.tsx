@@ -12,6 +12,7 @@ import {
   fetchTipsGame, fetchTipsHistory, reopenTipsGame, resolveTipsGame, saveTipsGame, type TipsAssignment,
   type TipsConfidence, type TipsEntry, type TipsGame, TipsGameApiError, type TipsGameStatus, type TipsHistory, type TipsParticipant,
 } from './api'
+import { TipsExportPanel } from './TipsExportPanel'
 import { assignParticipant, changeTipMetadata, persistTipsDraft } from './tipsAssignments'
 
 type TipsFilter = 'ALL' | 'UNASSIGNED' | 'LOW' | 'CORRECT' | 'INCORRECT'
@@ -116,6 +117,7 @@ export function TipsGamePage() {
     {error !== null && <ApiErrorNotice error={error.apiError} />}
     {movedNotice !== null && <Alert onClose={() => setMovedNotice(null)} severity="info">{movedNotice}</Alert>}
     <TipsStatus game={game} assignments={assignments} eligibleEntryCount={eligibleEntryCount} allActualAssignmentsKnown={allActualAssignmentsKnown} onResolve={() => setResolutionAction('resolve')} onReopen={() => setResolutionAction('reopen')} saving={saving} />
+    <TipsExportPanel ready={game.persisted && game.entries.length > 0 && assignments === eligibleEntryCount} showId={game.showId} />
     {game.entries.length === 0 && <Alert severity="info">Sobald die anonyme Songliste erfasst ist, kann hier ein Tippstand begonnen werden.</Alert>}
     {game.participants.length === 0 && <Alert severity="info">Pflege zuerst das Teilnehmerfeld der aktuellen CSC-Ausgabe.</Alert>}
     {game.statistics !== null && <TipsStatistics statistics={game.statistics} />}
