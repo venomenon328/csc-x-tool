@@ -29,11 +29,18 @@ class PublishedBallotImportParser {
 
     private static final Pattern STANDARD_HEADER = Pattern.compile("^\\s*\\[\\s*#?\\s*\\d+\\s*]\\s*(.*?)\\s*$");
     private static final Pattern ENCLOSED_HEADER = Pattern.compile("^\\s*\\[\\s*#?\\s*\\d+\\s+(.+?)\\s*]\\s*$");
+    private static final Pattern VOTING_HEADER = Pattern.compile(
+            "^\\s*\\d+\\.\\s*Voting\\s*\\(([^(),]+?),\\s*(.+?)\\)\\s*:\\s*$",
+            Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE
+    );
     private static final Pattern EXPLICIT_RANKED_LINE = Pattern.compile(
-            "^\\s*(\\d{1,2})\\.\\s+(.+?)\\s+(?:[*_`~]+\\s*)?(?:(\\d+)\\s*([^\\s\\d]+)|([^\\s\\d]+)\\s+(\\d+))\\s*$"
+            "^\\s*(\\d{1,2})\\.\\s+(.+?)\\s+(?:[-–—]\\s+)?(?:[*_`~]+\\s*)?(?:(\\d+)\\s*([^\\s\\d]+)|([^\\s\\d]+)\\s+(\\d+))\\s*$"
     );
     private static final Pattern PARENTHETICAL_ASSIGNMENT = Pattern.compile(
             "\\(([^()]+?)\\s+[-–—]\\s+([^()]+?)\\)"
+    );
+    private static final Pattern PARENTHETICAL_COMMA_ASSIGNMENT = Pattern.compile(
+            "^\\(([^(),]+?),\\s*(.+?)\\)$"
     );
     private static final Pattern BARE_ASSIGNMENT = Pattern.compile(
             "^([^()]+?)\\s+[-–—]\\s+([^()]+?)$"
@@ -50,6 +57,7 @@ class PublishedBallotImportParser {
         values.put(normalized("Südafrika"), "ZA");
         values.put(normalized("Türkei"), "TR");
         values.put(normalized("Vatikan"), "VA");
+        values.put(normalized("St. Kitts and Nevis"), "KN");
         this.countriesByName = Map.copyOf(values);
     }
 
@@ -171,6 +179,13 @@ class PublishedBallotImportParser {
 
     private static HeaderTokens parseHeader(String source) {
         String value = withoutMarkdownDecoration(source);
+        Matcher voting = VOTING_HEADER.matcher(value);
+        if (voting.matches()) {
+            String first = compact(voting.group(1));
+            String second = compact(voting.group(2));
+            return first.isBlank() || second.isBlank() ? null : new HeaderTokens(first, second);
+        }
+
         Matcher standard = STANDARD_HEADER.matcher(value);
         Matcher enclosed = ENCLOSED_HEADER.matcher(value);
         String payload;
@@ -391,6 +406,9 @@ class PublishedBallotImportParser {
         trailingBareAssignment(source, selected).ifPresent(assignment ->
                 hintSource.append(' ').append(assignment.firstToken()).append(' ').append(assignment.secondToken())
         );
+        trailingCommaAssignment(source, selected).ifPresent(assignment ->
+                hintSource.append(' ').append(assignment.firstToken()).append(' ').append(assignment.secondToken())
+        );
         String hint = normalized(hintSource.toString());
         boolean participantMatches = hint.contains(normalized(submitter.displayName()))
                 || submitter.aliases().stream().anyMatch(alias -> hint.contains(normalized(alias)));
@@ -415,6 +433,22 @@ class PublishedBallotImportParser {
     }
 
     private static Optional<AssignmentTokens> trailingBareAssignment(String source, PublishedBallotEntry selected) {
+        return trailingAssignmentSuffix(source, selected).flatMap(suffix -> {
+            Matcher assignment = BARE_ASSIGNMENT.matcher(suffix);
+            if (!assignment.matches()) return Optional.empty();
+            return assignmentTokens(assignment);
+        });
+    }
+
+    private static Optional<AssignmentTokens> trailingCommaAssignment(String source, PublishedBallotEntry selected) {
+        return trailingAssignmentSuffix(source, selected).flatMap(suffix -> {
+            Matcher assignment = PARENTHETICAL_COMMA_ASSIGNMENT.matcher(suffix);
+            if (!assignment.matches()) return Optional.empty();
+            return assignmentTokens(assignment);
+        });
+    }
+
+    private static Optional<String> trailingAssignmentSuffix(String source, PublishedBallotEntry selected) {
         String lowerSource = source.toLowerCase(Locale.ROOT);
         String lowerArtist = selected.artist().toLowerCase(Locale.ROOT);
         String lowerTitle = selected.title().toLowerCase(Locale.ROOT);
@@ -429,9 +463,10 @@ class PublishedBallotImportParser {
             if (urlEnd < 0) return Optional.empty();
             suffix = compact(suffix.substring(urlEnd + 1));
         }
-        suffix = withoutMarkdownDecoration(suffix);
-        Matcher assignment = BARE_ASSIGNMENT.matcher(suffix);
-        if (!assignment.matches()) return Optional.empty();
+        return Optional.of(withoutMarkdownDecoration(suffix));
+    }
+
+    private static Optional<AssignmentTokens> assignmentTokens(Matcher assignment) {
         String firstToken = compact(assignment.group(1));
         String secondToken = compact(assignment.group(2));
         if (firstToken.isBlank() || secondToken.isBlank()) return Optional.empty();
@@ -506,7 +541,7 @@ class PublishedBallotImportParser {
     }
 
     private static ExplicitRankedLine explicitRankedLine(String source) {
-        Matcher matcher = EXPLICIT_RANKED_LINE.matcher(compact(source));
+        Matcher matcher = EXPLICIT_RANKED_LINE.matcher(withoutMarkdownDecoration(source));
         if (!matcher.matches()) return null;
         String pointsWord = matcher.group(4) != null ? matcher.group(4) : matcher.group(5);
         if (pointsWord.codePoints().noneMatch(Character::isLetter)) return null;
@@ -537,7 +572,6 @@ class PublishedBallotImportParser {
     private static boolean isStructuredScorePrefix(String source) {
         String prefix = compact(withoutInlineBoundaries(source));
         if (prefix.isBlank()) return false;
-
         int numberStart = -1;
         int numberEnd = -1;
         boolean numberFinished = false;
