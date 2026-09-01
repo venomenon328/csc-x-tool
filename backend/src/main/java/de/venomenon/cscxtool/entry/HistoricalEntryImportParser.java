@@ -23,6 +23,7 @@ import org.springframework.stereotype.Component;
 class HistoricalEntryImportParser {
 
     private static final String HTML_LINK_BOUNDARY = "CSC_X_TOOL_HTML_LINK_BOUNDARY";
+    private static final String HTML_ENTRY_BOUNDARY = "CSC_X_TOOL_HTML_ENTRY_BOUNDARY";
     private static final ImportWarning UNRECOGNIZED_FORMAT = new ImportWarning(
             "UNRECOGNIZED_FORMAT", "Die Zeile entspricht keinem bekannten historischen Songlistenformat und muss manuell ergänzt werden."
     );
@@ -94,6 +95,7 @@ class HistoricalEntryImportParser {
 
     private void appendHtmlBlock(Element block, List<HistoricalImportSourceLine> target) {
         if (appendLineSeparatedHtmlBlock(block, target)) return;
+        if (appendRepeatedLinkedSuffixHtmlBlock(block, target)) return;
 
         String visibleText = HistoricalEntryImportText.compact(block.text());
         if (!HistoricalEntryImportText.looksLikePotentialEntry(visibleText)) return;
@@ -145,6 +147,38 @@ class HistoricalEntryImportParser {
             logicalBlocks.add(logicalBlock);
         }
         if (isolatedLinks != originalLinks.size() || isolatedLinks < 2) return false;
+
+        logicalBlocks.forEach(logicalBlock -> appendHtmlBlock(logicalBlock, target));
+        return true;
+    }
+
+    private boolean appendRepeatedLinkedSuffixHtmlBlock(Element block, List<HistoricalImportSourceLine> target) {
+        List<Element> originalLinks = block.select("a[href]");
+        if (originalLinks.size() <= 1) return false;
+
+        Element copy = block.clone();
+        copy.select("a[href]").forEach(link -> link.before(HTML_ENTRY_BOUNDARY));
+        String[] fragments = copy.html().split(HTML_ENTRY_BOUNDARY, -1);
+        if (fragments.length != originalLinks.size() + 1) return false;
+
+        List<Element> logicalBlocks = new ArrayList<>();
+        for (int index = 1; index < fragments.length; index++) {
+            if (fragments[index].isBlank()) return false;
+            Element logicalBlock = Jsoup.parseBodyFragment(fragments[index]).body();
+            List<Element> links = logicalBlock.select("a[href]");
+            if (links.size() != 1) return false;
+
+            Element link = links.getFirst();
+            String href = HistoricalEntryImportText.compact(link.attr("href"));
+            if (!HistoricalEntryImportText.validHttpUrl(href)) return false;
+            String visible = HistoricalEntryImportText.compact(logicalBlock.text());
+            String anchor = HistoricalEntryImportText.compact(link.text());
+            if (anchor.isBlank() || !visible.startsWith(anchor)) return false;
+            String suffix = visible.substring(anchor.length());
+            if (!LinkedSongSuffixHistoricalEntryFormatStrategy.isParenthesizedAssignmentSuffix(suffix)) return false;
+            logicalBlocks.add(logicalBlock);
+        }
+        if (logicalBlocks.size() != originalLinks.size()) return false;
 
         logicalBlocks.forEach(logicalBlock -> appendHtmlBlock(logicalBlock, target));
         return true;
