@@ -1,6 +1,6 @@
 # Arbeitsablauf: anonyme Songliste möglichen Einreichenden zuordnen
 
-**Workflow-Version:** 1.0  
+**Workflow-Version:** 1.1  
 **Stand:** 2026-09-01
 
 ## 1. Zweck
@@ -36,9 +36,11 @@ Der Auftrag muss enthalten:
 - aktiver Wettbewerb;
 - Zielshow mit Nummer und Titel;
 - vollständige anonyme Songliste mit Interpret, Titel und möglichst URL;
-- optional bereits sicher bekannte Zuordnungen, insbesondere die eigene Einreichung;
+- optional ausdrücklich als sicher vorgegebene Zuordnungen;
 - optional manuelle Hinweise, jeweils als Fakt, Beobachtung oder Vermutung gekennzeichnet;
 - aktuellsten Analyseexport oder einen eindeutig bezeichneten freigegebenen persistenten Exportstand.
+
+Eine im Analyseexport bereits enthaltene tatsächliche Zuordnung der Zielshow gilt niemals allein dadurch als sichere Zuordnung. Dies gilt ausdrücklich auch für die eigene Einreichung des Nutzers.
 
 ## 4. Eingangs- und Qualitätsprüfung
 
@@ -51,7 +53,7 @@ Vor jeder Zuordnung werden geprüft:
 - Vollständigkeit der anonymen Songliste;
 - Verhältnis von Song- und Teilnehmerzahl;
 - bekannte Nicht-Einreichende oder zusätzliche Songs;
-- sichere Zuordnungen;
+- ausdrücklich vorgegebene sichere Zuordnungen;
 - stabile Teilnehmeridentitäten;
 - vollständige historische Shows;
 - Profile und deren Aktualität;
@@ -67,7 +69,9 @@ Die Menge möglicher Einreichender besteht ausschließlich aus aktiven Contest-T
 eligible_submitters = active_participations(active_contest)
 ```
 
-Sicher bekannte Zuordnungen werden fixiert und anschließend aus Song- und Teilnehmermenge entfernt.
+Dies schließt den Nutzer selbst vollständig und gleichberechtigt ein. Eine technisch bereits bekannte eigene Einreichung entfernt ihn nicht aus der Kandidatenmenge.
+
+Nur Zuordnungen, die im Auftrag ausdrücklich als sicher vorgegeben wurden, werden fixiert und anschließend aus Song- und Teilnehmermenge entfernt. Aus der Zielshow selbst gelesene Ist-Zuordnungen dürfen dafür nicht verwendet werden.
 
 Historische Nichtteilnehmer sind keine Matching-Kandidaten. Ihre Profile dürfen nicht als Ersatzkandidaten, Cluster oder Feld-Prior in die aktuelle Zuordnung eingehen.
 
@@ -76,6 +80,10 @@ Historische Daten einer heute aktiven Person bleiben als Trainingsdaten ihres Au
 ## 6. Stichtag und Leakage-Schutz
 
 Verwendet werden ausschließlich Informationen, die zum realen Tippzeitpunkt verfügbar sein durften.
+
+Vor jeder Analyse werden sämtliche tatsächlichen Einreichendenzuordnungen der Zielshow logisch maskiert. Das gilt ohne Ausnahme für alle aktuellen Teilnehmer und ausdrücklich auch für die eigene Einreichung des Nutzers. Entsprechende Felder und daraus ableitbare aktuelle Zuordnungsinformationen dürfen weder für Scoring noch Matching, Profilbildung, Alternativen oder Plausibilitätsprüfung verwendet werden.
+
+Erst nach dieser Maskierung dürfen Zuordnungen wieder als harte Constraints eingebracht werden, wenn der Nutzer sie im aktuellen Auftrag ausdrücklich als sicher vorgibt. Eine im Export vorhandene Ist-Zuordnung ist selbst dann kein zulässiger Beleg, wenn sie dem Modell technisch sichtbar ist oder anderweitig bereits bekannt erscheint.
 
 Auszuschließen sind insbesondere:
 
@@ -87,6 +95,8 @@ Auszuschließen sind insbesondere:
 - nachträgliche Restelimination aus einer bereits bekannten Gesamtlösung.
 
 Ist der übergebene Export zeitlich bereits nach Auflösung der Zielshow entstanden, müssen alle potenziell geleakten Felder der Zielshow logisch ausgeblendet werden. Ist dies nicht zuverlässig möglich, wird der Lauf blockiert.
+
+Im Laufprotokoll wird ausdrücklich vermerkt, dass die Zielshow-Zuordnungen einschließlich einer gegebenenfalls vorhandenen eigenen Einreichung maskiert wurden.
 
 ## 7. Gezielte Profilaktualisierung
 
@@ -173,7 +183,7 @@ Dabei gilt:
 
 - jeder Song höchstens einem Teilnehmer;
 - jeder Teilnehmer höchstens einem Song;
-- sichere Zuordnungen bleiben fixiert;
+- ausdrücklich vorgegebene sichere Zuordnungen bleiben fixiert;
 - Dummy-Knoten beziehungsweise `UNAUFGELÖST` sind zulässig und erwünscht;
 - nur Paarungen oberhalb einer fachlich vertretbaren Evidenzschwelle gelangen in die Kernzuordnung;
 - die globale Optimierung darf keinen lokal schwachen Tipp als belastbare Erkenntnis tarnen;
@@ -202,9 +212,9 @@ Exakte Prozentwerte werden erst nach dokumentierter Kalibrierung durch Backtests
 - Zahl anonymer Songs;
 - Zahl aktiver möglicher Einreichender;
 - Zahl mit hoher, mittlerer, geringer und keiner verwertbaren Datenbasis;
-- sichere Zuordnungen;
+- ausdrücklich vorgegebene sichere Zuordnungen;
 - ausgeschlossene historische Nichtteilnehmer;
-- relevante Quality-Gate- und Leakage-Einschränkungen.
+- relevante Quality-Gate- und Leakage-Einschränkungen einschließlich der bestätigten Maskierung aller Zielshow-Zuordnungen.
 
 ### 12.2 Evidenzbasierte Kernzuordnung
 
@@ -233,7 +243,7 @@ Alle Songs ohne ausreichend begründeten Primärtipp werden separat aufgeführt.
 
 ### 12.4 Nicht profilierbare Teilnehmer
 
-Aktuelle Teilnehmer ohne verwertbare Datenbasis werden separat genannt und nicht zugeordnet, sofern kein konkreter manueller Fakt oder keine sichere Zuordnung vorliegt.
+Aktuelle Teilnehmer ohne verwertbare Datenbasis werden separat genannt und nicht zugeordnet, sofern kein konkreter manueller Fakt oder keine ausdrücklich vorgegebene sichere Zuordnung vorliegt.
 
 ### 12.5 Globale Konflikte
 
@@ -264,7 +274,7 @@ Bei einem offiziellen Lauf werden aktualisiert:
 - `Songmerkmale` für neue oder geänderte Ziel- und historische Songs;
 - `Profile` für betroffene aktuell aktive Teilnehmer;
 - `Belege` einschließlich Gegenbelegen;
-- `Analyseläufe` mit Exportstand, Stichtag, Protokoll- und Workflow-Version;
+- `Analyseläufe` mit Exportstand, Stichtag, Protokoll- und Workflow-Version sowie dokumentierter Zielshow-Maskierung;
 - bei späteren Backtests zusätzlich `Backtests`.
 
 Tipps werden nicht automatisch in das CSC X Tool zurückgeschrieben. Eine Übernahme erfolgt nur nach ausdrücklicher Nutzeranweisung.
