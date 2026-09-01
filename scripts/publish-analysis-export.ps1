@@ -8,7 +8,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-$ScriptVersion = "1.0"
+$ScriptVersion = "1.1"
 $ExpectedFormat = "csc-x-tool-analysis"
 $ConfigDirectory = Join-Path $env:APPDATA "CSC X Tool"
 $ConfigPath = Join-Path $ConfigDirectory "analysis-export-publisher.json"
@@ -63,6 +63,12 @@ function Get-ArchiveId {
     param([Parameter(Mandatory = $true)][string]$GeneratedAt)
 
     return (Convert-ToTimestamp $GeneratedAt).ToString("yyyyMMdd'T'HHmmssfff'Z'")
+}
+
+function Get-Sha256 {
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
 }
 
 function Assert-Package {
@@ -128,6 +134,32 @@ function Assert-Package {
     }
 }
 
+function Ensure-ConnectorTextMirrors {
+    param([Parameter(Mandatory = $true)][string]$PackageRoot)
+
+    $pairs = @(
+        [PSCustomObject]@{ Source = "analysis.json"; Mirror = "analysis.txt" },
+        [PSCustomObject]@{ Source = "manifest.json"; Mirror = "manifest.txt" }
+    )
+
+    foreach ($pair in $pairs) {
+        $sourcePath = Join-Path $PackageRoot $pair.Source
+        $mirrorPath = Join-Path $PackageRoot $pair.Mirror
+
+        if (-not (Test-Path -LiteralPath $sourcePath -PathType Leaf)) {
+            throw "Quelle fuer Connector-Spiegel fehlt: $($pair.Source)"
+        }
+
+        Copy-Item -LiteralPath $sourcePath -Destination $mirrorPath -Force
+
+        $sourceHash = Get-Sha256 $sourcePath
+        $mirrorHash = Get-Sha256 $mirrorPath
+        if ($sourceHash -ne $mirrorHash) {
+            throw "Connector-Spiegel ist nicht bytegleich: $($pair.Source) -> $($pair.Mirror)"
+        }
+    }
+}
+
 function Test-SamePublishedExport {
     param(
         [Parameter(Mandatory = $true)][string]$CurrentPath,
@@ -152,10 +184,10 @@ function Test-SamePublishedExport {
         }
     }
 
-    $currentManifestHash = (Get-FileHash -LiteralPath (Join-Path $CurrentPath "manifest.json") -Algorithm SHA256).Hash
-    $newManifestHash = (Get-FileHash -LiteralPath $NewPackage.ManifestPath -Algorithm SHA256).Hash
-    $currentAnalysisHash = (Get-FileHash -LiteralPath (Join-Path $CurrentPath "analysis.json") -Algorithm SHA256).Hash
-    $newAnalysisHash = (Get-FileHash -LiteralPath $NewPackage.AnalysisPath -Algorithm SHA256).Hash
+    $currentManifestHash = Get-Sha256 (Join-Path $CurrentPath "manifest.json")
+    $newManifestHash = Get-Sha256 $NewPackage.ManifestPath
+    $currentAnalysisHash = Get-Sha256 (Join-Path $CurrentPath "analysis.json")
+    $newAnalysisHash = Get-Sha256 $NewPackage.AnalysisPath
 
     return $currentManifestHash -eq $newManifestHash -and $currentAnalysisHash -eq $newAnalysisHash
 }
@@ -168,6 +200,9 @@ function Write-PublishMetadata {
         [Parameter(Mandatory = $true)][string]$SourceZipSha256
     )
 
+    $manifestSha256 = Get-Sha256 (Join-Path $CurrentPath "manifest.json")
+    $analysisSha256 = Get-Sha256 (Join-Path $CurrentPath "analysis.json")
+
     Write-Utf8Json ([ordered]@{
         publisher = "scripts/publish-analysis-export.ps1"
         publisherVersion = $ScriptVersion
@@ -176,6 +211,13 @@ function Write-PublishMetadata {
         generatedAt = [string]$Package.Manifest.generatedAt
         format = [string]$Package.Manifest.format
         formatVersion = $Package.Manifest.formatVersion
+        manifestSha256 = $manifestSha256
+        analysisSha256 = $analysisSha256
+        connectorMirrors = [ordered]@{
+            manifest = "manifest.txt"
+            analysis = "analysis.txt"
+            byteIdenticalToJson = $true
+        }
         publishedAt = [DateTimeOffset]::UtcNow.ToString("o")
     }) (Join-Path $CurrentPath "upload-meta.json")
 }
@@ -261,7 +303,7 @@ try {
 
     $packageRoot = $manifestMatches[0].Directory.FullName
     $package = Assert-Package $packageRoot
-    $zipSha256 = (Get-FileHash -LiteralPath $ZipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    $zipSha256 = Get-Sha256 $ZipPath
 
     Write-Host "Format:       $ExpectedFormat v$($package.Manifest.formatVersion)"
     Write-Host "generatedAt:  $($package.GeneratedAt.ToString('o'))"
@@ -275,8 +317,9 @@ try {
     New-Item -ItemType Directory -Path $incomingRoot -Force | Out-Null
 
     if (Test-SamePublishedExport $currentPath $package $zipSha256) {
+        Ensure-ConnectorTextMirrors $currentPath
         Write-PublishMetadata $currentPath $package $ZipPath $zipSha256
-        Write-Host "Der Export ist bereits der aktuelle Drive-Stand. Metadaten wurden aktualisiert; sonst keine Aenderung notwendig."
+        Write-Host "Der Export ist bereits der aktuelle Drive-Stand. Connector-Spiegel und Metadaten wurden aktualisiert; keine Archivrotation notwendig."
         return
     }
 
@@ -292,13 +335,15 @@ try {
         throw "Der temporaere Drive-Stand stimmt nicht mit dem Quellpaket ueberein."
     }
 
-    $sourceManifestHash = (Get-FileHash -LiteralPath $package.ManifestPath -Algorithm SHA256).Hash
-    $stageManifestHash = (Get-FileHash -LiteralPath (Join-Path $stagePath "manifest.json") -Algorithm SHA256).Hash
-    $sourceAnalysisHash = (Get-FileHash -LiteralPath $package.AnalysisPath -Algorithm SHA256).Hash
-    $stageAnalysisHash = (Get-FileHash -LiteralPath (Join-Path $stagePath "analysis.json") -Algorithm SHA256).Hash
+    $sourceManifestHash = Get-Sha256 $package.ManifestPath
+    $stageManifestHash = Get-Sha256 (Join-Path $stagePath "manifest.json")
+    $sourceAnalysisHash = Get-Sha256 $package.AnalysisPath
+    $stageAnalysisHash = Get-Sha256 (Join-Path $stagePath "analysis.json")
     if ($sourceManifestHash -ne $stageManifestHash -or $sourceAnalysisHash -ne $stageAnalysisHash) {
         throw "Die kopierten Kern-Dateien stimmen nicht mit dem entpackten Quellpaket ueberein."
     }
+
+    Ensure-ConnectorTextMirrors $stagePath
 
     if (Test-Path -LiteralPath $currentPath -PathType Container) {
         $currentPackage = Assert-Package $currentPath
@@ -333,12 +378,14 @@ try {
         throw "Der aktivierte current-Stand besitzt einen unerwarteten generatedAt-Wert."
     }
 
+    Ensure-ConnectorTextMirrors $currentPath
     Write-PublishMetadata $currentPath $package $ZipPath $zipSha256
 
     Write-Host ""
     Write-Host "Lokale Veroeffentlichung abgeschlossen."
     Write-Host "Current:  $currentPath"
     Write-Host "Archiv:   $archiveRoot"
+    Write-Host "Connector-Spiegel: analysis.txt, manifest.txt"
     Write-Host ""
     Write-Host "Google Drive for Desktop uebernimmt jetzt den Cloud-Sync."
     Write-Host "Vor einer KI-Analyse warten, bis Drive 'Up to date' / 'Aktuell' meldet."
