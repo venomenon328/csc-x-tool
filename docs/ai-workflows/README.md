@@ -28,7 +28,7 @@ Der ZIP-Upload bleibt als Archiv sinnvoll, ist als alleinige Übergabe jedoch ni
 Für wiederkehrende Analysen ist eine private Drive-Ablage die bevorzugte dauerhafte Lösung. Empfohlene Struktur:
 
 ```text
-CSC X Tool/
+CSC/
   Analyseexport/
     current/
       analysis.json
@@ -38,12 +38,53 @@ CSC X Tool/
       entries.csv
       ballots.csv
       assessment-matrix.csv
+      upload-meta.json
     archive/
-      2026-09-01T01-26-25Z/
+      <generatedAt>/
         ...
 ```
 
-`current` enthält immer den zuletzt freigegebenen vollständigen Export. `archive` bewahrt nur die tatsächlich für protokollierte Analyseläufe verwendeten Stände auf. Ein neuer Lauf muss `generatedAt`, Exportformat, Formatversion und Dateiname des verwendeten Stands protokollieren.
+`current` enthält immer den zuletzt freigegebenen vollständigen Export. `archive` bewahrt nur die tatsächlich veröffentlichten vorherigen `current`-Stände auf. `upload-meta.json` ergänzt insbesondere Dateiname und SHA-256 des ursprünglichen ZIPs. Ein neuer Analyselauf protokolliert `generatedAt`, Exportformat, Formatversion, Dateiname und soweit verfügbar SHA-256 des verwendeten Stands.
+
+### Automatisierte Veröffentlichung über Google Drive for Desktop
+
+Unter Windows übernimmt [`../../scripts/publish-analysis-export.ps1`](../../scripts/publish-analysis-export.ps1) die lokale Veröffentlichung in einen von Google Drive for Desktop synchronisierten Ordner.
+
+Einmalig werden Download- und Drive-Verzeichnis in einer lokalen, nicht versionierten Konfiguration unter `%APPDATA%\CSC X Tool\analysis-export-publisher.json` gespeichert:
+
+```powershell
+.\scripts\publish-analysis-export.ps1 `
+  -Configure `
+  -DownloadDirectory '<Download-Verzeichnis>' `
+  -DriveDirectory '<lokaler Drive-Pfad zu CSC\Analyseexport>'
+```
+
+Der Konfigurationsaufruf veröffentlicht zugleich den neuesten passenden Analyseexport. Danach genügt aus dem Repository-Root:
+
+```powershell
+.\scripts\publish-analysis-export.ps1
+```
+
+Optional kann eine konkrete Datei gewählt werden:
+
+```powershell
+.\scripts\publish-analysis-export.ps1 -ZipPath '<Pfad zu analysis-....zip>'
+```
+
+Das Script:
+
+1. wählt standardmäßig das neueste `analysis-*.zip` aus dem konfigurierten Download-Verzeichnis;
+2. entpackt in ein temporäres lokales Verzeichnis;
+3. prüft `manifest.json`, `analysis.json`, Format, Formatversion, `generatedAt` und alle im Manifest gelisteten Dateien;
+4. berechnet SHA-256 des ursprünglichen ZIPs;
+5. kopiert den neuen Stand zunächst nach `_incoming` im Drive-Verzeichnis und prüft die Kern-Dateien erneut;
+6. verschiebt einen vorhandenen `current`-Stand anhand seines `generatedAt` nach `archive`;
+7. aktiviert den neuen Stand als `current` und schreibt abschließend `upload-meta.json`;
+8. versucht bei einem Fehler während des Umschaltens den vorherigen `current`-Stand wiederherzustellen.
+
+Lokale Maschinenpfade werden nicht im öffentlichen Repository gespeichert. Die Quell-ZIP wird nicht gelöscht.
+
+Google Drive for Desktop synchronisiert die fertige lokale Struktur anschließend asynchron in die Cloud. Vor einer externen KI-Analyse muss deshalb abgewartet werden, bis Drive den Status `Aktuell` beziehungsweise `Up to date` meldet. Die Analyse selbst prüft zusätzlich den tatsächlich auf Drive lesbaren `current`-Stand; eine erfolgreiche lokale Script-Ausgabe allein beweist noch keinen abgeschlossenen Cloud-Sync.
 
 ### GitHub nur als private Textablage
 
