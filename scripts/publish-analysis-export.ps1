@@ -48,21 +48,21 @@ function Get-NormalizedDirectory {
     return (Resolve-Path -LiteralPath $Path).Path
 }
 
+function Convert-ToTimestamp {
+    param([Parameter(Mandatory = $true)][string]$Value)
+
+    try {
+        return [DateTimeOffset]::Parse($Value, [Globalization.CultureInfo]::InvariantCulture).ToUniversalTime()
+    }
+    catch {
+        throw "Ungueltiger ISO-Zeitstempel: $Value"
+    }
+}
+
 function Get-ArchiveId {
     param([Parameter(Mandatory = $true)][string]$GeneratedAt)
 
-    try {
-        $timestamp = [DateTimeOffset]::Parse(
-            $GeneratedAt,
-            [Globalization.CultureInfo]::InvariantCulture,
-            [Globalization.DateTimeStyles]::RoundtripKind
-        )
-    }
-    catch {
-        throw "generatedAt ist kein gueltiger Zeitstempel: $GeneratedAt"
-    }
-
-    return $timestamp.ToUniversalTime().ToString("yyyyMMdd'T'HHmmssfff'Z'")
+    return (Convert-ToTimestamp $GeneratedAt).ToString("yyyyMMdd'T'HHmmssfff'Z'")
 }
 
 function Assert-Package {
@@ -97,9 +97,9 @@ function Assert-Package {
         throw "generatedAt fehlt in manifest.json oder analysis.json."
     }
 
-    $manifestTimestamp = [DateTimeOffset]::Parse([string]$manifest.generatedAt)
-    $analysisTimestamp = [DateTimeOffset]::Parse([string]$analysis.generatedAt)
-    if ($manifestTimestamp.ToUniversalTime() -ne $analysisTimestamp.ToUniversalTime()) {
+    $manifestTimestamp = Convert-ToTimestamp ([string]$manifest.generatedAt)
+    $analysisTimestamp = Convert-ToTimestamp ([string]$analysis.generatedAt)
+    if ($manifestTimestamp -ne $analysisTimestamp) {
         throw "generatedAt unterscheidet sich zwischen manifest.json und analysis.json."
     }
 
@@ -123,7 +123,7 @@ function Assert-Package {
         Analysis = $analysis
         ManifestPath = $manifestPath
         AnalysisPath = $analysisPath
-        GeneratedAt = $manifestTimestamp.ToUniversalTime()
+        GeneratedAt = $manifestTimestamp
         ArchiveId = Get-ArchiveId ([string]$manifest.generatedAt)
     }
 }
@@ -158,6 +158,26 @@ function Test-SamePublishedExport {
     $newAnalysisHash = (Get-FileHash -LiteralPath $NewPackage.AnalysisPath -Algorithm SHA256).Hash
 
     return $currentManifestHash -eq $newManifestHash -and $currentAnalysisHash -eq $newAnalysisHash
+}
+
+function Write-PublishMetadata {
+    param(
+        [Parameter(Mandatory = $true)][string]$CurrentPath,
+        [Parameter(Mandatory = $true)]$Package,
+        [Parameter(Mandatory = $true)][string]$SourceZipPath,
+        [Parameter(Mandatory = $true)][string]$SourceZipSha256
+    )
+
+    Write-Utf8Json ([ordered]@{
+        publisher = "scripts/publish-analysis-export.ps1"
+        publisherVersion = $ScriptVersion
+        sourceZip = [System.IO.Path]::GetFileName($SourceZipPath)
+        sourceSha256 = $SourceZipSha256
+        generatedAt = [string]$Package.Manifest.generatedAt
+        format = [string]$Package.Manifest.format
+        formatVersion = $Package.Manifest.formatVersion
+        publishedAt = [DateTimeOffset]::UtcNow.ToString("o")
+    }) (Join-Path $CurrentPath "upload-meta.json")
 }
 
 $config = $null
@@ -255,8 +275,9 @@ try {
     New-Item -ItemType Directory -Path $incomingRoot -Force | Out-Null
 
     if (Test-SamePublishedExport $currentPath $package $zipSha256) {
-        Write-Host "Der Export ist bereits der aktuelle Drive-Stand. Keine Aenderung notwendig."
-        exit 0
+        Write-PublishMetadata $currentPath $package $ZipPath $zipSha256
+        Write-Host "Der Export ist bereits der aktuelle Drive-Stand. Metadaten wurden aktualisiert; sonst keine Aenderung notwendig."
+        return
     }
 
     $stagePath = Join-Path $incomingRoot ($package.ArchiveId + "-" + [Guid]::NewGuid().ToString("N"))
@@ -312,16 +333,7 @@ try {
         throw "Der aktivierte current-Stand besitzt einen unerwarteten generatedAt-Wert."
     }
 
-    Write-Utf8Json ([ordered]@{
-        publisher = "scripts/publish-analysis-export.ps1"
-        publisherVersion = $ScriptVersion
-        sourceZip = [System.IO.Path]::GetFileName($ZipPath)
-        sourceSha256 = $zipSha256
-        generatedAt = [string]$package.Manifest.generatedAt
-        format = [string]$package.Manifest.format
-        formatVersion = $package.Manifest.formatVersion
-        publishedAt = [DateTimeOffset]::UtcNow.ToString("o")
-    }) (Join-Path $currentPath "upload-meta.json")
+    Write-PublishMetadata $currentPath $package $ZipPath $zipSha256
 
     Write-Host ""
     Write-Host "Lokale Veroeffentlichung abgeschlossen."
