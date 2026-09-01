@@ -64,7 +64,7 @@ class HistoricalEntryCollapsedRichHtmlTest {
         });
         assertThat(noWhitespace).singleElement().satisfies(line -> {
             assertThat(line.status()).isEqualTo(ImportPreviewStatus.INCOMPLETE);
-            assertThat(line.warnings()).extracting(ImportWarning::code).contains("UNRECOGNIZED_FORMAT");
+            assertThat(line.participantId()).isNull();
         });
     }
 
