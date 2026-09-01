@@ -8,6 +8,8 @@ import java.util.regex.Pattern;
 /** Format D: one linked song followed by a country/participant assignment, with optional parentheses. */
 final class LinkedSongSuffixHistoricalEntryFormatStrategy implements HistoricalEntryImportFormatStrategy {
 
+    private static final RankedLinkedCommaHistoricalEntryFormatStrategy RANKED_LINKED_COMMA =
+            new RankedLinkedCommaHistoricalEntryFormatStrategy();
     private static final String ASSIGNMENT_SEPARATOR = "(?:\\s+[-–—]\\s*|\\s*[-–—]\\s+)";
     private static final Pattern PARENTHESIZED_ASSIGNMENT = Pattern.compile(
             "^\\((.+?)" + ASSIGNMENT_SEPARATOR + "(.+?)\\)$"
@@ -21,6 +23,9 @@ final class LinkedSongSuffixHistoricalEntryFormatStrategy implements HistoricalE
 
     @Override
     public Optional<HistoricalEntryImportParseResult> parse(HistoricalImportSourceLine source) {
+        Optional<HistoricalEntryImportParseResult> rankedLinkedComma = RANKED_LINKED_COMMA.parse(source);
+        if (rankedLinkedComma.isPresent()) return rankedLinkedComma;
+
         if (source.htmlAnchorText() != null && source.directUrl() != null) {
             String visible = HistoricalEntryImportText.compact(source.sourceText());
             String anchor = HistoricalEntryImportText.compact(source.htmlAnchorText());
