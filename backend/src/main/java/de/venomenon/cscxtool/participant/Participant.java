@@ -8,6 +8,7 @@ record Participant(
         String displayName,
         boolean active,
         List<String> aliases,
+        int botbSelectionCount,
         Instant createdAt,
         Instant updatedAt
 ) {

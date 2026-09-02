@@ -114,6 +114,59 @@ class HistoricalExportRestoreIntegrationTest {
     }
 
     @Test
+    void roundTripsBotbSelectionsWithStableIdsDatesAndTimestamps() throws Exception {
+        jdbc.update("INSERT INTO participant (id,display_name,active,created_at,updated_at) VALUES (801,'BOTB Archiv',1,'2026-01-02T03:04:05Z','2026-01-03T04:05:06Z')");
+        jdbc.update("""
+                INSERT INTO participant_botb_selection (id,participant_id,edition_number,artist,known_since,created_at,updated_at)
+                VALUES (802,801,14,'Archiv Act','2025-12-31','2026-01-04T05:06:07Z','2026-01-05T06:07:08Z')
+                """);
+        jdbc.update("""
+                INSERT INTO participant_botb_selection (id,participant_id,edition_number,artist,known_since,created_at,updated_at)
+                VALUES (803,801,3,'Früher Act',NULL,'2026-01-06T07:08:09Z','2026-01-07T08:09:10Z')
+                """);
+
+        ExportFormat.FullExport exported = exports.snapshot();
+        assertThat(exported.formatVersion()).isEqualTo(ExportFormat.VERSION);
+        assertThat(exported.data().participantBotbSelections()).extracting(ExportFormat.ParticipantBotbSelection::id)
+                .containsExactly(802L, 803L);
+        Path source = temporaryDirectory.resolve("botb-v10.json");
+        Files.write(source, objectMapper.writeValueAsBytes(exported));
+        Path restoredDatabase = temporaryDirectory.resolve("botb-restored.db");
+
+        exports.restoreInto(restoredDatabase, exports.readAndValidate(source));
+
+        JdbcTemplate restored = new JdbcTemplate(SqliteDataSourceFactory.create(restoredDatabase));
+        assertThat(restored.queryForList("SELECT id,participant_id,edition_number,artist,known_since,created_at,updated_at FROM participant_botb_selection ORDER BY id"))
+                .extracting(row -> ((Number) row.get("id")).longValue(), row -> ((Number) row.get("participant_id")).longValue(),
+                        row -> ((Number) row.get("edition_number")).longValue(), row -> row.get("artist"), row -> row.get("known_since"),
+                        row -> row.get("created_at"), row -> row.get("updated_at"))
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple(802L, 801L, 14L, "Archiv Act", "2025-12-31", "2026-01-04T05:06:07Z", "2026-01-05T06:07:08Z"),
+                        org.assertj.core.groups.Tuple.tuple(803L, 801L, 3L, "Früher Act", null, "2026-01-06T07:08:09Z", "2026-01-07T08:09:10Z")
+                );
+    }
+
+    @Test
+    void upgradesFormatV9ToAnEmptyBotbSelectionList() throws Exception {
+        ExportFormat.FullExport current = exports.snapshot();
+        ExportFormat.Data data = current.data();
+        ExportFormat.FullExportV9 legacy = new ExportFormat.FullExportV9(ExportFormat.FORMAT, ExportFormat.VERSION_9,
+                current.exportedAt(), current.applicationVersion(), 15, new ExportFormat.DataV9(
+                data.contests(), data.mottoShows(), data.ownEntryResolutions(), data.candidates(), data.participants(),
+                data.contestParticipations(), data.participantAliases(), data.contestEntries(), data.ballotSnapshots(),
+                data.ballotSnapshotItems(), data.legacyResults(), data.legacyReceivedScores(), data.publishedBallots(),
+                data.publishedBallotPositions(), data.tipsGames(), data.tipsGameAssignments()
+        ));
+        Path source = temporaryDirectory.resolve("p15-v9.json");
+        Files.write(source, objectMapper.writeValueAsBytes(legacy));
+
+        ExportFormat.FullExport upgraded = exports.readAndValidate(source);
+
+        assertThat(upgraded.formatVersion()).isEqualTo(ExportFormat.VERSION);
+        assertThat(upgraded.data().participantBotbSelections()).isEmpty();
+    }
+
+    @Test
     void upgradesTheP13JsonShapeToAnEmptyTipsSection() throws Exception {
         ExportFormat.FullExport current = exports.snapshot();
         ExportFormat.Data data = current.data();

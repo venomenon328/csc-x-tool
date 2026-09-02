@@ -9,7 +9,9 @@ import de.venomenon.cscxtool.shared.ApiConflictException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
+import java.util.HashMap;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -37,6 +39,19 @@ class ParticipantService {
 
     ParticipantResponse findById(long participantId) {
         return response(requireParticipant(participantId));
+    }
+
+    List<BotbSelectionResponse> findBotbSelections(long participantId) {
+        requireParticipant(participantId);
+        return repository.findBotbSelections(participantId).stream().map(BotbSelectionResponse::from).toList();
+    }
+
+    @Transactional
+    List<BotbSelectionResponse> replaceBotbSelections(long participantId, List<BotbSelectionRequest> request) {
+        requireParticipant(participantId);
+        List<BotbSelection> existing = repository.findBotbSelections(participantId);
+        repository.replaceBotbSelections(participantId, validatedBotbSelections(request, existing));
+        return repository.findBotbSelections(participantId).stream().map(BotbSelectionResponse::from).toList();
     }
 
     @Transactional
@@ -138,6 +153,41 @@ class ParticipantService {
 
     private ParticipantResponse response(Participant participant) {
         return ParticipantResponse.from(participant);
+    }
+
+    private static List<BotbSelectionCommand> validatedBotbSelections(
+            List<BotbSelectionRequest> request, List<BotbSelection> existing
+    ) {
+        if (request == null) {
+            throw new ApiBadRequestException("INVALID_BOTB_SELECTIONS", "Die BOTB-Auswahlen müssen als vollständige Liste übermittelt werden.");
+        }
+        Map<Long, BotbSelection> existingById = new HashMap<>();
+        for (BotbSelection selection : existing) existingById.put(selection.id(), selection);
+        Set<Long> seenIds = new HashSet<>();
+        Set<Integer> seenEditions = new HashSet<>();
+        List<BotbSelectionCommand> selections = new java.util.ArrayList<>();
+        for (BotbSelectionRequest selection : request) {
+            if (selection == null) {
+                throw new ApiBadRequestException("INVALID_BOTB_SELECTION", "Jede BOTB-Auswahl benötigt Ausgabe und Interpret.");
+            }
+            if (selection.id() != null && selection.id() < 1) {
+                throw new ApiBadRequestException("INVALID_BOTB_SELECTION", "Eine BOTB-Auswahl besitzt eine ungültige ID.");
+            }
+            if (selection.id() != null && (!seenIds.add(selection.id()) || !existingById.containsKey(selection.id()))) {
+                throw new ApiBadRequestException("INVALID_BOTB_SELECTION", "Die BOTB-Auswahl gehört nicht zu diesem Teilnehmer.");
+            }
+            if (selection.editionNumber() == null || selection.editionNumber() < 1) {
+                throw new ApiBadRequestException("INVALID_BOTB_EDITION", "Die BOTB-Ausgabe muss positiv sein.");
+            }
+            if (!seenEditions.add(selection.editionNumber())) {
+                throw new ApiBadRequestException("DUPLICATE_BOTB_EDITION", "Pro Teilnehmer darf jede BOTB-Ausgabe nur einmal erfasst werden.");
+            }
+            selections.add(new BotbSelectionCommand(
+                    selection.id(), selection.editionNumber(),
+                    requiredText(selection.artist(), "Der BOTB-Interpret darf nicht leer sein."), selection.knownSince()
+            ));
+        }
+        return List.copyOf(selections);
     }
 
     private Participant requireParticipant(long participantId) {

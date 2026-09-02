@@ -122,7 +122,7 @@ class TipsGameApiIntegrationTest {
         assertThat(csv.statusCode()).isEqualTo(200);
         assertThat(csv.body()).contains("Tippspiel", "keine Genreannahme", "NOCH_NICHT_AUFGELOEST");
         HttpResponse<String> full = get("/api/data/export/full");
-        assertThat(full.body()).contains("\"formatVersion\":9", "\"tipsGames\"", "\"tipsGameAssignments\"", "keine Genreannahme");
+        assertThat(full.body()).contains("\"formatVersion\":10", "\"tipsGames\"", "\"tipsGameAssignments\"", "keine Genreannahme");
     }
 
     private int tipAssignmentCount(long showId) {

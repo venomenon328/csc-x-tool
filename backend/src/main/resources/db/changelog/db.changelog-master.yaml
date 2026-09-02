@@ -44,3 +44,6 @@ databaseChangeLog:
   - include:
       file: 015-own-entry-voting-workflow.yaml
       relativeToChangelogFile: true
+  - include:
+      file: 016-participant-botb-selections.yaml
+      relativeToChangelogFile: true

@@ -205,8 +205,9 @@ candidate/
 
 - Teilnehmerstammdaten
 - Aliasse
-- Land und Ländercode
-- Aktivstatus
+- identitätsbezogene externe BOTB-Auswahlhistorie
+- voraggregierte BOTB-Anzahl für Teilnehmerlisten
+- Land, Ländercode und Aktivstatus der CSC-Teilnahme
 
 #### `entry`
 
@@ -262,6 +263,8 @@ Vorgesehene Routen:
 /shows/:showId/voting          Abstimmung
 /shows/:showId/result          Ergebnis
 ```
+
+BOTB erhält weder einen eigenen Navigationsbereich noch eine Contest- oder Showroute. Seine Auswahlhistorie wird ausschließlich im Bearbeitungsdialog einer Teilnehmeridentität gepflegt.
 
 Die Show-Detailansicht darf diese Routen optisch als Tabs innerhalb eines gemeinsamen Layouts darstellen.
 
@@ -345,6 +348,18 @@ Das Land und die aktive Teilnahme gehören in `contest_participation` und nicht 
 - `id`
 - `participant_id`
 - `alias`
+
+### `participant_botb_selection`
+
+- `id`
+- `participant_id` als FK auf die dauerhafte Teilnehmeridentität mit `ON DELETE CASCADE`
+- `edition_number`, positiv und je Teilnehmer eindeutig
+- `artist`, nicht leerer getrimmter Freitext
+- `known_since`, optionales ISO-Lokaldatum
+- `created_at`
+- `updated_at`
+
+Eine Zeile dokumentiert die ursprüngliche Interpretwahl einer externen BOTB-Ausgabe. Sie ist keine CSC-Teilnahme, kein CSC-Beitrag und kein Modell für BOTB-Songs, Runden, Ergebnisse oder einen weiteren `contest`.
 
 ### `contest_entry`
 
@@ -637,6 +652,8 @@ Vorgesehene Struktur:
 - vor dem Restore entsteht eine manuelle Sicherheitskopie des aktuellen Stands
 - Serverzugriffe auf die Datenbank werden während des Austauschs gesperrt
 - nach erfolgreicher Wiederherstellung wird die Datenbank erneut geöffnet und geprüft
+
+Der vollständige JSON-Export ist ein versionierter Fachvertrag (aktuell Version 10). Er enthält die normalisierte BOTB-Auswahlliste einschließlich stabiler IDs, Teilnehmerreferenzen, Ausgabe, Interpret, optionalem Bekannt-seit-Datum und Zeitstempeln. Ein Restore validiert die Gesamtdaten vor dem Staging vollständig; BOTB-Auswahlen werden erst nach ihren Teilnehmeridentitäten wiederhergestellt. Ältere unterstützte Formate werden mit einer leeren BOTB-Liste hochgestuft.
 
 ## 16. Launcher und Prozesslebenszyklus
 

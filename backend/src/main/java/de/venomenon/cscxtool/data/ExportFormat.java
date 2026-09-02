@@ -6,7 +6,7 @@ import java.util.List;
 public final class ExportFormat {
 
     public static final String FORMAT = "csc-x-tool-full-export";
-    public static final int VERSION = 9;
+    public static final int VERSION = 10;
     public static final int LEGACY_VERSION = 1;
     public static final int VERSION_2 = 2;
     public static final int VERSION_3 = 3;
@@ -15,6 +15,7 @@ public final class ExportFormat {
     public static final int VERSION_6 = 6;
     public static final int VERSION_7 = 7;
     public static final int VERSION_8 = 8;
+    public static final int VERSION_9 = 9;
 
     private ExportFormat() { }
 
@@ -23,11 +24,24 @@ public final class ExportFormat {
     public record Data(List<Contest> contests, List<MottoShow> mottoShows, List<OwnEntryResolutionRecord> ownEntryResolutions,
                        List<Candidate> candidates,
                        List<Participant> participants, List<ContestParticipation> contestParticipations,
-                       List<ParticipantAlias> participantAliases, List<ContestEntry> contestEntries,
+                       List<ParticipantAlias> participantAliases, List<ParticipantBotbSelection> participantBotbSelections,
+                       List<ContestEntry> contestEntries,
                        List<BallotSnapshot> ballotSnapshots, List<BallotSnapshotItem> ballotSnapshotItems,
                        List<LegacyResult> legacyResults, List<LegacyReceivedScore> legacyReceivedScores, List<PublishedBallot> publishedBallots,
                        List<PublishedBallotPosition> publishedBallotPositions, List<TipsGame> tipsGames,
                        List<TipsGameAssignment> tipsGameAssignments) {
+        /** Schema-15/P15 contract without BOTB selections. */
+        public Data(List<Contest> contests, List<MottoShow> mottoShows, List<OwnEntryResolutionRecord> ownEntryResolutions,
+                    List<Candidate> candidates, List<Participant> participants, List<ContestParticipation> contestParticipations,
+                    List<ParticipantAlias> participantAliases, List<ContestEntry> contestEntries,
+                    List<BallotSnapshot> ballotSnapshots, List<BallotSnapshotItem> ballotSnapshotItems,
+                    List<LegacyResult> legacyResults, List<LegacyReceivedScore> legacyReceivedScores,
+                    List<PublishedBallot> publishedBallots, List<PublishedBallotPosition> publishedBallotPositions,
+                    List<TipsGame> tipsGames, List<TipsGameAssignment> tipsGameAssignments) {
+            this(contests, mottoShows, ownEntryResolutions, candidates, participants, contestParticipations, participantAliases, List.of(),
+                    contestEntries, ballotSnapshots, ballotSnapshotItems, legacyResults, legacyReceivedScores, publishedBallots,
+                    publishedBallotPositions, tipsGames, tipsGameAssignments);
+        }
         /** Schema-14/P14 shape upgrades every show conservatively to an unresolved state. */
         public Data(List<Contest> contests, List<MottoShow> mottoShows, List<Candidate> candidates,
                     List<Participant> participants, List<ContestParticipation> contestParticipations,
@@ -37,7 +51,7 @@ public final class ExportFormat {
                     List<PublishedBallot> publishedBallots, List<PublishedBallotPosition> publishedBallotPositions,
                     List<TipsGame> tipsGames, List<TipsGameAssignment> tipsGameAssignments) {
             this(contests, mottoShows, unresolvedOwnEntryResolutions(mottoShows), candidates, participants, contestParticipations,
-                    participantAliases, contestEntries, ballotSnapshots, ballotSnapshotItems, legacyResults, legacyReceivedScores,
+                    participantAliases, List.of(), contestEntries, ballotSnapshots, ballotSnapshotItems, legacyResults, legacyReceivedScores,
                     publishedBallots, publishedBallotPositions, tipsGames, tipsGameAssignments);
         }
         /** Active P12 data normally has no legacy values. */
@@ -46,7 +60,7 @@ public final class ExportFormat {
                     List<ParticipantAlias> participantAliases, List<ContestEntry> contestEntries,
                     List<BallotSnapshot> ballotSnapshots, List<BallotSnapshotItem> ballotSnapshotItems,
                     List<PublishedBallot> publishedBallots, List<PublishedBallotPosition> publishedBallotPositions) {
-            this(contests, mottoShows, unresolvedOwnEntryResolutions(mottoShows), candidates, participants, contestParticipations, participantAliases, contestEntries,
+            this(contests, mottoShows, unresolvedOwnEntryResolutions(mottoShows), candidates, participants, contestParticipations, participantAliases, List.of(), contestEntries,
                     ballotSnapshots, ballotSnapshotItems, List.of(), List.of(), publishedBallots, publishedBallotPositions, List.of(), List.of());
         }
         /** P12/P13 callers with explicit legacy archives retain their pre-P14 shape. */
@@ -56,7 +70,7 @@ public final class ExportFormat {
                     List<BallotSnapshot> ballotSnapshots, List<BallotSnapshotItem> ballotSnapshotItems,
                     List<LegacyResult> legacyResults, List<LegacyReceivedScore> legacyReceivedScores,
                     List<PublishedBallot> publishedBallots, List<PublishedBallotPosition> publishedBallotPositions) {
-            this(contests, mottoShows, unresolvedOwnEntryResolutions(mottoShows), candidates, participants, contestParticipations, participantAliases, contestEntries,
+            this(contests, mottoShows, unresolvedOwnEntryResolutions(mottoShows), candidates, participants, contestParticipations, participantAliases, List.of(), contestEntries,
                     ballotSnapshots, ballotSnapshotItems, legacyResults, legacyReceivedScores, publishedBallots, publishedBallotPositions,
                     List.of(), List.of());
         }
@@ -85,6 +99,8 @@ public final class ExportFormat {
     public record ContestParticipation(long id, long contestId, long participantId, String countryCode, boolean active,
                                        String createdAt, String updatedAt) { }
     public record ParticipantAlias(long id, long participantId, String alias) { }
+    public record ParticipantBotbSelection(long id, long participantId, int editionNumber, String artist, String knownSince,
+                                           String createdAt, String updatedAt) { }
     public record ContestEntry(long id, long mottoShowId, long contestId, String artist, String title, String youtubeUrl,
                                String comment, Integer assessment, Integer assessmentConfidence, int poolPosition,
                                Integer rankingPosition, Long contestParticipationId, String createdAt, String updatedAt) {
@@ -111,6 +127,17 @@ public final class ExportFormat {
     public record TipsGame(long id, long mottoShowId, long contestId, String status, String createdAt, String updatedAt, String resolvedAt) { }
     public record TipsGameAssignment(long id, long tipsGameId, long contestEntryId, long guessedParticipationId,
                                      String confidence, String note) { }
+
+    /** Schema-15/P15 contract before BOTB selections were added. */
+    public record FullExportV9(String format, int formatVersion, String exportedAt, String applicationVersion,
+                               int schemaVersion, DataV9 data) { }
+    public record DataV9(List<Contest> contests, List<MottoShow> mottoShows, List<OwnEntryResolutionRecord> ownEntryResolutions,
+                         List<Candidate> candidates, List<Participant> participants, List<ContestParticipation> contestParticipations,
+                         List<ParticipantAlias> participantAliases, List<ContestEntry> contestEntries,
+                         List<BallotSnapshot> ballotSnapshots, List<BallotSnapshotItem> ballotSnapshotItems,
+                         List<LegacyResult> legacyResults, List<LegacyReceivedScore> legacyReceivedScores,
+                         List<PublishedBallot> publishedBallots, List<PublishedBallotPosition> publishedBallotPositions,
+                         List<TipsGame> tipsGames, List<TipsGameAssignment> tipsGameAssignments) { }
 
     /** Schema-14/P14 contract without the explicit own-entry resolution. */
     public record FullExportV8(String format, int formatVersion, String exportedAt, String applicationVersion,

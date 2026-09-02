@@ -8,6 +8,7 @@ record ParticipantResponse(
         String displayName,
         boolean active,
         List<String> aliases,
+        int botbSelectionCount,
         Instant createdAt,
         Instant updatedAt
 ) {
@@ -17,6 +18,7 @@ record ParticipantResponse(
                 participant.displayName(),
                 participant.active(),
                 participant.aliases(),
+                participant.botbSelectionCount(),
                 participant.createdAt(),
                 participant.updatedAt()
         );

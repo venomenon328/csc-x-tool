@@ -82,7 +82,7 @@ public class ExportService {
                         ExportFormat.FORMAT, ExportFormat.VERSION, Instant.now().toString(), applicationVersion(),
                         schemaVersion(connection), new ExportFormat.Data(
                                 contests(connection), shows, ownEntryResolutions(connection), candidates(connection), participants(connection),
-                                contestParticipations(connection), participantAliases(connection), contestEntries(connection),
+                                contestParticipations(connection), participantAliases(connection), participantBotbSelections(connection), contestEntries(connection),
                                 ballotSnapshots(connection), ballotSnapshotItems(connection), legacyResults(connection), legacyReceivedScores(connection),
                                 publishedBallots(connection), publishedBallotPositions(connection), tipsGames(connection), tipsGameAssignments(connection)
                         )
@@ -120,6 +120,7 @@ public class ExportService {
                 case ExportFormat.VERSION_6 -> upgradeV6(strictMapper.readValue(input, ExportFormat.FullExportV6.class));
                 case ExportFormat.VERSION_7 -> upgradeV7(strictMapper.readValue(input, ExportFormat.FullExportV7.class));
                 case ExportFormat.VERSION_8 -> upgradeV8(strictMapper.readValue(input, ExportFormat.FullExportV8.class));
+                case ExportFormat.VERSION_9 -> upgradeV9(strictMapper.readValue(input, ExportFormat.FullExportV9.class));
                 case ExportFormat.VERSION -> strictMapper.readValue(input, ExportFormat.FullExport.class);
                 default -> throw invalid("Das JSON-Format wird von dieser Anwendung nicht unterstützt.");
             };
@@ -156,6 +157,7 @@ public class ExportService {
             stage.update("DELETE FROM candidate");
             stage.update("DELETE FROM contest_participation");
             stage.update("DELETE FROM participant_alias");
+            stage.update("DELETE FROM participant_botb_selection");
             stage.update("DELETE FROM participant");
             stage.update("DELETE FROM motto_show");
             stage.update("DELETE FROM contest");
@@ -175,6 +177,12 @@ public class ExportService {
             for (ExportFormat.Participant row : data.participants()) {
                 stage.update("INSERT INTO participant (id,display_name,active,created_at,updated_at) VALUES (?, ?, ?, ?, ?)",
                         row.id(), row.displayName(), row.active(), row.createdAt(), row.updatedAt());
+            }
+            for (ExportFormat.ParticipantBotbSelection row : data.participantBotbSelections()) {
+                stage.update("""
+                        INSERT INTO participant_botb_selection (id,participant_id,edition_number,artist,known_since,created_at,updated_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """, row.id(), row.participantId(), row.editionNumber(), row.artist(), row.knownSince(), row.createdAt(), row.updatedAt());
             }
             for (ExportFormat.ContestParticipation row : data.contestParticipations()) {
                 stage.update("""
@@ -290,7 +298,8 @@ public class ExportService {
         if (export.data() == null) throw invalid("Der JSON-Export enthält keine vollständigen fachlichen Daten.");
         ExportFormat.Data data = export.data();
         if (data.contests() == null || data.mottoShows() == null || data.ownEntryResolutions() == null || data.candidates() == null || data.participants() == null
-                || data.contestParticipations() == null || data.participantAliases() == null || data.contestEntries() == null
+                || data.contestParticipations() == null || data.participantAliases() == null || data.participantBotbSelections() == null
+                || data.contestEntries() == null
                 || data.ballotSnapshots() == null || data.ballotSnapshotItems() == null || data.legacyResults() == null || data.legacyReceivedScores() == null
                 || data.publishedBallots() == null || data.publishedBallotPositions() == null || data.tipsGames() == null
                 || data.tipsGameAssignments() == null) {
@@ -357,6 +366,20 @@ public class ExportService {
         for (ExportFormat.ParticipantAlias alias : data.participantAliases()) {
             requireReference(participantIds, alias.participantId(), "Ein Teilnehmeralias verweist auf einen unbekannten Teilnehmer.");
             requireText(alias.alias(), "Ein leerer Teilnehmeralias ist nicht gültig.");
+        }
+        uniquePositive(data.participantBotbSelections(), ExportFormat.ParticipantBotbSelection::id, "BOTB-Auswahl");
+        Set<String> botbEditions = new HashSet<>();
+        for (ExportFormat.ParticipantBotbSelection selection : data.participantBotbSelections()) {
+            requireReference(participantIds, selection.participantId(), "Eine BOTB-Auswahl verweist auf einen unbekannten Teilnehmer.");
+            if (selection.editionNumber() < 1 || !botbEditions.add(key(selection.participantId(), selection.editionNumber()))) {
+                throw invalid("Pro Teilnehmer darf jede BOTB-Ausgabe nur einmal enthalten sein.");
+            }
+            requireTrimmedText(selection.artist(), "Ein BOTB-Interpret muss nicht leer und getrimmt sein.");
+            if (selection.knownSince() != null) {
+                requireIsoLocalDate(selection.knownSince(), "Der Bekannt-seit-Zeitpunkt einer BOTB-Auswahl ist nicht gültig.");
+            }
+            requireText(selection.createdAt(), "Eine BOTB-Auswahl ohne Erstellungszeitpunkt ist nicht gültig.");
+            requireText(selection.updatedAt(), "Eine BOTB-Auswahl ohne Änderungszeitpunkt ist nicht gültig.");
         }
 
         Set<Long> candidateIds = uniquePositive(data.candidates(), ExportFormat.Candidate::id, "Kandidat");
@@ -782,6 +805,18 @@ public class ExportService {
                         data.publishedBallotPositions(), data.tipsGames(), data.tipsGameAssignments()));
     }
 
+    private static ExportFormat.FullExport upgradeV9(ExportFormat.FullExportV9 legacy) {
+        if (legacy == null || legacy.data() == null) return new ExportFormat.FullExport(
+                legacy == null ? null : legacy.format(), ExportFormat.VERSION, legacy == null ? null : legacy.exportedAt(),
+                legacy == null ? null : legacy.applicationVersion(), legacy == null ? 0 : legacy.schemaVersion(), null);
+        ExportFormat.DataV9 data = legacy.data();
+        return new ExportFormat.FullExport(legacy.format(), ExportFormat.VERSION, legacy.exportedAt(), legacy.applicationVersion(),
+                legacy.schemaVersion(), new ExportFormat.Data(data.contests(), data.mottoShows(), data.ownEntryResolutions(), data.candidates(),
+                        data.participants(), data.contestParticipations(), data.participantAliases(), List.of(), data.contestEntries(),
+                        data.ballotSnapshots(), data.ballotSnapshotItems(), data.legacyResults(), data.legacyReceivedScores(),
+                        data.publishedBallots(), data.publishedBallotPositions(), data.tipsGames(), data.tipsGameAssignments()));
+    }
+
     private static boolean validAssessmentPair(Integer assessment, Integer confidence) {
         return (assessment == null && confidence == null)
                 || (assessment != null && confidence != null && assessment >= 1 && assessment <= 5 && confidence >= 1 && confidence <= 5);
@@ -798,6 +833,11 @@ public class ExportService {
     }
     private static void requireReference(Set<Long> ids, long value, String message) { if (!ids.contains(value)) throw invalid(message); }
     private static void requireText(String value, String message) { if (value == null || value.isBlank()) throw invalid(message); }
+    private static void requireTrimmedText(String value, String message) { if (value == null || value.isBlank() || !value.equals(value.trim())) throw invalid(message); }
+    private static void requireIsoLocalDate(String value, String message) {
+        try { if (!value.matches("\\d{4}-\\d{2}-\\d{2}")) throw new IllegalArgumentException(); java.time.LocalDate.parse(value); }
+        catch (RuntimeException exception) { throw invalid(message); }
+    }
     private static void requireUtcInstant(String value, String message) {
         try { if (value == null || !value.endsWith("Z")) throw new IllegalArgumentException(); Instant.parse(value); }
         catch (RuntimeException exception) { throw invalid(message); }
@@ -840,6 +880,11 @@ public class ExportService {
     private static List<ExportFormat.ParticipantAlias> participantAliases(Connection connection) throws SQLException {
         return query(connection, "SELECT id,participant_id,alias FROM participant_alias ORDER BY id",
                 r -> new ExportFormat.ParticipantAlias(r.getLong(1), r.getLong(2), r.getString(3)));
+    }
+    private static List<ExportFormat.ParticipantBotbSelection> participantBotbSelections(Connection connection) throws SQLException {
+        return query(connection, "SELECT id,participant_id,edition_number,artist,known_since,created_at,updated_at FROM participant_botb_selection ORDER BY id",
+                r -> new ExportFormat.ParticipantBotbSelection(r.getLong(1), r.getLong(2), r.getInt(3), r.getString(4), r.getString(5),
+                        r.getString(6), r.getString(7)));
     }
     private static List<ExportFormat.ContestEntry> contestEntries(Connection connection) throws SQLException {
         return query(connection, "SELECT id,motto_show_id,contest_id,artist,title,youtube_url,comment,assessment,assessment_confidence,pool_position,ranking_position,contest_participation_id,created_at,updated_at FROM contest_entry ORDER BY id",

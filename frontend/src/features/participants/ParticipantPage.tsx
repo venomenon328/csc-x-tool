@@ -32,11 +32,14 @@ import {
   addExistingParticipant,
   createParticipant,
   deleteParticipant,
+  fetchBotbSelections,
   fetchCountries,
   fetchParticipantIdentities,
   fetchParticipants,
   updateParticipantIdentity,
   updateParticipation,
+  replaceBotbSelections,
+  type BotbSelectionInput,
   type Country,
   type IdentityInput,
   type Participant,
@@ -51,6 +54,7 @@ type EditorState =
   | { kind: 'participation', participant: Participant, input: ParticipationInput }
 
 type ExistingIdentityEditorState = { identities: ParticipantIdentity[] }
+type BotbEditorState = { participant: Participant, selections: BotbSelectionInput[] }
 
 const emptyInput: ParticipantInput = { displayName: '', countryCode: '', active: true, aliases: [] }
 
@@ -66,6 +70,7 @@ export function ParticipantPage() {
   const [editor, setEditor] = useState<EditorState | null>(null)
   const [existingIdentityEditor, setExistingIdentityEditor] = useState<ExistingIdentityEditorState | null>(null)
   const [participantToDelete, setParticipantToDelete] = useState<Participant | null>(null)
+  const [botbEditor, setBotbEditor] = useState<BotbEditorState | null>(null)
 
   const load = async (query = activeSearch, include = includeInactive) => {
     if (selectedContestId === null) {
@@ -151,6 +156,26 @@ export function ParticipantPage() {
       await load()
     } catch (caughtError) {
       throw asParticipantApiError(caughtError, '/api/contests/' + selectedContestId + '/participants/' + participantId)
+    }
+  }
+
+  const openBotbEditor = async (participant: Participant) => {
+    setError(null)
+    try {
+      const selections = await fetchBotbSelections(participant.id)
+      setBotbEditor({ participant, selections })
+    } catch (caughtError) {
+      setError(asParticipantApiError(caughtError, '/api/participants/' + participant.id + '/botb-selections'))
+    }
+  }
+
+  const saveBotbSelections = async (participantId: number, selections: BotbSelectionInput[]) => {
+    try {
+      await replaceBotbSelections(participantId, selections)
+      setBotbEditor(null)
+      await load()
+    } catch (caughtError) {
+      throw asParticipantApiError(caughtError, '/api/participants/' + participantId + '/botb-selections')
     }
   }
 
@@ -245,6 +270,7 @@ export function ParticipantPage() {
           onEditParticipation={(participant) => setEditor({
             kind: 'participation', participant, input: { countryCode: participant.countryCode, active: participant.active },
           })}
+          onEditBotb={(participant) => void openBotbEditor(participant)}
           onSetOwnParticipation={(participationId) => void chooseOwnParticipation(participationId)}
         />
       )}
@@ -274,16 +300,23 @@ export function ParticipantPage() {
         onClose={() => setExistingIdentityEditor(null)}
         onSave={addExistingIdentity}
       />}
+      {botbEditor !== null && <BotbSelectionEditor
+        initialSelections={botbEditor.selections}
+        onClose={() => setBotbEditor(null)}
+        onSave={(selections) => saveBotbSelections(botbEditor.participant.id, selections)}
+        title={'BOTB bearbeiten · ' + botbEditor.participant.displayName}
+      />}
       <DeleteParticipantDialog participant={participantToDelete} onClose={() => setParticipantToDelete(null)} onConfirm={confirmDelete} />
     </Stack>
   )
 }
 
-function ParticipantTable({ participants, ownParticipationId, onEditIdentity, onEditParticipation, onDelete, onSetOwnParticipation }: {
+function ParticipantTable({ participants, ownParticipationId, onEditIdentity, onEditParticipation, onEditBotb, onDelete, onSetOwnParticipation }: {
   participants: Participant[]
   ownParticipationId: number | null
   onEditIdentity: (participant: Participant) => void
   onEditParticipation: (participant: Participant) => void
+  onEditBotb: (participant: Participant) => void
   onDelete: (participant: Participant) => void
   onSetOwnParticipation: (participationId: number | null) => void
 }) {
@@ -293,13 +326,14 @@ function ParticipantTable({ participants, ownParticipationId, onEditIdentity, on
   return (
     <Paper sx={{ overflowX: 'auto' }}>
       <Table aria-label="Teilnehmerliste">
-        <TableHead><TableRow><TableCell>Teilnehmer</TableCell><TableCell>Land</TableCell><TableCell>Aliasse</TableCell><TableCell>Status</TableCell><TableCell align="right">Aktionen</TableCell></TableRow></TableHead>
+        <TableHead><TableRow><TableCell>Teilnehmer</TableCell><TableCell>Land</TableCell><TableCell>Aliasse</TableCell><TableCell align="right">BOTB</TableCell><TableCell>Status</TableCell><TableCell align="right">Aktionen</TableCell></TableRow></TableHead>
         <TableBody>
           {participants.map((participant) => (
             <TableRow key={participant.id} sx={participant.active ? undefined : { opacity: 0.65 }}>
               <TableCell><Stack direction="row" spacing={0.75} sx={{ alignItems: 'center' }}><Typography sx={{ fontWeight: 600 }}>{participant.displayName}</Typography>{participant.participationId === ownParticipationId && <Chip color="secondary" label="Meine Teilnahme" size="small" />}</Stack></TableCell>
               <TableCell><Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}><CountryFlag code={participant.countryCode} countryName={participant.countryName} /><span>{participant.countryName}</span></Stack></TableCell>
               <TableCell>{participant.aliases.length === 0 ? '—' : <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap' }}>{participant.aliases.map((alias) => <Chip key={alias} label={alias} size="small" />)}</Stack>}</TableCell>
+              <TableCell align="right">{participant.botbSelectionCount ?? 0}</TableCell>
               <TableCell>{participant.active ? 'Aktiv' : 'Inaktiv'}</TableCell>
               <TableCell align="right">
                 {participant.participationId !== undefined && <Button onClick={() => {
@@ -308,6 +342,7 @@ function ParticipantTable({ participants, ownParticipationId, onEditIdentity, on
                 }}>{participant.participationId === ownParticipationId ? 'Eigene Teilnahme aufheben' : 'Als meine Teilnahme markieren'}</Button>}
                 <Button onClick={() => onEditParticipation(participant)}>Teilnahme bearbeiten</Button>
                 <Button onClick={() => onEditIdentity(participant)}>Identität bearbeiten</Button>
+                <Button onClick={() => onEditBotb(participant)}>BOTB bearbeiten</Button>
                 <Button color="error" onClick={() => onDelete(participant)}>Entfernen</Button>
               </TableCell>
             </TableRow>
@@ -383,6 +418,86 @@ function IdentityEditor({ initialInput, onClose, onSave, title }: {
       <DialogActions><Button onClick={onClose}>Abbrechen</Button><Button disabled={isSaving} onClick={() => void save()} variant="contained">Speichern</Button></DialogActions>
     </Dialog>
   )
+}
+
+function BotbSelectionEditor({ initialSelections, onClose, onSave, title }: {
+  initialSelections: BotbSelectionInput[]
+  onClose: () => void
+  onSave: (selections: BotbSelectionInput[]) => Promise<void>
+  title: string
+}) {
+  const [selections, setSelections] = useState<BotbSelectionInput[]>(() => initialSelections.map((selection) => ({ ...selection })))
+  const [error, setError] = useState<string | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
+
+  const update = (index: number, value: Partial<BotbSelectionInput>) => {
+    setSelections((current) => current.map((selection, currentIndex) => currentIndex === index ? { ...selection, ...value } : selection))
+  }
+
+  const save = async () => {
+    const validationError = validateBotbSelections(selections)
+    if (validationError !== null) {
+      setError(validationError)
+      return
+    }
+    setIsSaving(true)
+    setError(null)
+    try {
+      await onSave(selections)
+    } catch (caughtError) {
+      setError(asParticipantApiError(caughtError, '/api/participants/botb-selections').message)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  return (
+    <Dialog fullWidth maxWidth="md" onClose={onClose} open>
+      <DialogTitle>{title}</DialogTitle>
+      <DialogContent><Stack spacing={2} sx={{ pt: 1 }}>
+        <Typography color="text.secondary">Fehlende Einträge bedeuten nur, dass keine BOTB-Auswahl erfasst wurde. Sie belegen keine Nichtteilnahme.</Typography>
+        {error !== null && <Alert severity="error">{error}</Alert>}
+        {selections.map((selection, index) => <Stack direction={{ xs: 'column', sm: 'row' }} key={selection.id ?? `new-${index}`} spacing={1}>
+          <TextField
+            inputProps={{ min: 1 }}
+            label="BOTB-Ausgabe"
+            onChange={(event) => update(index, { editionNumber: event.target.value === '' ? 0 : Number(event.target.value) })}
+            required
+            type="number"
+            value={selection.editionNumber || ''}
+          />
+          <TextField
+            fullWidth
+            label="Interpret"
+            onChange={(event) => update(index, { artist: event.target.value })}
+            required
+            value={selection.artist}
+          />
+          <TextField
+            InputLabelProps={{ shrink: true }}
+            label="Bekannt seit"
+            onChange={(event) => update(index, { knownSince: event.target.value || null })}
+            type="date"
+            value={selection.knownSince ?? ''}
+          />
+          <IconButton aria-label={`BOTB-Auswahl ${index + 1} entfernen`} onClick={() => setSelections((current) => current.filter((_, currentIndex) => currentIndex !== index))}>×</IconButton>
+        </Stack>)}
+        <Button onClick={() => setSelections((current) => [...current, { editionNumber: 0, artist: '', knownSince: null }])} sx={{ alignSelf: 'flex-start' }}>Zeile hinzufügen</Button>
+      </Stack></DialogContent>
+      <DialogActions><Button disabled={isSaving} onClick={onClose}>Abbrechen</Button><Button disabled={isSaving} onClick={() => void save()} variant="contained">Speichern</Button></DialogActions>
+    </Dialog>
+  )
+}
+
+function validateBotbSelections(selections: BotbSelectionInput[]): string | null {
+  const editions = new Set<number>()
+  for (const selection of selections) {
+    if (!Number.isInteger(selection.editionNumber) || selection.editionNumber < 1) return 'Die BOTB-Ausgabe muss positiv sein.'
+    if (!editions.add(selection.editionNumber)) return 'Pro Teilnehmer darf jede BOTB-Ausgabe nur einmal erfasst werden.'
+    if (!selection.artist.trim()) return 'Der BOTB-Interpret darf nicht leer sein.'
+    if (selection.knownSince !== null && !/^\d{4}-\d{2}-\d{2}$/.test(selection.knownSince)) return 'Der Bekannt-seit-Zeitpunkt ist nicht gültig.'
+  }
+  return null
 }
 
 function ParticipationEditor({ countries, initialInput, onClose, onSave, title }: {
