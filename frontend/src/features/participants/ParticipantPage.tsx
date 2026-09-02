@@ -163,7 +163,10 @@ export function ParticipantPage() {
     setError(null)
     try {
       const selections = await fetchBotbSelections(participant.id)
-      setBotbEditor({ participant, selections })
+      setBotbEditor({
+        participant,
+        selections: selections.map(({ id, editionNumber, artist, knownSince }) => ({ id, editionNumber, artist, knownSince })),
+      })
     } catch (caughtError) {
       setError(asParticipantApiError(caughtError, '/api/participants/' + participant.id + '/botb-selections'))
     }
