@@ -85,7 +85,14 @@ export type TipsHistoryEntry = {
   youtubeUrl: string | null
 }
 
-export type TipsHistory = { participationId: number, entries: TipsHistoryEntry[] }
+export type TipsBotbSelection = {
+  id: number
+  editionNumber: number
+  artist: string
+  knownSince: string | null
+}
+
+export type TipsHistory = { participationId: number, entries: TipsHistoryEntry[], botbSelections: TipsBotbSelection[] }
 export type TipsAssignmentInput = Pick<TipsAssignment, 'entryId' | 'guessedParticipationId' | 'confidence' | 'note'>
 
 export class TipsGameApiError extends Error {

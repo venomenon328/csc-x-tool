@@ -3,7 +3,7 @@ import {
   Alert, Box, Button, Card, CardContent, Chip, Dialog, DialogActions, DialogContent, DialogTitle,
   FormControl, InputAdornment, InputLabel, MenuItem, Paper, Select, Skeleton, Stack, TextField, Tooltip, Typography,
 } from '@mui/material'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { Link as RouterLink, useParams } from 'react-router-dom'
 import { ApiErrorNotice } from '../../components/ApiErrorNotice'
 import { CheckIcon, DragIcon, FilterIcon, SearchIcon } from '../../components/AppIcons'
@@ -28,6 +28,7 @@ export function TipsGamePage() {
   const [selectedParticipationId, setSelectedParticipationId] = useState<number | null>(null)
   const [history, setHistory] = useState<TipsHistory | null>(null)
   const [historyLoading, setHistoryLoading] = useState(false)
+  const [historyError, setHistoryError] = useState<TipsGameApiError | null>(null)
   const [historySearch, setHistorySearch] = useState('')
   const [resolutionAction, setResolutionAction] = useState<'resolve' | 'reopen' | null>(null)
   const [movedNotice, setMovedNotice] = useState<string | null>(null)
@@ -79,10 +80,11 @@ export function TipsGamePage() {
     historyRequestId.current = requestId
     setSelectedParticipationId(participationId)
     setHistory(null)
+    setHistoryError(null)
     setHistoryLoading(true)
     void fetchTipsHistory(showId, participationId)
       .then((nextHistory) => { if (historyRequestId.current === requestId) setHistory(nextHistory) })
-      .catch((caught) => { if (historyRequestId.current === requestId) setError(asTipsError(caught, `/api/shows/${showId}/tips/participants/${participationId}/history`)) })
+      .catch((caught) => { if (historyRequestId.current === requestId) setHistoryError(asTipsError(caught, `/api/shows/${showId}/tips/participants/${participationId}/history`)) })
       .finally(() => { if (historyRequestId.current === requestId) setHistoryLoading(false) })
   }
 
@@ -144,7 +146,7 @@ export function TipsGamePage() {
         </Stack>
         <Stack spacing={2} sx={{ position: { lg: 'sticky' }, top: { lg: 24 } }}>
           <ParticipantDragPanel editable={editable} participants={game.participants} unusedParticipants={unusedParticipants} onFocus={focusParticipant} />
-          <SubmissionHistoryPanel history={history} loading={historyLoading} participation={selectedParticipationId === null ? null : participantsById.get(selectedParticipationId) ?? null} search={historySearch} onSearch={setHistorySearch} />
+          <ParticipantHistoryPanel error={historyError} history={history} loading={historyLoading} participation={selectedParticipationId === null ? null : participantsById.get(selectedParticipationId) ?? null} search={historySearch} onSearch={setHistorySearch} />
         </Stack>
       </Box>
     </DragDropContext>
@@ -219,9 +221,16 @@ function ParticipantDragPanel({ participants, unusedParticipants, editable, onFo
   return <Paper component="aside" sx={{ p: 2 }}><Stack spacing={1.25}><Box><Typography component="h2" variant="h6">Teilnehmer</Typography><Typography color="text.secondary" variant="body2">{unusedParticipants.length} noch ungenutzt. Über den Griff auf einen Song ziehen oder für Recherche auswählen.</Typography></Box><Droppable droppableId="tips-participants">{(provided) => <Stack ref={provided.innerRef} {...provided.droppableProps} spacing={0.75}>{participants.map((participant, index) => <Draggable draggableId={`tips-participant-${participant.participationId}`} index={index} isDragDisabled={!editable} key={participant.participationId}>{(dragProvided, snapshot) => <Paper ref={dragProvided.innerRef} {...dragProvided.draggableProps} sx={{ border: 1, borderColor: snapshot.isDragging ? 'secondary.main' : unusedIds.has(participant.participationId) ? 'divider' : 'action.disabled', opacity: unusedIds.has(participant.participationId) ? 1 : 0.68, p: 0.75 }}><Stack direction="row" spacing={0.75} sx={{ alignItems: 'center' }}><Tooltip title={editable ? 'Teilnehmer auf einen Song ziehen' : 'Aufgelöste Tippstände sind schreibgeschützt'}><Box {...(dragProvided.dragHandleProps ?? {})} aria-label={`${participant.displayName} ziehen`} sx={{ color: editable ? 'text.secondary' : 'action.disabled', cursor: editable ? 'grab' : 'default', display: 'inline-flex', p: 0.5 }}><DragIcon aria-hidden="true" fontSize="small" /></Box></Tooltip><CountryFlag code={participant.countryCode} countryName={participant.countryName} size={22} /><Button onClick={() => onFocus(participant.participationId)} size="small" sx={{ flex: 1, justifyContent: 'start', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', textTransform: 'none', whiteSpace: 'nowrap' }}>{participant.displayName}</Button></Stack></Paper>}</Draggable>)}{provided.placeholder}</Stack>}</Droppable></Stack></Paper>
 }
 
-function SubmissionHistoryPanel({ participation, history, loading, search, onSearch }: { participation: TipsParticipant | null, history: TipsHistory | null, loading: boolean, search: string, onSearch: (search: string) => void }) {
-  const visibleHistory = history?.entries.filter((entry) => `${entry.contestName} ${entry.showName} ${entry.countryName} ${entry.artist} ${entry.title}`.toLocaleLowerCase('de-DE').includes(search.toLocaleLowerCase('de-DE'))) ?? []
-  return <Paper component="aside" sx={{ p: 2 }}><Stack spacing={1.25}><Box><Typography component="h2" variant="h6">Einreichungshistorie</Typography><Typography color="text.secondary" variant="body2">{participation === null ? 'Einen Teilnehmer auswählen, um gepflegte frühere Einreichungen derselben Identität zu sehen.' : `${participation.displayName} · ${participation.countryName}`}</Typography></Box>{participation !== null && <TextField fullWidth label="Historie durchsuchen" onChange={(event) => onSearch(event.target.value)} size="small" value={search} />}{loading && <Skeleton height={80} variant="rounded" />}{!loading && participation !== null && visibleHistory.length === 0 && <Alert severity="info">{history === null ? 'Historie wird geladen …' : 'Keine gepflegten früheren Einreichungen gefunden.'}</Alert>}{!loading && visibleHistory.map((entry) => <Box key={entry.entryId} sx={{ borderLeft: 2, borderColor: 'secondary.main', pl: 1 }}><Typography color="text.secondary" variant="caption">{entry.contestName} · Show {entry.showNumber} · {entry.countryName}</Typography><Typography variant="body2">{entry.artist} – {entry.title}</Typography><Stack direction="row" spacing={1}><Button component={RouterLink} size="small" to={entry.currentContest ? `/shows/${entry.showId}/voting` : `/historical-shows/${entry.showId}`}>Archiveintrag öffnen</Button>{entry.youtubeUrl !== null && <Button component="a" href={entry.youtubeUrl} rel="noreferrer" size="small" target="_blank">Quelle öffnen</Button>}</Stack></Box>)}</Stack></Paper>
+function ParticipantHistoryPanel({ participation, history, loading, error, search, onSearch }: { participation: TipsParticipant | null, history: TipsHistory | null, loading: boolean, error: TipsGameApiError | null, search: string, onSearch: (search: string) => void }) {
+  const normalizedSearch = search.trim().toLocaleLowerCase('de-DE')
+  const visibleEntries = history?.entries.filter((entry) => `${entry.contestName} ${entry.showName} ${entry.countryName} ${entry.artist} ${entry.title}`.toLocaleLowerCase('de-DE').includes(normalizedSearch)) ?? []
+  const visibleBotbSelections = history?.botbSelections.filter((selection) => `BOTB #${selection.editionNumber} ${selection.editionNumber} ${selection.artist} ${selection.knownSince ?? ''}`.toLocaleLowerCase('de-DE').includes(normalizedSearch)) ?? []
+  const noSearchResults = history !== null && normalizedSearch !== '' && visibleEntries.length === 0 && visibleBotbSelections.length === 0
+  return <Paper component="aside" sx={{ p: 2 }}><Stack spacing={1.25}><Box><Typography component="h2" variant="h6">Teilnehmerhistorie</Typography><Typography color="text.secondary" variant="body2">{participation === null ? 'Einen Teilnehmer auswählen, um gepflegte frühere Einreichungen derselben Identität zu sehen.' : `${participation.displayName} · ${participation.countryName}`}</Typography></Box>{participation !== null && <TextField fullWidth label="Historie durchsuchen" onChange={(event) => onSearch(event.target.value)} size="small" value={search} />}{loading && <Skeleton height={80} variant="rounded" />}{!loading && error !== null && <Alert severity="error">{error.apiError.message}</Alert>}{!loading && participation !== null && history === null && error === null && <Alert severity="info">Historie wird geladen …</Alert>}{!loading && participation !== null && history !== null && <>{noSearchResults && <Alert severity="info">Keine Historieneinträge für diese Suche gefunden.</Alert>}<HistorySection title={`Historische CSC-Einreichungen (${history.entries.length})`} empty="Keine gepflegten früheren CSC-Einreichungen gefunden." showEmpty={normalizedSearch === '' && visibleEntries.length === 0}>{visibleEntries.map((entry) => <Box key={entry.entryId} sx={{ borderLeft: 2, borderColor: 'secondary.main', pl: 1 }}><Typography color="text.secondary" variant="caption">{entry.contestName} · Show {entry.showNumber} · {entry.countryName}</Typography><Typography variant="body2">{entry.artist} – {entry.title}</Typography><Stack direction="row" spacing={1}><Button component={RouterLink} size="small" to={entry.currentContest ? `/shows/${entry.showId}/voting` : `/historical-shows/${entry.showId}`}>Archiveintrag öffnen</Button>{entry.youtubeUrl !== null && <Button component="a" href={entry.youtubeUrl} rel="noreferrer" size="small" target="_blank">Quelle öffnen</Button>}</Stack></Box>)}</HistorySection><HistorySection title={`BOTB-Interpreten (${history.botbSelections.length})`} empty="Keine BOTB-Interpreten erfasst." showEmpty={normalizedSearch === '' && visibleBotbSelections.length === 0}>{visibleBotbSelections.map((selection) => <Box key={selection.id} sx={{ borderLeft: 2, borderColor: 'info.main', pl: 1 }}><Typography variant="body2">BOTB #{selection.editionNumber} · {selection.artist}</Typography>{selection.knownSince !== null && <Typography color="text.secondary" variant="caption">bekannt seit {selection.knownSince}</Typography>}</Box>)}</HistorySection></>}</Stack></Paper>
+}
+
+function HistorySection({ title, empty, showEmpty, children }: { title: string, empty: string, showEmpty: boolean, children: ReactNode }) {
+  return <Stack spacing={0.75}><Typography component="h3" sx={{ fontWeight: 700 }} variant="subtitle2">{title}</Typography>{showEmpty ? <Alert severity="info">{empty}</Alert> : <Stack spacing={1} sx={{ maxHeight: 280, overflowY: 'auto', pr: 0.5 }}>{children}</Stack>}</Stack>
 }
 
 function TipsStatistics({ statistics }: { statistics: NonNullable<TipsGame['statistics']> }) {

@@ -18,6 +18,7 @@ export type AnalysisExportScope = { mode: 'FULL_ARCHIVE' | 'SELECTED', contestId
 export type AnalysisExportPreview = {
   scope: AnalysisExportScope
   participants: number
+  botbSelections: number
   participations: number
   shows: number
   entries: number

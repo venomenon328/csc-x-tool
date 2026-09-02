@@ -117,6 +117,7 @@ Verbindliche Semantik:
 - `OWN_ENTRY`, `NO_BALLOT` und `UNKNOWN` sind neutral;
 - keine fiktiven Ränge ab 16;
 - vom historischen Motto erzwungene Merkmale nicht als freie Präferenz behandeln;
+- BOTB-Interpretwahlen nur als begrenzte Auswahlmodell-Ereignisse nach `external-ai-analysis.md` behandeln; sie ändern weder das aktuelle Feld noch werden sie als Geschmacks- oder Songsignal überinterpretiert;
 - kleine Stichproben zum neutralen Prior schrumpfen;
 - keine demografischen, politischen, psychologischen oder privaten Zuschreibungen.
 

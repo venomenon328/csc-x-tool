@@ -499,6 +499,8 @@ Ein Analyseexport erzeugt ein gemeinsames versioniertes Paket mit mindestens:
 - `analysis.md` als menschen- und KI-freundliche Darstellung,
 - optionalen CSV-Dateien für Tabellenanalysen.
 
+Der Vertrag `csc-x-tool-analysis` verwendet für die normalisierten BOTB-Auswahlen Formatversion 2. Er besitzt keinen Import- oder Restore-Pfad.
+
 Ein direkter Upload zu Google Drive ist nicht Bestandteil. Das lokal erzeugte Paket kann anschließend manuell in Google Drive abgelegt werden.
 
 ### 13.3 JSON-Inhalte
@@ -508,6 +510,7 @@ Ein direkter Upload zu Google Drive ist nicht Bestandteil. Das lokal erzeugte Pa
 - Format- und Schemaversion,
 - Erstellungszeitpunkt,
 - Teilnehmeridentitäten und Aliasse,
+- normalisierte historische BOTB-Interpretwahlen mit stabiler Auswahl-ID, `participant_id`, BOTB-Ausgabe, Interpret und optionalem `knownSince`,
 - CSC-Ausgaben,
 - Contest-Teilnahmen und Länder,
 - Mottoshows,
@@ -527,6 +530,7 @@ Punktwerte dürfen im Export als ausdrücklich abgeleitete Komfortwerte enthalte
 - eigene nicht wählbare Einreichung,
 - nicht abgegebene oder noch unerfasste Stimmzettel,
 - historische Einreichungen des Teilnehmers.
+- historische BOTB-Interpretwahlen des Teilnehmers als getrennte Auswahlereignisse.
 
 Songs außerhalb der Top 15 werden als ungeordnete Menge dargestellt. Der Export darf keine scheinpräzise Reihenfolge ab Platz 16 erzeugen.
 
@@ -535,6 +539,7 @@ Songs außerhalb der Top 15 werden als ungeordnete Menge dargestellt. Der Export
 Sinnvolle CSV-Ausgaben sind mindestens:
 
 - Teilnehmer und Contest-Teilnahmen,
+- BOTB-Interpretwahlen im Long-Format (`botb-selections.csv` mit `selection_id`, `participant_id`, `edition_number`, `artist`, `known_since`),
 - Wettbewerbsbeiträge,
 - Stimmzettelpositionen im Long-Format,
 - optional eine abgeleitete Bewertungsmatrix mit klaren Zuständen statt pauschaler Nullwerte.
@@ -565,6 +570,9 @@ Die Arbeitsfläche verwendet:
 - aktuelle anonyme Songliste,
 - aktuelles Teilnehmerfeld mit contestbezogenen Ländern,
 - historische Einreichungen der Teilnehmer.
+- historische BOTB-Interpretwahlen derselben stabilen Teilnehmeridentität als getrennte, rein lesbare Recherchehilfe.
+
+BOTB-Auswahlen werden ausschließlich über `participant_id` verbunden; Alias- und Länderwechsel ändern die Zuordnung nicht. Eine Auswahl ist ein einzelnes öffentliches Auswahlereignis, keine CSC-Teilnahme, keine CSC-Einreichung und kein Beweis für einen bestimmten Song. Für historische Tipp- oder Backtestläufe darf sie nur verwendet werden, wenn ihr `knownSince` am fachlichen Stichtag bereits erreicht war; ein unbekanntes Datum ist ohne dokumentierten manuellen Fakt neutral.
 
 ### 14.3 Bedienung
 
@@ -575,6 +583,7 @@ Mindestens vorgesehen sind:
 - Drag-and-drop oder gleichwertig komfortable Auswahl,
 - optionale Sicherheit und Notiz pro Tipp,
 - historische Einreichungen eines ausgewählten Teilnehmers als schnell erreichbare Recherchehilfe,
+- getrennte historische BOTB-Interpreten desselben ausgewählten Teilnehmers mit Ausgabe und optionalem Bekanntheitsdatum,
 - Auflösung nach Bekanntgabe der echten Zuordnungen,
 - Anzahl korrekter Tipps und einfache persönliche Historie.
 

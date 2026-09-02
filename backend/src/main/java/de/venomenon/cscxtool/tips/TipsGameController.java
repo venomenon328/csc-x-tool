@@ -62,7 +62,9 @@ record TipsAssignmentResponse(long entryId, long guessedParticipationId, TipsCon
 record TipsGameStatisticsResponse(int correct, int incorrect, int missing, int tipsSubmitted, Double hitRate,
                                   List<TipsConfidenceStatisticsResponse> confidence) { }
 record TipsConfidenceStatisticsResponse(TipsConfidence confidence, int correct, int incorrect, int tipsSubmitted, Double hitRate) { }
-record TipsSubmissionHistoryResponse(long participationId, List<TipsSubmissionHistoryResponseItem> entries) { }
+record TipsSubmissionHistoryResponse(long participationId, List<TipsSubmissionHistoryResponseItem> entries,
+                                     List<TipsBotbSelectionHistoryResponseItem> botbSelections) { }
 record TipsSubmissionHistoryResponseItem(long entryId, long showId, int showNumber, String showName, long contestId, String contestName,
                                          boolean currentContest, String countryCode, String countryName, String artist, String title,
                                          String youtubeUrl) { }
+record TipsBotbSelectionHistoryResponseItem(long id, int editionNumber, String artist, String knownSince) { }

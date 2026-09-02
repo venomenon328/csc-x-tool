@@ -40,7 +40,7 @@ import tools.jackson.databind.ObjectMapper;
 public class AnalysisExportService {
 
     static final String FORMAT = "csc-x-tool-analysis";
-    static final int FORMAT_VERSION = 1;
+    static final int FORMAT_VERSION = 2;
     private static final DateTimeFormatter FILE_TIMESTAMP = DateTimeFormatter
             .ofPattern("yyyyMMdd'T'HHmmssSSS'Z'").withZone(ZoneOffset.UTC);
 
@@ -163,6 +163,8 @@ public class AnalysisExportService {
                         (left, right) -> left, LinkedHashMap::new))
                 .values().stream().sorted(Comparator.comparing(DbParticipant::displayName, String.CASE_INSENSITIVE_ORDER)
                         .thenComparingLong(DbParticipant::id)).toList();
+        List<DbBotbSelection> botbSelections = loadBotbSelections(participants.stream().map(DbParticipant::id)
+                .collect(java.util.stream.Collectors.toSet()));
 
         Set<Long> includedShowIds = Set.copyOf(selectedShowIds);
         List<DbEntry> entries = jdbc.query("""
@@ -219,7 +221,7 @@ public class AnalysisExportService {
                 request.contestIds().isEmpty() && request.showIds().isEmpty() ? "FULL_ARCHIVE" : "SELECTED",
                 List.copyOf(request.contestIds()), List.copyOf(request.showIds()), request.candidateShowId()
         );
-        return new Snapshot(scope, contests, shows, participants, participations, entries, ballots, candidates, candidateContest,
+        return new Snapshot(scope, contests, shows, participants, botbSelections, participations, entries, ballots, candidates, candidateContest,
                 selectedCandidateShow, participationsById);
     }
 
@@ -227,8 +229,8 @@ public class AnalysisExportService {
         AnalysisDocument document = document(snapshot, generatedAt);
         AnalysisExportPreview preview = previewOf(snapshot);
         LinkedHashMap<String, byte[]> files = new LinkedHashMap<>();
-        List<String> manifestFiles = new ArrayList<>(List.of("analysis.json", "analysis.md", "participants.csv", "participations.csv", "entries.csv",
-                "ballots.csv", "assessment-matrix.csv"));
+        List<String> manifestFiles = new ArrayList<>(List.of("analysis.json", "analysis.md", "participants.csv", "participations.csv",
+                "botb-selections.csv", "entries.csv", "ballots.csv", "assessment-matrix.csv"));
         if (!snapshot.candidates().isEmpty()) manifestFiles.add("candidates.csv");
         files.put("manifest.json", objectMapper.writeValueAsBytes(new AnalysisManifest(
                 FORMAT, FORMAT_VERSION, generatedAt, document.scope(), List.copyOf(manifestFiles), preview
@@ -242,6 +244,7 @@ public class AnalysisExportService {
                 snapshot.participations().stream().map(participation -> List.of(text(participation.id()), text(participation.contestId()),
                         contest(snapshot, participation.contestId()).name(), text(participation.participantId()), participation.displayName(),
                         participation.countryCode(), Boolean.toString(participation.ownParticipation()))).toList()));
+        files.put("botb-selections.csv", botbSelectionsCsv(snapshot));
         files.put("entries.csv", entriesCsv(snapshot));
         files.put("ballots.csv", ballotsCsv(snapshot));
         files.put("assessment-matrix.csv", assessmentCsv(snapshot));
@@ -278,9 +281,18 @@ public class AnalysisExportService {
                 value.artist(), value.title(), value.youtubeUrl(), value.comment(), value.status(), value.manualPosition(), value.selectedAsOwnSubmission()
         )).toList();
         List<AssessmentDocument> assessments = assessments(snapshot);
+        List<BotbSelectionDocument> botbSelections = snapshot.botbSelections().stream().map(value -> new BotbSelectionDocument(
+                value.id(), value.participantId(), value.editionNumber(), value.artist(), value.knownSince()
+        )).toList();
         return new AnalysisDocument(FORMAT, FORMAT_VERSION, generatedAt, snapshot.scope(), Semantics.contract(),
-                new AnalysisData(participants, contests, participations, shows, entries, ballots, predictionContext, candidates),
+                new AnalysisData(participants, contests, participations, shows, entries, ballots, predictionContext, candidates, botbSelections),
                 new AnalysisDerived(assessments));
+    }
+
+    private byte[] botbSelectionsCsv(Snapshot snapshot) {
+        List<List<String>> rows = snapshot.botbSelections().stream().map(selection -> List.of(text(selection.id()),
+                text(selection.participantId()), text(selection.editionNumber()), selection.artist(), empty(selection.knownSince()))).toList();
+        return csv(List.of("selection_id", "participant_id", "edition_number", "artist", "known_since"), rows);
     }
 
     private byte[] entriesCsv(Snapshot snapshot) {
@@ -371,11 +383,15 @@ public class AnalysisExportService {
         value.append("Format `").append(FORMAT).append("` v").append(FORMAT_VERSION).append("; generated at `")
                 .append(document.generatedAt()).append("`. This is an analysis contract, not a backup or restore format.\n\n");
         value.append("## Scope\n\n").append(scopeText(document.scope())).append("\n\n");
+        value.append("## Data counts\n\n- Participants: ").append(snapshot.participants().size())
+                .append("\n- BOTB artist selections: ").append(snapshot.botbSelections().size()).append("\n\n");
         value.append("## Interpretation\n\n");
         value.append("- Ranks 1-15 are canonical; points are derived from those ranks.\n");
         value.append("- `OUTSIDE_TOP_15` has derived zero points, but no known rank.\n");
         value.append("- `OWN_ENTRY` is not eligible for that voter and is not a negative rating.\n");
-        value.append("- `NO_BALLOT` and `UNKNOWN` are not zero ratings.\n\n");
+        value.append("- `NO_BALLOT` and `UNKNOWN` are not zero ratings.\n");
+        value.append("- A BOTB artist selection is one selection-model evidence event, not a CSC participation, submission, or proof of a specific song.\n");
+        value.append("- For historical analyses, use a BOTB selection only when `knownSince` was on or before the analysis cutoff; an unknown date needs a documented fact.\n\n");
         for (DbContest contest : snapshot.contests()) {
             value.append("# ").append(markdownText(contest.name())).append("\n\n");
             for (DbShow show : snapshot.shows().stream().filter(candidate -> candidate.contestId() == contest.id()).toList()) {
@@ -441,6 +457,18 @@ public class AnalysisExportService {
                 }
                 value.append("\n");
             }
+            value.append("BOTB artist selections:\n\n");
+            List<DbBotbSelection> selections = snapshot.botbSelections().stream()
+                    .filter(selection -> selection.participantId() == participant.id()).toList();
+            if (selections.isEmpty()) value.append("- none recorded in this scope\n\n");
+            else {
+                for (DbBotbSelection selection : selections) {
+                    value.append("- BOTB #").append(selection.editionNumber()).append(": ").append(markdownText(selection.artist()));
+                    if (selection.knownSince() != null) value.append(" (known since ").append(selection.knownSince()).append(")");
+                    value.append("\n");
+                }
+                value.append("\n");
+            }
             value.append("Published Top 15:\n\n");
             List<DbBallotView> voted = snapshot.ballots().stream().filter(ballot -> participations.stream()
                     .anyMatch(participation -> participation.id() == ballot.voterParticipationId()) && "ABGESTIMMT".equals(ballot.status())).toList();
@@ -475,8 +503,9 @@ public class AnalysisExportService {
         String value = "# CSC X Tool analysis export\n\n"
                 + "`analysis.json` is the canonical machine-readable source of this package. Its format is `" + FORMAT + "` version " + FORMAT_VERSION + ".\n\n"
                 + "This package is not a backup, restore input, database copy, official result table, exclusion list, AI request or cloud upload.\n\n"
-                + "CSV files use UTF-8 with BOM, semicolons and CRLF line endings. `assessment-matrix.csv` deliberately keeps `RANKED`, `OUTSIDE_TOP_15`, `OWN_ENTRY`, `NO_BALLOT` and `UNKNOWN` separate.\n\n"
+                + "CSV files use UTF-8 with BOM, semicolons and CRLF line endings. `botb-selections.csv` contains normalized participant-bound BOTB artist selections. `assessment-matrix.csv` deliberately keeps `RANKED`, `OUTSIDE_TOP_15`, `OWN_ENTRY`, `NO_BALLOT` and `UNKNOWN` separate.\n\n"
                 + "`OUTSIDE_TOP_15` has zero derived points but no known rank. `OWN_ENTRY`, `NO_BALLOT` and `UNKNOWN` have neither a rank nor a zero rating.\n\n"
+                + "A BOTB artist selection is one selection-model evidence event, not a CSC participation, submission or proof of a particular song. For a historical cutoff, use it only when `knownSince` is on or before that cutoff; an unknown date requires a documented fact.\n\n"
                 + "Scope: " + scopeText(document.scope()) + "\n";
         return value.getBytes(StandardCharsets.UTF_8);
     }
@@ -491,8 +520,17 @@ public class AnalysisExportService {
         long voted = snapshot.ballots().stream().filter(ballot -> "ABGESTIMMT".equals(ballot.status())).count();
         long noBallot = snapshot.ballots().stream().filter(ballot -> "NICHT_ABGESTIMMT".equals(ballot.status())).count();
         long unknown = snapshot.ballots().stream().filter(ballot -> "UNERFASST".equals(ballot.status())).count();
-        return new AnalysisExportPreview(snapshot.scope(), snapshot.participants().size(), snapshot.participations().size(), snapshot.shows().size(),
+        return new AnalysisExportPreview(snapshot.scope(), snapshot.participants().size(), snapshot.botbSelections().size(), snapshot.participations().size(), snapshot.shows().size(),
                 snapshot.entries().size(), voted, noBallot, unknown, snapshot.candidates().size(), assessments(snapshot).size());
+    }
+
+    private List<DbBotbSelection> loadBotbSelections(Set<Long> participantIds) {
+        if (participantIds.isEmpty()) return List.of();
+        String placeholders = String.join(",", java.util.Collections.nCopies(participantIds.size(), "?"));
+        return jdbc.query("SELECT id,participant_id,edition_number,artist,known_since FROM participant_botb_selection "
+                        + "WHERE participant_id IN (" + placeholders + ") ORDER BY participant_id,edition_number DESC,id DESC",
+                (r, n) -> new DbBotbSelection(r.getLong(1), r.getLong(2), r.getInt(3), r.getString(4), r.getString(5)),
+                participantIds.toArray());
     }
 
     private Map<Long, List<String>> aliasesByParticipant(Set<Long> participantIds) {
@@ -627,7 +665,7 @@ public class AnalysisExportService {
     }
 
     record AnalysisExportResult(String filename, Instant generatedAt, AnalysisExportPreview preview) { }
-    record AnalysisExportPreview(AnalysisScope scope, int participants, int participations, int shows, int entries,
+    record AnalysisExportPreview(AnalysisScope scope, int participants, int botbSelections, int participations, int shows, int entries,
                                  long votedBallots, long noBallots, long unknownBallots, int candidates, int assessments) { }
     record AnalysisScope(String mode, List<Long> contestIds, List<Long> showIds, Long candidateShowId) { }
 
@@ -636,7 +674,7 @@ public class AnalysisExportService {
     record AnalysisDocument(String format, int formatVersion, Instant generatedAt, AnalysisScope scope, Semantics semantics,
                             AnalysisData data, AnalysisDerived derived) { }
     record Semantics(boolean rankIsCanonical, boolean pointsDerivedFromRank, String outsideTop15, String ownEntry,
-                     String noBallot, String unknown, Map<Integer, Integer> pointsByRank) {
+                     String noBallot, String unknown, String botbArtistSelection, String botbKnownSince, Map<Integer, Integer> pointsByRank) {
         static Semantics contract() {
             Map<Integer, Integer> points = new LinkedHashMap<>();
             for (int rank = 1; rank <= 15; rank++) points.put(rank, CscPoints.pointsForRank(rank));
@@ -644,12 +682,15 @@ public class AnalysisExportService {
                     "Eligible entry absent from a recorded Top 15; unordered and zero derived points, with no known rank.",
                     "The voter's own non-votable entry; not a rating and has no points.",
                     "The participant did not submit a ballot; no preference or points can be inferred.",
-                    "The ballot status has not been recorded; no preference or points can be inferred.", points);
+                    "The ballot status has not been recorded; no preference or points can be inferred.",
+                    "One public choice of an artist for a BOTB edition. It is selection-model evidence, not a CSC participation, submission, or proof of a particular song.",
+                    "For a historical analysis cutoff, a later knownSince excludes this selection. An unknown date needs a documented external fact before use in a backtest.", points);
         }
     }
     record AnalysisData(List<ParticipantDocument> participants, List<ContestDocument> contests, List<ParticipationDocument> participations,
                         List<ShowDocument> shows, List<EntryDocument> entries, List<PublishedBallotDocument> publishedBallots,
-                        PredictionContextDocument predictionContext, List<CandidateDocument> predictionCandidates) { }
+                        PredictionContextDocument predictionContext, List<CandidateDocument> predictionCandidates,
+                        List<BotbSelectionDocument> botbSelections) { }
     record AnalysisDerived(List<AssessmentDocument> assessmentMatrix) { }
     record ParticipantDocument(long id, String displayName, List<String> aliases) { }
     record ContestDocument(long id, String name, int displayOrder, boolean current, Long ownParticipationId) { }
@@ -664,10 +705,11 @@ public class AnalysisExportService {
     record PredictionShowDocument(long id, long contestId, int showNumber, String name) { }
     record CandidateDocument(long id, long showId, long contestId, int showNumber, String showName, String artist, String title,
                              String youtubeUrl, String comment, String status, int manualPosition, boolean selectedAsOwnSubmission) { }
+    record BotbSelectionDocument(long id, long participantId, int editionNumber, String artist, String knownSince) { }
     record AssessmentDocument(long showId, long voterParticipationId, long entryId, String state, Integer rank, Integer derivedPoints) { }
 
     record Snapshot(AnalysisScope scope, List<DbContest> contests, List<DbShow> shows, List<DbParticipant> participants,
-                    List<DbParticipation> participations, List<DbEntry> entries, List<DbBallotView> ballots, List<DbCandidate> candidates,
+                    List<DbBotbSelection> botbSelections, List<DbParticipation> participations, List<DbEntry> entries, List<DbBallotView> ballots, List<DbCandidate> candidates,
                     DbContest candidateContest, DbShow candidateShow, Map<Long, DbParticipation> participationsById) { }
     record DbContest(long id, String name, int displayOrder, boolean current, Long ownParticipationId) { }
     record DbShow(long id, long contestId, int showNumber, String name, boolean explicitEntryListComplete, boolean currentContest,
@@ -677,6 +719,7 @@ public class AnalysisExportService {
         }
     }
     record DbParticipant(long id, String displayName, List<String> aliases) { }
+    record DbBotbSelection(long id, long participantId, int editionNumber, String artist, String knownSince) { }
     record DbParticipation(long id, long contestId, long participantId, String countryCode, String displayName, boolean ownParticipation) { }
     record DbEntry(long id, long contestId, long showId, String artist, String title, String youtubeUrl, Long submitterParticipationId, int poolPosition) { }
     record DbBallot(long id, long showId, long voterParticipationId, String status) { }

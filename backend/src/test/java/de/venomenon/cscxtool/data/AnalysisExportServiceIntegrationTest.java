@@ -54,6 +54,7 @@ class AnalysisExportServiceIntegrationTest {
         Path packageFile = exports.resolveKnownArtifact(result.filename());
 
         assertThat(preview.scope().mode()).isEqualTo("SELECTED");
+        assertThat(preview.botbSelections()).isEqualTo(3);
         assertThat(preview.entries()).isEqualTo(17);
         assertThat(preview.votedBallots()).isEqualTo(1);
         assertThat(preview.noBallots()).isEqualTo(16);
@@ -66,18 +67,22 @@ class AnalysisExportServiceIntegrationTest {
         try (ZipFile zip = new ZipFile(packageFile.toFile())) {
             assertThat(zip.stream().map(entry -> entry.getName()).toList()).containsExactly(
                     "manifest.json", "README.md", "analysis.json", "analysis.md", "participants.csv", "participations.csv",
-                    "entries.csv", "ballots.csv", "assessment-matrix.csv", "candidates.csv"
+                    "botb-selections.csv", "entries.csv", "ballots.csv", "assessment-matrix.csv", "candidates.csv"
             );
             String manifest = text(zip, "manifest.json");
+            String readme = text(zip, "README.md");
             String analysis = text(zip, "analysis.json");
             String markdown = text(zip, "analysis.md");
             String ballots = text(zip, "ballots.csv");
             String matrix = text(zip, "assessment-matrix.csv");
             String candidates = text(zip, "candidates.csv");
+            String botbSelections = text(zip, "botb-selections.csv");
 
-            assertThat(manifest).contains("\"format\":\"csc-x-tool-analysis\"", "\"formatVersion\":1", "assessment-matrix.csv");
+            assertThat(manifest).contains("\"format\":\"csc-x-tool-analysis\"", "\"formatVersion\":2", "assessment-matrix.csv", "botb-selections.csv");
             assertThat(analysis).contains("\"outsideTop15EntryIds\":[1016]", "\"ownEntryId\":1000", "\"status\":\"NICHT_ABGESTIMMT\"",
-                    "\"status\":\"UNERFASST\"", "\"predictionCandidates\"");
+                    "\"status\":\"UNERFASST\"", "\"predictionCandidates\"", "\"botbSelections\"", "\"editionNumber\":9", "\"knownSince\":null");
+            assertThat(analysis).contains("\"id\":910,\"participantId\":101,\"editionNumber\":9,\"artist\":\"VÖLA; \\\"Zitat\\\"\",\"knownSince\":\"2024-05-12\"")
+                    .doesNotContain("Other scope BOTB");
             assertThat(analysis).contains("\"predictionContext\":{\"contest\":{\"id\":82,\"name\":\"CSC Current\",\"current\":true},"
                     + "\"show\":{\"id\":502,\"contestId\":82,\"showNumber\":1,\"name\":\"Current candidates\"}}");
             String archiveContests = analysis.substring(analysis.indexOf("\"contests\""), analysis.indexOf("\"participations\""));
@@ -86,11 +91,14 @@ class AnalysisExportServiceIntegrationTest {
                     .doesNotContain("Prediction Artist", "Other Contest Song", "Current Entry Artist");
             assertThat(markdown).contains("Outside Top 15 (unordered set; no rank is known)", "Own non-votable entry",
                     "Status: **NO_BALLOT**", "Status: **UNKNOWN**", "Prediction candidates (separate from historic entries)",
-                    "CSC Current, show 1: Current candidates");
+                    "CSC Current, show 1: Current candidates", "BOTB artist selections: 3", "BOTB #9: VÖLA; \"Zitat\"");
+            assertThat(readme).contains("version 2", "botb-selections.csv", "selection-model evidence event");
             assertThat(ballots).startsWith("\uFEFF").contains("RANKED", "NO_BALLOT", "UNKNOWN").contains("\r\n");
             assertThat(matrix).contains("RANKED", "OUTSIDE_TOP_15", "OWN_ENTRY", "NO_BALLOT", "UNKNOWN")
                     .contains(";0;");
             assertThat(candidates).contains("Prediction Artist", "Prediction Title").doesNotContain("Own Song");
+            assertThat(botbSelections).startsWith("\uFEFFselection_id;participant_id;edition_number;artist;known_since\r\n")
+                    .contains("910;101;9;\"VÖLA; \"\"Zitat\"\"\";2024-05-12\r\n", "911;101;4;Act ohne Datum;\r\n");
         }
     }
 
@@ -111,6 +119,20 @@ class AnalysisExportServiceIntegrationTest {
         }
     }
 
+    @Test
+    void fullArchiveIncludesBotbSelectionsOfEveryIncludedParticipantIdentity() throws Exception {
+        fixture();
+
+        AnalysisExportService.AnalysisExportResult result = exports.create(
+                new AnalysisExportService.AnalysisExportRequest(List.of(), List.of(), null)
+        );
+
+        assertThat(result.preview().botbSelections()).isEqualTo(4);
+        try (ZipFile zip = new ZipFile(exports.resolveKnownArtifact(result.filename()).toFile())) {
+            assertThat(text(zip, "analysis.json")).contains("Other scope BOTB", "\"participantId\":190");
+        }
+    }
+
     private void fixture() {
         jdbc.update("UPDATE contest SET is_current=0");
         jdbc.update("INSERT INTO contest (id,name,display_order,is_current,created_at,updated_at) VALUES (80,'CSC IX',80,0,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)");
@@ -119,12 +141,19 @@ class AnalysisExportServiceIntegrationTest {
         participant(101, "Alice; alias", "DE");
         participant(102, "Bob", "FR");
         participant(103, "Carol", "SE");
+        participant(190, "Other scope participant", "NL");
         jdbc.update("INSERT INTO participant_alias (id,participant_id,alias) VALUES (901,101,'Alicia')");
         participation(201, 80, 101, "DE");
         participation(202, 80, 102, "FR");
         participation(203, 80, 103, "SE");
         participation(300, 81, 101, "RO");
         participation(400, 82, 101, "PH");
+        participation(401, 81, 190, "NL");
+        jdbc.update("INSERT INTO participant_botb_selection (id,participant_id,edition_number,artist,known_since,created_at,updated_at) VALUES (910,101,9,?, '2024-05-12',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)",
+                "VÖLA; \"Zitat\"");
+        jdbc.update("INSERT INTO participant_botb_selection (id,participant_id,edition_number,artist,known_since,created_at,updated_at) VALUES (911,101,4,'Act ohne Datum',NULL,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)");
+        jdbc.update("INSERT INTO participant_botb_selection (id,participant_id,edition_number,artist,known_since,created_at,updated_at) VALUES (912,102,2,'Zweiter Act',NULL,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)");
+        jdbc.update("INSERT INTO participant_botb_selection (id,participant_id,edition_number,artist,known_since,created_at,updated_at) VALUES (913,190,1,'Other scope BOTB',NULL,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)");
         jdbc.update("INSERT INTO motto_show (id,contest_id,show_number,name,entry_list_complete,created_at,updated_at) VALUES (500,80,3,'Historical; show',1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)");
         jdbc.update("INSERT INTO motto_show (id,contest_id,show_number,name,entry_list_complete,created_at,updated_at) VALUES (501,81,1,'Other contest',1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)");
         jdbc.update("INSERT INTO motto_show (id,contest_id,show_number,name,entry_list_complete,created_at,updated_at) VALUES (502,82,1,'Current candidates',0,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)");

@@ -119,6 +119,17 @@ Verbindliche Regeln:
 - kleine Stichproben stark zum neutralen Prior schrumpfen;
 - keine privaten, demografischen, politischen oder psychologischen Eigenschaften vermuten.
 
+### 7.1 BOTB-Auswahlen als begrenzte Auswahlmodell-Evidenz
+
+`botbSelections` aus dem Analyseexport sind über `participantId` mit der dauerhaften Identität verbunden. Jede Zeile ist ein `BOTB_ARTIST_SELECTION`-Ereignis: eine öffentliche Wahl eines Interpreten für eine BOTB-Ausgabe. Sie ist keine CSC-Teilnahme, keine CSC-Einreichung, kein Nachweis eines konkreten Songs und keine automatische Genre- oder Ähnlichkeitszuordnung.
+
+- Eine exakte Interpretenübereinstimmung kann ein starkes Zusatzindiz sein, bleibt aber unsicher.
+- Stil- oder Szenenähe ist höchstens moderat; breite Genreableitungen aus einer einzelnen Wahl bleiben schwach.
+- Mehrere BOTB-Songs desselben Interpreten sind kein mehrfaches Ereignis; getrennte Ausgaben sind getrennte Ereignisse.
+- Fehlende BOTB-Daten sind neutral.
+
+Vor einem historischen Tipp- oder Backtestlauf wird je Auswahl der fachliche Stichtag geprüft: `knownSince` nach dem Stichtag schließt sie aus. Bei `knownSince = null` ist eine Verwendung nur mit dokumentiertem manuellen Fakt oder anderer belastbarer Zeitquelle zulässig. Für einen aktuellen Lauf kann die Wahl mit sichtbar dokumentierter zeitlicher Unsicherheit verwendet werden, wenn ihre aktuelle öffentliche Bekanntheit ausdrücklich feststeht. BOTB-Auswahlen erweitern niemals `eligible_submitters`.
+
 Neue Songmerkmale, Profile und Belege werden versioniert im Sheet `Teilnehmer` gespeichert. Der Lauf wird in `Analyseläufe` protokolliert.
 
 ## 8. Merkmalsprofil der Zielshow

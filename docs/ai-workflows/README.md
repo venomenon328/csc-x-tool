@@ -37,6 +37,7 @@ CSC/
       manifest.txt
       participants.csv
       participations.csv
+      botb-selections.csv
       entries.csv
       ballots.csv
       assessment-matrix.csv
@@ -137,6 +138,7 @@ Kann auch dieser trotz direkter Textübergabe beziehungsweise Drive-Ablage nicht
 - `entries.csv`;
 - `ballots.csv`;
 - `assessment-matrix.csv`;
+- `botb-selections.csv`;
 - optional `candidates.csv`.
 
 Die Dateien müssen aus demselben Export stammen. Manuell zusammenkopierte Ausschnitte oder voneinander abweichende Exportstände sind nicht zulässig.
@@ -168,3 +170,5 @@ Damit gilt:
 - Bei der Bewertung der eigenen Einreichung wird zusätzlich die eigene aktive Teilnahme aus der Menge möglicher Punktegeber entfernt.
 
 Dass jemand vor drei Jahren einmal teilgenommen hat, verleiht ihm also keine posthume Stimmkarte für den aktuellen Wettbewerb.
+
+Historische BOTB-Interpretwahlen sind normalisierte Auswahlmodell-Ereignisse derselben `participant_id`, keine zusätzlichen aktuellen Teilnehmer oder Einreichungen. Sie verändern nie die Menge aktiver Teilnahmen des aktiven Wettbewerbs. Für historische Läufe gelten die in `external-ai-analysis.md` dokumentierten `knownSince`-Stichtagsregeln; ein fehlendes Datum ist kein automatisch zeitgerechtes Signal.

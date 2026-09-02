@@ -61,6 +61,8 @@ Für jeden Teilnehmer werden zwei Profile getrennt geführt:
 
 Eigene Einreichungen sind ein starkes Signal für Auswahlverhalten, aber kein ungefilterter Beweis des allgemeinen Musikgeschmacks. Mottovorgaben, strategische Erwägungen, bewusste Stilwechsel und Spaßbeiträge können die Auswahl stark prägen.
 
+Eine historische BOTB-Interpretwahl ist zusätzlich ein `BOTB_ARTIST_SELECTION`-Ereignis des Auswahlmodells. Die Person hat sich entschieden, diesen Act in einer BOTB-Ausgabe über mehrere Runden öffentlich zu vertreten. Das ist weder ein Beweis des allgemeinen Geschmacksmodells noch eine aktuelle CSC-Teilnahme, CSC-Einreichung, ein bestimmter Song oder eine automatische Zuordnung stilistisch ähnlicher Beiträge.
+
 ### 3.4 Keine erfundenen Negativbewertungen
 
 Die fachlichen Zustände bleiben erhalten:
@@ -109,6 +111,8 @@ Innerhalb des Pakets gilt:
 - CSV-Dateien dienen der Kontrolle, Filterung und punktuellen Tabellenarbeit;
 - `analysis.md` und `README.md` dienen der menschlichen Plausibilitätsprüfung.
 
+Formatversion 2 ergänzt die normalisierte Top-Level-Liste `data.botbSelections` und `botb-selections.csv`. Diese Daten bleiben an die dauerhafte `participantId` gebunden und werden nicht je Contest-Teilnahme dupliziert.
+
 Der vollständige JSON-Export des Tools ist davon zu unterscheiden. Er ist ein schema- und restoreorientiertes Datenaustauschformat mit internen Rohdaten. Er kann im Notfall als zusätzliche Prüfquelle dienen, ist aber nicht der reguläre semantische Vertrag für externe KI-Analysen. Insbesondere müssen dort Bewertungszustände und weitere Beziehungen erneut aus internen Tabellen hergeleitet werden.
 
 Ein Datenbankdump, Screenshots oder manuell zusammenkopierte Listen sind weder nötig noch vorzuziehen.
@@ -127,6 +131,7 @@ Für eine belastbare Analyse werden mindestens benötigt:
 
 - `format`, `formatVersion`, `generatedAt` und Export-Scope;
 - Teilnehmer mit stabiler `participant_id` und Aliasen;
+- normalisierte BOTB-Interpretwahlen mit `id`, `participantId`, `editionNumber`, `artist` und optionalem `knownSince`;
 - contestbezogene Teilnahmen und Länder;
 - Contests und Shows in fachlicher Reihenfolge;
 - vollständige Einreichungen mit Interpret, Titel, Version beziehungsweise URL und zugeordneter Teilnahme, soweit die Zuordnung bereits aufgelöst sein darf;
@@ -148,6 +153,7 @@ Falls das ZIP nicht verarbeitet werden kann, reicht zunächst `analysis.json`. N
 - `entries.csv`
 - `ballots.csv`
 - `assessment-matrix.csv`
+- `botb-selections.csv`
 - optional `candidates.csv`
 
 Bei einer CSV-Übergabe müssen `manifest.json` und die Exporterzeugungszeit zusätzlich vorliegen.
@@ -288,7 +294,7 @@ Dieses Signal darf nur aggregierte Tendenzen leicht korrigieren. Es darf niemals
 
 `OWN_ENTRY`, `NO_BALLOT` und `UNKNOWN` erhalten kein Geschmacksgewicht.
 
-### 7.2 Auswahlmodell aus eigenen Einreichungen
+### 7.2 Auswahlmodell aus eigenen Einreichungen und BOTB-Auswahlen
 
 Jede bekannte eigene Einreichung liefert ein positives Auswahlsignal mit Basisgewicht `1.00`.
 
@@ -300,6 +306,21 @@ Das Signal wird merkmalsweise gefiltert:
 - wiederholte Künstler, Genres, Epochen, Sprachen oder strategische Muster erhöhen die Evidenz erst über mehrere unabhängige Shows hinweg.
 
 Ein einzelner Beitrag begründet höchstens eine vorläufige Hypothese.
+
+#### BOTB-Interpretwahlen
+
+Eine BOTB-Wahl ist eine eigene Evidenzart `BOTB_ARTIST_SELECTION` und zählt als **ein** Auswahlereignis. Mehrere Songs desselben BOTB-Interpreten über mehrere Runden erhöhen dieses Ereignis nicht mehrfach. Wiederholte Wahlen desselben oder eines anderen Interpreten in verschiedenen BOTB-Ausgaben sind dagegen getrennte Ereignisse.
+
+- Eine exakte Übereinstimmung mit einem anonymen Interpreten ist ein starkes konkretes Zusatzindiz, aber keine sichere Zuordnung.
+- Stilistische oder szenische Nähe ist höchstens ein moderates Zusatzindiz und benötigt weitere Belege.
+- Breite Genreableitungen aus einer einzelnen BOTB-Wahl bleiben schwach.
+- Fehlende BOTB-Einträge sind neutral und belegen weder Nichtteilnahme noch einen Gegenbeweis.
+
+#### BOTB-Stichtag und zeitliche Unsicherheit
+
+Für historische Analysen und Backtests werden nur BOTB-Auswahlen genutzt, deren `knownSince` am fachlichen Stichtag oder früher liegt. Liegt `knownSince` später, ist die Auswahl für diesen Lauf ausgeschlossen. Bei `knownSince = null` darf eine historische Bekanntheit nicht unterstellt werden; eine Nutzung setzt einen im Lauf dokumentierten manuellen Fakt oder eine andere belastbare Zeitquelle voraus.
+
+Für eine aktuelle Analyse darf ein Eintrag mit unbekanntem Datum verwendet werden, wenn der Auftrag oder die Daten seine aktuelle öffentliche Bekanntheit ausdrücklich festhält. Die zeitliche Unsicherheit bleibt dann sichtbar dokumentiert.
 
 ### 7.3 Zeitgewichtung
 
@@ -363,6 +384,7 @@ Für die Zielshow werden verwendet:
 - das aktuelle Teilnehmerfeld;
 - die anonymen aktuellen Beiträge;
 - ausschließlich historische beziehungsweise vor Beginn der Zielshow verfügbare Profildaten;
+- zeitgerecht bekannte BOTB-Interpretwahlen als zusätzliche Auswahlmodell-Evidenz;
 - gegebenenfalls öffentlich bekannte manuelle Fakten, sofern sie im Blatt `Belege` als solche gekennzeichnet sind.
 
 Nicht verwendet werden:
