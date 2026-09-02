@@ -174,6 +174,12 @@ Ein eingebetteter Player ist vorgesehen, sofern das jeweilige Video dies zuläss
 
 Der externe YouTube-Link bleibt immer als zuverlässiger Fallback verfügbar.
 
+### D-025 – BOTB-Auswahlen sind externe Identitätshistorie
+
+Eine BOTB-Auswahl dokumentiert ausschließlich die ursprüngliche Interpretwahl einer externen BOTB-Ausgabe für eine dauerhafte `participant`-Identität. Sie ist keine CSC-Teilnahme, kein CSC-Beitrag und kein Geschmacks- oder Nichtteilnahmebeleg; ein fehlender Datensatz bedeutet nur „nicht erfasst“.
+
+BOTB wird nicht als `contest`, nicht als eigener Navigationsbereich und nicht mit Songs, Runden, Punkten, Platzierungen oder Ergebnissen modelliert. Die Teilnehmerübersicht zeigt nur die voraggregierte Anzahl. Die vollständige Liste wird atomar in einem eigenen Identitätsdialog gepflegt und im vollständigen JSON-Export/Restore verlustfrei mitgeführt.
+
 ## Verbindliche Architekturentscheidungen
 
 ### A-001 – Lokale Webanwendung im Browser

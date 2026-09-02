@@ -73,6 +73,7 @@ class BackupRestoreIntegrationTest {
         Files.createDirectories(extractionDirectory);
         Path extracted = backups.extractVerifiedSnapshot(backups.resolveKnownArtifact(manual.id()), extractionDirectory);
         assertThat(new JdbcTemplate(SqliteDataSourceFactory.create(extracted)).queryForObject("SELECT COUNT(*) FROM candidate", Integer.class)).isEqualTo(1);
+        assertThat(new JdbcTemplate(SqliteDataSourceFactory.create(extracted)).queryForObject("SELECT COUNT(*) FROM participant_botb_selection", Integer.class)).isEqualTo(1);
 
         for (int index = 0; index < 31; index++) backups.create(BackupReason.STARTUP);
         assertThat(backups.overview().automaticBackups()).hasSize(30);
@@ -92,6 +93,7 @@ class BackupRestoreIntegrationTest {
 
         assertThat(restored.safetyBackup().reason()).isEqualTo(BackupReason.PRE_RESTORE);
         assertThat(jdbc.queryForObject("SELECT comment FROM candidate WHERE id = 100", String.class)).isEqualTo("Vorher");
+        assertThat(jdbc.queryForObject("SELECT artist FROM participant_botb_selection WHERE id = 12", String.class)).isEqualTo("Historischer BOTB-Act");
         assertThat(backups.overview().manualBackups()).anyMatch(backup -> backup.reason() == BackupReason.PRE_RESTORE);
     }
 
@@ -128,7 +130,7 @@ class BackupRestoreIntegrationTest {
             jdbc.update("UPDATE contest_entry SET pool_position = ? WHERE id = ?", 16 - rank, 199 + rank);
         }
         byte[] json = exports.exportJson();
-        assertThat(new String(json, StandardCharsets.UTF_8)).contains("\"formatVersion\":9", "\"assessment\":3", "\"assessmentConfidence\":1", "\"legacyReceivedScores\"")
+        assertThat(new String(json, StandardCharsets.UTF_8)).contains("\"formatVersion\":10", "\"assessment\":3", "\"assessmentConfidence\":1", "\"legacyReceivedScores\"")
                 .doesNotContain("\"listened\"", "\"relisten\"");
         jdbc.update("DELETE FROM legacy_received_score");
         jdbc.update("DELETE FROM ballot_snapshot_item");
@@ -142,8 +144,8 @@ class BackupRestoreIntegrationTest {
 
         RestorePreview preview = restores.previewUploadedJson(new ByteArrayInputStream(json), "voll.json");
         assertThat(preview.counts()).extracting(RestoreDataCounts::candidates, RestoreDataCounts::participants,
-                RestoreDataCounts::contestEntries, RestoreDataCounts::ballotSnapshots, RestoreDataCounts::legacyReceivedScores)
-                .containsExactly(1, 1, 15, 1, 1);
+                RestoreDataCounts::contestEntries, RestoreDataCounts::botbSelections, RestoreDataCounts::ballotSnapshots,
+                RestoreDataCounts::legacyReceivedScores).containsExactly(1, 1, 15, 1, 1, 1);
         restores.restore(preview.token());
 
         assertThat(jdbc.queryForObject("SELECT comment FROM candidate WHERE id = 100", String.class)).isEqualTo("Ä; \"Zitat\"\nZeile");
@@ -274,7 +276,7 @@ class BackupRestoreIntegrationTest {
     @Test
     void rejectsUnknownNewerJsonWithoutChangingLiveDatabase() throws Exception {
         insertFullData("Live");
-        String newer = new String(exports.exportJson(), StandardCharsets.UTF_8).replace("\"formatVersion\":9", "\"formatVersion\":10");
+        String newer = new String(exports.exportJson(), StandardCharsets.UTF_8).replace("\"formatVersion\":10", "\"formatVersion\":11");
         assertThatThrownBy(() -> restores.previewUploadedJson(new ByteArrayInputStream(newer.getBytes(StandardCharsets.UTF_8)), "new.json"))
                 .isInstanceOf(BackupFileException.class).hasMessageContaining("nicht unterst");
         assertThat(jdbc.queryForObject("SELECT comment FROM candidate WHERE id = 100", String.class)).isEqualTo("Live");
@@ -300,12 +302,22 @@ class BackupRestoreIntegrationTest {
         ExportFormat.Data invalidAssessmentData = dataWith(data, data.contests(),
                 java.util.stream.Stream.concat(java.util.stream.Stream.of(invalidAssessment), data.contestEntries().stream().skip(1)).toList(),
                 data.contestParticipations(), data.ballotSnapshots(), data.ballotSnapshotItems(), data.legacyReceivedScores());
+        long participantId = data.participants().getFirst().id();
+        ExportFormat.Data invalidBotbReferenceData = dataWithBotbSelections(data, List.of(
+                new ExportFormat.ParticipantBotbSelection(13, 99999, 1, "Fremdreferenz", null, "2026-01-01T00:00:00Z", "2026-01-01T00:00:00Z")
+        ));
+        ExportFormat.Data duplicateBotbEditionData = dataWithBotbSelections(data, List.of(
+                new ExportFormat.ParticipantBotbSelection(13, participantId, 1, "Erster", null, "2026-01-01T00:00:00Z", "2026-01-01T00:00:00Z"),
+                new ExportFormat.ParticipantBotbSelection(14, participantId, 1, "Zweiter", "2026-02-01", "2026-01-02T00:00:00Z", "2026-01-02T00:00:00Z")
+        ));
         List<ExportFormat.FullExport> invalidExports = List.of(
                 new ExportFormat.FullExport(valid.format(), valid.formatVersion(), "not-an-instant", valid.applicationVersion(), valid.schemaVersion(), data),
                 new ExportFormat.FullExport(valid.format(), valid.formatVersion(), valid.exportedAt(), valid.applicationVersion(), valid.schemaVersion(),
                         dataWith(data, List.of(), data.contestEntries(), data.contestParticipations(), data.ballotSnapshots(), data.ballotSnapshotItems(), data.legacyReceivedScores())),
                 new ExportFormat.FullExport(valid.format(), valid.formatVersion(), valid.exportedAt(), valid.applicationVersion(), valid.schemaVersion(), invalidCountryData),
-                new ExportFormat.FullExport(valid.format(), valid.formatVersion(), valid.exportedAt(), valid.applicationVersion(), valid.schemaVersion(), invalidAssessmentData)
+                new ExportFormat.FullExport(valid.format(), valid.formatVersion(), valid.exportedAt(), valid.applicationVersion(), valid.schemaVersion(), invalidAssessmentData),
+                new ExportFormat.FullExport(valid.format(), valid.formatVersion(), valid.exportedAt(), valid.applicationVersion(), valid.schemaVersion(), invalidBotbReferenceData),
+                new ExportFormat.FullExport(valid.format(), valid.formatVersion(), valid.exportedAt(), valid.applicationVersion(), valid.schemaVersion(), duplicateBotbEditionData)
         );
         ObjectMapper mapper = new ObjectMapper();
         for (ExportFormat.FullExport invalid : invalidExports) {
@@ -558,6 +570,15 @@ class BackupRestoreIntegrationTest {
                 data.publishedBallots(), data.publishedBallotPositions());
     }
 
+    private static ExportFormat.Data dataWithBotbSelections(
+            ExportFormat.Data data, List<ExportFormat.ParticipantBotbSelection> botbSelections
+    ) {
+        return new ExportFormat.Data(data.contests(), data.mottoShows(), data.ownEntryResolutions(), data.candidates(), data.participants(),
+                data.contestParticipations(), data.participantAliases(), botbSelections, data.contestEntries(), data.ballotSnapshots(),
+                data.ballotSnapshotItems(), data.legacyResults(), data.legacyReceivedScores(), data.publishedBallots(),
+                data.publishedBallotPositions(), data.tipsGames(), data.tipsGameAssignments());
+    }
+
     private static ExportFormat.DataV1 legacyDataV1(ExportFormat.Data data, List<ExportFormat.ContestEntryV1> entries) {
         return new ExportFormat.DataV1(
                 legacyShows(data), data.candidates(), legacyParticipants(data), data.participantAliases(), entries,
@@ -655,6 +676,10 @@ class BackupRestoreIntegrationTest {
         jdbc.update("INSERT INTO participant (id,display_name,active,created_at,updated_at) VALUES (10,'Inaktiv',0,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)");
         jdbc.update("INSERT INTO contest_participation (id,contest_id,participant_id,country_code,active,created_at,updated_at) VALUES (10,1,10,'DE',0,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)");
         jdbc.update("INSERT INTO participant_alias (id,participant_id,alias) VALUES (11,10,'Alias')");
+        jdbc.update("""
+                INSERT INTO participant_botb_selection (id,participant_id,edition_number,artist,known_since,created_at,updated_at)
+                VALUES (12,10,9,'Historischer BOTB-Act','2025-12-31',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+                """);
         jdbc.update("""
                 INSERT INTO candidate (id,motto_show_id,artist,title,youtube_url,comment,status,manual_position,created_at,updated_at)
                 VALUES (100,1,'Künstler','Titel','https://www.youtube.com/watch?v=dQw4w9WgXcQ',?,'FINALIST',1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)

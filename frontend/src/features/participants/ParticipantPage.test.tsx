@@ -160,6 +160,73 @@ describe('ParticipantPage', () => {
       method: 'PUT', body: JSON.stringify({ participationId: 15, confirmChange: false }),
     }))
   })
+
+  it('edits the complete BOTB selection list without exposing artists in the participant table', async () => {
+    const user = userEvent.setup()
+    const participant = { ...alex, participationId: 15, countryCode: 'DE', countryName: 'Deutschland', identityActive: true, botbSelectionCount: 2, createdAt: '', updatedAt: '' }
+    fetchMock.mockImplementation(async (input, init) => {
+      const path = String(input)
+      if (path === '/api/contests') return jsonResponse([cscX])
+      if (path === '/api/countries') return jsonResponse(countries)
+      if (path === '/api/contests/1/participants') return jsonResponse([participant])
+      if (path === '/api/participants/5/botb-selections' && init?.method === 'PUT') return jsonResponse([])
+      if (path === '/api/participants/5/botb-selections') return jsonResponse([
+        { id: 51, participantId: 5, editionNumber: 9, artist: 'Archiv Act', knownSince: '2025-01-01', createdAt: '', updatedAt: '' },
+        { id: 52, participantId: 5, editionNumber: 2, artist: 'Zu entfernen', knownSince: null, createdAt: '', updatedAt: '' },
+      ])
+      throw new Error(`Unexpected request ${path}`)
+    })
+    render(<App />)
+
+    await screen.findByText('Alex')
+    expect(screen.getByText('2')).toBeVisible()
+    expect(screen.queryByText('Archiv Act')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'BOTB bearbeiten' }))
+    expect(await screen.findByText('Fehlende Einträge bedeuten nur, dass keine BOTB-Auswahl erfasst wurde. Sie belegen keine Nichtteilnahme.')).toBeVisible()
+    const artists = screen.getAllByRole('textbox', { name: 'Interpret' })
+    await user.clear(artists[0])
+    await user.type(artists[0], 'Bearbeiteter Act')
+    await user.click(screen.getByRole('button', { name: 'BOTB-Auswahl 2 entfernen' }))
+    await user.click(screen.getByRole('button', { name: 'Zeile hinzufügen' }))
+    const editions = screen.getAllByRole('spinbutton', { name: 'BOTB-Ausgabe' })
+    await user.type(editions[1], '12')
+    const editedArtists = screen.getAllByRole('textbox', { name: 'Interpret' })
+    await user.type(editedArtists[1], 'Neuer Act')
+    await user.click(screen.getByRole('button', { name: 'Speichern' }))
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/participants/5/botb-selections', expect.objectContaining({
+      method: 'PUT', body: JSON.stringify([
+        { id: 51, editionNumber: 9, artist: 'Bearbeiteter Act', knownSince: '2025-01-01' },
+        { editionNumber: 12, artist: 'Neuer Act', knownSince: null },
+      ]),
+    })))
+  })
+
+  it('discards BOTB edits when the dialog is cancelled', async () => {
+    const user = userEvent.setup()
+    const participant = { ...alex, participationId: 15, countryCode: 'DE', countryName: 'Deutschland', identityActive: true, botbSelectionCount: 1, createdAt: '', updatedAt: '' }
+    fetchMock.mockImplementation(async (input, init) => {
+      const path = String(input)
+      if (path === '/api/contests') return jsonResponse([cscX])
+      if (path === '/api/countries') return jsonResponse(countries)
+      if (path === '/api/contests/1/participants') return jsonResponse([participant])
+      if (path === '/api/participants/5/botb-selections' && init?.method === 'PUT') return jsonResponse([])
+      if (path === '/api/participants/5/botb-selections') return jsonResponse([
+        { id: 51, participantId: 5, editionNumber: 9, artist: 'Archiv Act', knownSince: null, createdAt: '', updatedAt: '' },
+      ])
+      throw new Error(`Unexpected request ${path}`)
+    })
+    render(<App />)
+
+    await screen.findByText('Alex')
+    await user.click(screen.getByRole('button', { name: 'BOTB bearbeiten' }))
+    await user.clear(await screen.findByRole('textbox', { name: 'Interpret' }))
+    await user.type(screen.getByRole('textbox', { name: 'Interpret' }), 'Verwerfen')
+    await user.click(screen.getByRole('button', { name: 'Abbrechen' }))
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(fetchMock).not.toHaveBeenCalledWith('/api/participants/5/botb-selections', expect.objectContaining({ method: 'PUT' }))
+  })
 })
 
 async function addExistingIdentity(user: ReturnType<typeof userEvent.setup>, country: string) {

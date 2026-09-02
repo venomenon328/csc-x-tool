@@ -110,9 +110,75 @@ class ParticipantApiIntegrationTest {
                 """)).isInstanceOf(DataAccessException.class);
     }
 
+    @Test
+    void replacesBotbSelectionsAtomicallyAndExposesOnlyTheirCountOnParticipantResponses() throws Exception {
+        long participantId = firstId(post("/api/participants", "{\"displayName\":\"BOTB Person\",\"aliases\":[]}").body());
+        long otherParticipantId = firstId(post("/api/participants", "{\"displayName\":\"Andere BOTB Person\",\"aliases\":[]}").body());
+
+        HttpResponse<String> saved = put("/api/participants/" + participantId + "/botb-selections", """
+                [
+                  {"editionNumber":3,"artist":"  Wiederkehrender Act  ","knownSince":null},
+                  {"editionNumber":9,"artist":"Neuer Act","knownSince":"2026-03-14"}
+                ]
+                """);
+
+        assertThat(saved.statusCode()).isEqualTo(200);
+        assertThat(saved.body()).contains("\"editionNumber\":9", "\"artist\":\"Neuer Act\"", "\"knownSince\":\"2026-03-14\"");
+        assertThat(saved.body().indexOf("\"editionNumber\":9")).isLessThan(saved.body().indexOf("\"editionNumber\":3"));
+        assertThat(saved.body()).contains("\"artist\":\"Wiederkehrender Act\"");
+        assertThat(get("/api/participants/" + participantId).body()).contains("\"botbSelectionCount\":2");
+
+        assertThat(post("/api/contests/1/participants", """
+                {"participantId":%d,"countryCode":"DE","active":true}
+                """.formatted(participantId)).body()).contains("\"botbSelectionCount\":2");
+        assertThat(get("/api/contests/1/participants").body()).contains("\"botbSelectionCount\":2");
+
+        assertThat(put("/api/participants/" + otherParticipantId + "/botb-selections", """
+                [{"editionNumber":3,"artist":"Wiederkehrender Act","knownSince":null}]
+                """).statusCode()).isEqualTo(200);
+
+        String beforeInvalidReplace = get("/api/participants/" + participantId + "/botb-selections").body();
+        HttpResponse<String> duplicateEdition = put("/api/participants/" + participantId + "/botb-selections", """
+                [
+                  {"editionNumber":5,"artist":"Erster","knownSince":null},
+                  {"editionNumber":5,"artist":"Zweiter","knownSince":null}
+                ]
+                """);
+        assertThat(duplicateEdition.statusCode()).isEqualTo(400);
+        assertThat(duplicateEdition.body()).contains("DUPLICATE_BOTB_EDITION");
+        assertThat(get("/api/participants/" + participantId + "/botb-selections").body()).isEqualTo(beforeInvalidReplace);
+
+        assertThat(put("/api/participants/" + participantId + "/botb-selections", """
+                [{"editionNumber":0,"artist":"Ungültig","knownSince":null}]
+                """).body()).contains("INVALID_BOTB_EDITION");
+        assertThat(put("/api/participants/" + participantId + "/botb-selections", """
+                [{"editionNumber":4,"artist":"   ","knownSince":null}]
+                """).body()).contains("VALIDATION_ERROR");
+        assertThat(put("/api/participants/" + participantId + "/botb-selections", """
+                [{"editionNumber":4,"artist":"Ungültig","knownSince":"2026-02-30"}]
+                """).body()).contains("VALIDATION_ERROR");
+        assertThat(get("/api/participants/" + participantId + "/botb-selections").body()).isEqualTo(beforeInvalidReplace);
+
+        assertThat(get("/api/participants/99999/botb-selections").statusCode()).isEqualTo(404);
+        assertThat(put("/api/participants/99999/botb-selections", "[]").statusCode()).isEqualTo(404);
+    }
+
+    @Test
+    void deletesBotbSelectionsWhenAnUnreferencedIdentityIsDeleted() throws Exception {
+        long participantId = firstId(post("/api/participants", "{\"displayName\":\"Nur BOTB\",\"aliases\":[]}").body());
+        assertThat(put("/api/participants/" + participantId + "/botb-selections", """
+                [{"editionNumber":1,"artist":"Cascade Act","knownSince":"2025-01-01"}]
+                """).statusCode()).isEqualTo(200);
+        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM participant_botb_selection WHERE participant_id = ?", Integer.class, participantId)).isEqualTo(1);
+
+        assertThat(delete("/api/participants/" + participantId).statusCode()).isEqualTo(204);
+        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM participant_botb_selection WHERE participant_id = ?", Integer.class, participantId)).isZero();
+    }
+
     private HttpResponse<String> get(String path) throws Exception { return request("GET", path, null); }
     private HttpResponse<String> post(String path, String body) throws Exception { return request("POST", path, body); }
     private HttpResponse<String> patch(String path, String body) throws Exception { return request("PATCH", path, body); }
+    private HttpResponse<String> put(String path, String body) throws Exception { return request("PUT", path, body); }
     private HttpResponse<String> delete(String path) throws Exception { return request("DELETE", path, null); }
 
     private HttpResponse<String> request(String method, String path, String body) throws Exception {

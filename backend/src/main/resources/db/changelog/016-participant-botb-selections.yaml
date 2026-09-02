@@ -1,0 +1,27 @@
+databaseChangeLog:
+  - changeSet:
+      id: 016-participant-botb-selections
+      author: venomenon328
+      changes:
+        - sql:
+            sql: |-
+              CREATE TABLE participant_botb_selection (
+                id INTEGER PRIMARY KEY,
+                participant_id INTEGER NOT NULL,
+                edition_number INTEGER NOT NULL
+                  CONSTRAINT ck_participant_botb_selection_edition_positive CHECK (edition_number > 0),
+                artist TEXT NOT NULL
+                  CONSTRAINT ck_participant_botb_selection_artist_not_blank CHECK (length(trim(artist)) > 0),
+                known_since TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                CONSTRAINT fk_participant_botb_selection_participant
+                  FOREIGN KEY (participant_id) REFERENCES participant (id) ON DELETE CASCADE,
+                CONSTRAINT uq_participant_botb_selection_edition UNIQUE (participant_id, edition_number)
+              );
+        - createIndex:
+            tableName: participant_botb_selection
+            indexName: ix_participant_botb_selection_participant
+            columns:
+              - column:
+                  name: participant_id

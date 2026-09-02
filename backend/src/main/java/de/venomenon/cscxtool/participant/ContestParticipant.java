@@ -11,6 +11,7 @@ record ContestParticipant(
         String countryCode,
         boolean active,
         List<String> aliases,
+        int botbSelectionCount,
         Instant createdAt,
         Instant updatedAt
 ) {

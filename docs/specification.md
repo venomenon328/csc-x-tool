@@ -33,6 +33,7 @@ Der Kernablauf lautet:
 - Status, Kommentar und manuelle Reihenfolge der Kandidaten
 - Festlegen genau einer eigenen Einreichung je Mottoshow
 - Teilnehmerstammdaten mit Land und Flagge
+- identitätsbezogene externe BOTB-Auswahlhistorie
 - Import der anonymen Wettbewerbsbeiträge aus einem formatierten, aus dem CSC kopierten Beitragsblock
 - Übernahme der in der Zwischenablage enthaltenen Linkziele, insbesondere YouTube-URLs
 - Einschätzung, Sicherheit, Kommentar und Rangposition der Beiträge
@@ -59,6 +60,7 @@ Der Kernablauf lautet:
 - Berechnung der Sieger einer Mottoshow oder des Gesamtcontests
 - Gleichstände in der eigenen ausgehenden Bewertung
 - mehrere CSC-Ausgaben
+- BOTB als Wettbewerb, Contest, Navigation, Song-, Runden-, Punkte- oder Ergebnismodell
 - mehrere Benutzer, Anmeldung, Rollen oder Rechte
 - Fristen und Erinnerungen
 - CSV-Import
@@ -288,6 +290,7 @@ Ein Teilnehmer besitzt:
 - Ländercode für die Flaggenanzeige
 - null bis viele frühere Namen oder Aliasse
 - Aktivstatus
+- null bis viele externe BOTB-Interpretwahlen
 
 Der Benutzer selbst wird nicht als Teilnehmerdatensatz angelegt.
 
@@ -314,6 +317,14 @@ Inaktive Teilnehmer bleiben für bestehende historische Zuordnungen und Ergebnis
 ### PART-004 – Keine Selbstzuordnung
 
 Da der Benutzer selbst nicht als Teilnehmer geführt wird, kann ein anonymer Wettbewerbsbeitrag nicht versehentlich dem Benutzer zugeordnet werden.
+
+### PART-005 – Externe BOTB-Auswahlhistorie
+
+Eine dauerhafte Teilnehmeridentität kann null bis viele externe BOTB-Auswahlen enthalten. Eine Auswahl besteht aus einer positiven BOTB-Ausgabe, einem nicht leeren getrimmten Interpreten und optional einem ISO-Lokaldatum `Bekannt seit`. Pro Teilnehmer und BOTB-Ausgabe ist höchstens eine Auswahl zulässig; derselbe Interpret darf in verschiedenen Ausgaben wiederkehren.
+
+Die Teilnehmerübersicht zeigt ausschließlich die Anzahl dieser Auswahlen, ohne Interpretennamen, Ausgabenlisten oder Tooltips. Ein eigener Dialog lädt und speichert die vollständige Liste als atomaren Ersatz; bei jedem Fehler bleibt die bisherige Liste erhalten. Fehlende Einträge bedeuten ausschließlich „nicht erfasst“ und nie „nicht teilgenommen“.
+
+BOTB-Auswahlen gehören nur zu `participant_id`. Sie sind weder CSC-Teilnahmen noch CSC-Beiträge, und sie führen weder einen eigenen Navigationsbereich noch einen weiteren Wettbewerb ein.
 
 ## 10. Import und Verwaltung der Wettbewerbsbeiträge
 
@@ -713,7 +724,7 @@ Sie werden nicht im Installationsverzeichnis gespeichert.
 
 Die Anwendung kann alle fachlichen Daten in ein versioniertes JSON-Format exportieren und aus einem kompatiblen vollständigen Export wiederherstellen.
 
-Der Export verwendet Version 3 mit Einschätzung und Sicherheit. Die Importstrecke unterstützt weiterhin Version 1 und Version 2 und bildet deren frühere Statusdaten konservativ auf das Bewertungspaar ab.
+Der vollständige Export verwendet Version 10. Er enthält BOTB-Auswahlen normalisiert mit stabilen IDs, Teilnehmerreferenzen, Ausgabe, Interpret, optionalem Bekannt-seit-Datum und Zeitstempeln. Die Importstrecke unterstützt weiterhin die älteren freigegebenen Formate; Format 9 wird dabei mit einer leeren BOTB-Auswahlliste hochgestuft. Ungültige Teilnehmerreferenzen, doppelte Teilnehmer-/Ausgabekombinationen oder ungültige BOTB-Daten blockieren die Wiederherstellung vor einer teilweisen Übernahme.
 
 Vor einer Wiederherstellung wird automatisch eine Sicherung des aktuellen Stands angelegt.
 

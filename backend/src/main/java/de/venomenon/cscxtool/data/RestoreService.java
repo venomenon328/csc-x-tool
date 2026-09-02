@@ -158,7 +158,8 @@ public class RestoreService {
         JdbcTemplate jdbc = new JdbcTemplate(SqliteDataSourceFactory.create(database));
         return new RestoreDataCounts(
                 count(jdbc, "motto_show"), count(jdbc, "candidate"), count(jdbc, "participant"),
-                count(jdbc, "contest_entry"), count(jdbc, "ballot_snapshot"), count(jdbc, "legacy_received_score")
+                count(jdbc, "contest_entry"), count(jdbc, "participant_botb_selection"), count(jdbc, "ballot_snapshot"),
+                count(jdbc, "legacy_received_score")
         );
     }
 

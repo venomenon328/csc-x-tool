@@ -208,6 +208,31 @@ class LiquibaseMigrationIntegrationTest {
     }
 
     @Test
+    void upgradesAnExistingP15DatabaseWithParticipantDataToTheBotbSelectionTable() throws Exception {
+        Path databaseFile = temporaryDirectory.resolve("p15-upgrade.db");
+        DataSource dataSource = SqliteDataSourceFactory.create(databaseFile);
+        migrate(dataSource, "classpath:/db/changelog/p15-master.yaml");
+        JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+        jdbc.update("INSERT INTO participant (id,display_name,active,created_at,updated_at) VALUES (801,'Erhaltene Identität',1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)");
+
+        migrate(SqliteDataSourceFactory.create(databaseFile));
+
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM participant_botb_selection", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT display_name FROM participant WHERE id = 801", String.class)).isEqualTo("Erhaltene Identität");
+        jdbc.update("""
+                INSERT INTO participant_botb_selection (participant_id,edition_number,artist,known_since,created_at,updated_at)
+                VALUES (801,1,'Migration Act',NULL,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+                """);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM participant_botb_selection WHERE participant_id = 801", Integer.class)).isEqualTo(1);
+        assertThatThrownBy(() -> jdbc.update("""
+                INSERT INTO participant_botb_selection (participant_id,edition_number,artist,known_since,created_at,updated_at)
+                VALUES (801,1,'Doppelt',NULL,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+                """)).isInstanceOf(DataAccessException.class);
+        jdbc.update("DELETE FROM participant WHERE id = 801");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM participant_botb_selection WHERE participant_id = 801", Integer.class)).isZero();
+    }
+
+    @Test
     void preventsContestForeignEntryAndScoreAssignmentsAtDatabaseLevel() throws Exception {
         DataSource dataSource = SqliteDataSourceFactory.create(temporaryDirectory.resolve("contest-boundaries.db"));
         migrate(dataSource);

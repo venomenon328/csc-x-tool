@@ -11,6 +11,7 @@ export type Participant = {
   active: boolean
   identityActive?: boolean
   aliases: string[]
+  botbSelectionCount?: number
   createdAt: string
   updatedAt: string
 }
@@ -18,6 +19,8 @@ export type ParticipantInput = { displayName: string, countryCode: string, activ
 export type ParticipantIdentity = { id: number, displayName: string, active: boolean, aliases: string[] }
 export type IdentityInput = Pick<ParticipantInput, 'displayName' | 'aliases'>
 export type ParticipationInput = Pick<ParticipantInput, 'countryCode' | 'active'>
+export type BotbSelection = { id: number, participantId: number, editionNumber: number, artist: string, knownSince: string | null, createdAt: string, updatedAt: string }
+export type BotbSelectionInput = { id?: number, editionNumber: number, artist: string, knownSince: string | null }
 
 export class ParticipantApiError extends Error {
   constructor(readonly apiError: ApiError) { super(apiError.message) }
@@ -69,6 +72,20 @@ export async function updateParticipantIdentity(participantId: number, input: Id
 export async function deleteParticipant(contestId: number, participantId: number): Promise<void> {
   const response = await apiFetch('/api/contests/' + contestId + '/participants/' + participantId, { method: 'DELETE' })
   if (!response.ok) throw new ParticipantApiError(await readApiError(response))
+}
+
+export async function fetchBotbSelections(participantId: number): Promise<BotbSelection[]> {
+  const response = await apiFetch('/api/participants/' + participantId + '/botb-selections')
+  if (!response.ok) throw new ParticipantApiError(await readApiError(response))
+  return response.json() as Promise<BotbSelection[]>
+}
+
+export async function replaceBotbSelections(participantId: number, selections: BotbSelectionInput[]): Promise<BotbSelection[]> {
+  const response = await apiFetch('/api/participants/' + participantId + '/botb-selections', {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(selections),
+  })
+  if (!response.ok) throw new ParticipantApiError(await readApiError(response))
+  return response.json() as Promise<BotbSelection[]>
 }
 
 async function createParticipation(contestId: number, input: Record<string, unknown>): Promise<Participant> {
