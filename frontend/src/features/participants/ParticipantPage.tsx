@@ -462,7 +462,6 @@ function BotbSelectionEditor({ initialSelections, onClose, onSave, title }: {
         {error !== null && <Alert severity="error">{error}</Alert>}
         {selections.map((selection, index) => <Stack direction={{ xs: 'column', sm: 'row' }} key={selection.id ?? `new-${index}`} spacing={1}>
           <TextField
-            inputProps={{ min: 1 }}
             label="BOTB-Ausgabe"
             onChange={(event) => update(index, { editionNumber: event.target.value === '' ? 0 : Number(event.target.value) })}
             required
@@ -477,7 +476,6 @@ function BotbSelectionEditor({ initialSelections, onClose, onSave, title }: {
             value={selection.artist}
           />
           <TextField
-            InputLabelProps={{ shrink: true }}
             label="Bekannt seit"
             onChange={(event) => update(index, { knownSince: event.target.value || null })}
             type="date"

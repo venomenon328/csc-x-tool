@@ -11,7 +11,7 @@ export type Participant = {
   active: boolean
   identityActive?: boolean
   aliases: string[]
-  botbSelectionCount: number
+  botbSelectionCount?: number
   createdAt: string
   updatedAt: string
 }
