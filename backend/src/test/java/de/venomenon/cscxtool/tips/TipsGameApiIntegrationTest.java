@@ -122,7 +122,9 @@ class TipsGameApiIntegrationTest {
         while (jdbc.queryForObject("SELECT COUNT(*) FROM motto_show WHERE contest_id=1 AND show_number=?", Integer.class, earlierShowNumber) > 0) {
             earlierShowNumber++;
         }
-        long earlierCurrentShow = id(post("/api/contests/1/shows", "{\"showNumber\":" + earlierShowNumber + ",\"name\":\"Noch geheim\"}").body(), "id");
+        jdbc.update("INSERT INTO motto_show (contest_id,show_number,name,created_at,updated_at) VALUES (1,?, 'Noch geheim',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)",
+                earlierShowNumber);
+        long earlierCurrentShow = jdbc.queryForObject("SELECT id FROM motto_show WHERE contest_id=1 AND show_number=?", Long.class, earlierShowNumber);
         long hiddenEntryId = id(post("/api/shows/" + earlierCurrentShow + "/entries", entry("Geheimer Act", "Geheimer Song")).body(), "id");
 
         HttpResponse<String> history = get("/api/shows/" + fixture.showId + "/tips/participants/" + fixture.firstParticipationId + "/history");
