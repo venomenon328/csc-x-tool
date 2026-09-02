@@ -80,7 +80,7 @@ describe('DataManagementPage', () => {
       if (path === '/api/data') return jsonResponse(overview)
       if (path === '/api/data/analysis-export/preview' && init?.method === 'POST') return jsonResponse({
         scope: { mode: 'FULL_ARCHIVE', contestIds: [], showIds: [], candidateShowId: null }, participants: 4, participations: 5,
-        shows: 12, entries: 18, votedBallots: 2, noBallots: 1, unknownBallots: 3, candidates: 0, assessments: 72,
+        botbSelections: 2, shows: 12, entries: 18, votedBallots: 2, noBallots: 1, unknownBallots: 3, candidates: 0, assessments: 72,
       })
       throw new Error(`Unexpected request ${path}`)
     })
@@ -89,6 +89,7 @@ describe('DataManagementPage', () => {
     await screen.findByRole('heading', { name: 'Daten und Sicherungen' })
     await user.click(screen.getByRole('button', { name: 'Umfang vorschauen' }))
     expect(await screen.findByLabelText('Analyseexport-Vorschau')).toBeVisible()
+    expect(screen.getByText('2 BOTB-Auswahlen')).toBeVisible()
     expect(screen.getByText('18 Einreichungen')).toBeVisible()
   })
 })

@@ -161,6 +161,18 @@ class TipsGameRepository {
         ), showId, participationId);
     }
 
+    List<TipsBotbSelectionHistoryItem> findBotbSelectionHistory(long participationId) {
+        return jdbc.query("""
+                SELECT selection.id,selection.edition_number,selection.artist,selection.known_since
+                FROM contest_participation focus
+                JOIN participant_botb_selection selection ON selection.participant_id=focus.participant_id
+                WHERE focus.id=?
+                ORDER BY selection.edition_number DESC,selection.id DESC
+                """, (result, row) -> new TipsBotbSelectionHistoryItem(
+                result.getLong(1), result.getInt(2), result.getString(3), result.getString(4)
+        ), participationId);
+    }
+
     private static TipsGame mapGame(ResultSet result, int row) throws SQLException {
         return new TipsGame(result.getLong(1), result.getLong(2), result.getLong(3), TipsGameStatus.valueOf(result.getString(4)),
                 result.getTimestamp(5).toInstant(), result.getTimestamp(6).toInstant(), nullableInstant(result, 7));
@@ -191,3 +203,4 @@ record TipsEntry(long id, String artist, String title, String youtubeUrl, Long a
                  TipsConfidence confidence, String note, boolean ownEntry) { }
 record TipsSubmissionHistoryItem(long entryId, long showId, int showNumber, String showName, long contestId, String contestName,
                                  boolean currentContest, String countryCode, String artist, String title, String youtubeUrl) { }
+record TipsBotbSelectionHistoryItem(long id, int editionNumber, String artist, String knownSince) { }

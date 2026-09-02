@@ -105,18 +105,47 @@ class TipsGameApiIntegrationTest {
     }
 
     @Test
-    void exportsTipsAndLoadsIdentityBasedSubmissionHistoryWithoutHeuristics() throws Exception {
+    void exportsTipsAndLoadsIdentityBasedParticipantHistoryWithoutHeuristicsOrLeakage() throws Exception {
         Fixture fixture = fixture();
         assertThat(put("/api/shows/" + fixture.showId + "/tips", assignments(fixture.firstEntryId, fixture.firstParticipationId, "LOW", "keine Genreannahme")).statusCode()).isEqualTo(200);
         long historicalContest = id(post("/api/contests", "{\"name\":\"CSC IX Tipp-Historie\"}").body(), "id");
         assertThat(post("/api/contests/" + historicalContest + "/participants", "{\"participantId\":" + fixture.firstParticipantId + ",\"countryCode\":\"AT\",\"active\":true}").statusCode()).isEqualTo(201);
         long historicalShow = id(post("/api/contests/" + historicalContest + "/shows", "{\"showNumber\":1,\"name\":\"Archiv\"}").body(), "id");
         assertThat(post("/api/shows/" + historicalShow + "/entries", "{\"artist\":\"Archivartist\",\"title\":\"Archivsong\",\"youtubeUrl\":null,\"comment\":null,\"participantId\":" + fixture.firstParticipantId + "}").statusCode()).isEqualTo(201);
+        jdbc.update("INSERT INTO participant_alias (participant_id,alias) VALUES (?,?)", fixture.firstParticipantId, "Tipp Archiv");
+        jdbc.update("INSERT INTO participant_botb_selection (participant_id,edition_number,artist,known_since,created_at,updated_at) VALUES (?,?,?, ?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)",
+                fixture.firstParticipantId, 4, "Früher Act", null);
+        jdbc.update("INSERT INTO participant_botb_selection (participant_id,edition_number,artist,known_since,created_at,updated_at) VALUES (?,?,?, ?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)",
+                fixture.firstParticipantId, 9, "Später Act", "2024-05-12");
+
+        int earlierShowNumber = 1;
+        while (jdbc.queryForObject("SELECT COUNT(*) FROM motto_show WHERE contest_id=1 AND show_number=?", Integer.class, earlierShowNumber) > 0) {
+            earlierShowNumber++;
+        }
+        long earlierCurrentShow = id(post("/api/contests/1/shows", "{\"showNumber\":" + earlierShowNumber + ",\"name\":\"Noch geheim\"}").body(), "id");
+        long hiddenEntryId = id(post("/api/shows/" + earlierCurrentShow + "/entries", entry("Geheimer Act", "Geheimer Song")).body(), "id");
 
         HttpResponse<String> history = get("/api/shows/" + fixture.showId + "/tips/participants/" + fixture.firstParticipationId + "/history");
         assertThat(history.statusCode()).isEqualTo(200);
-        assertThat(history.body()).contains("Archivartist", "Archivsong", "\"countryCode\":\"AT\"", "\"currentContest\":false");
-        assertThat(history.body()).doesNotContain("Genre", "Ausschluss");
+        assertThat(history.body()).contains("Archivartist", "Archivsong", "\"countryCode\":\"AT\"", "\"currentContest\":false",
+                "\"botbSelections\"", "\"editionNumber\":9", "Später Act", "\"knownSince\":\"2024-05-12\"", "\"editionNumber\":4", "Früher Act");
+        assertThat(history.body().indexOf("\"editionNumber\":9")).isLessThan(history.body().indexOf("\"editionNumber\":4"));
+        assertThat(history.body()).doesNotContain("Geheimer Act", "Genre", "Ausschluss");
+
+        jdbc.update("UPDATE contest_entry SET contest_participation_id=? WHERE id=?", fixture.firstParticipationId, hiddenEntryId);
+        assertThat(get("/api/shows/" + fixture.showId + "/tips/participants/" + fixture.firstParticipationId + "/history").body()).contains("Geheimer Act");
+
+        jdbc.update("INSERT INTO participant_botb_selection (participant_id,edition_number,artist,known_since,created_at,updated_at) VALUES (?,?,?,NULL,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)",
+                fixture.thirdParticipantId, 3, "Nur BOTB");
+        assertThat(get("/api/shows/" + fixture.showId + "/tips/participants/" + fixture.secondParticipationId + "/history").body())
+                .contains("\"entries\":[]", "\"botbSelections\":[]");
+        assertThat(get("/api/shows/" + fixture.showId + "/tips/participants/" + fixture.thirdParticipationId + "/history").body())
+                .contains("\"entries\":[]", "Nur BOTB");
+        long foreignParticipationId = jdbc.queryForObject("SELECT id FROM contest_participation WHERE contest_id=? AND participant_id=?", Long.class,
+                historicalContest, fixture.firstParticipantId);
+        HttpResponse<String> foreign = get("/api/shows/" + fixture.showId + "/tips/participants/" + foreignParticipationId + "/history");
+        assertThat(foreign.statusCode()).isEqualTo(409);
+        assertThat(foreign.body()).contains("TIP_PARTICIPANT_NOT_IN_CONTEST");
 
         HttpResponse<String> csv = get("/api/data/export/tips-game.csv");
         assertThat(csv.statusCode()).isEqualTo(200);
@@ -149,7 +178,8 @@ class TipsGameApiIntegrationTest {
         long firstEntry = id(post("/api/shows/" + showId + "/entries", entry("Song A", "Alpha")).body(), "id");
         long secondEntry = id(post("/api/shows/" + showId + "/entries", entry("Song B", "Beta")).body(), "id");
         long foreignEntry = id(post("/api/shows/" + foreignShowId + "/entries", entry("Song C", "Gamma")).body(), "id");
-        return new Fixture(showId, firstParticipantId, firstParticipationId, secondParticipationId, thirdParticipationId, firstEntry, secondEntry, foreignEntry);
+        return new Fixture(showId, firstParticipantId, firstParticipationId, secondParticipationId, thirdParticipantId, thirdParticipationId,
+                firstEntry, secondEntry, foreignEntry);
     }
 
     private static String entry(String artist, String title) {
@@ -183,6 +213,6 @@ class TipsGameApiIntegrationTest {
         catch (Exception exception) { throw new IllegalStateException("Temporäres SQLite-Testverzeichnis konnte nicht erstellt werden.", exception); }
     }
 
-    private record Fixture(long showId, long firstParticipantId, long firstParticipationId, long secondParticipationId, long thirdParticipationId,
+    private record Fixture(long showId, long firstParticipantId, long firstParticipationId, long secondParticipationId, long thirdParticipantId, long thirdParticipationId,
                            long firstEntryId, long secondEntryId, long foreignEntryId) { }
 }

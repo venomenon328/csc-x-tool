@@ -77,11 +77,16 @@ class TipsGameService {
         if (!repository.participationBelongsToShow(showId, participationId)) throw new ApiConflictException(
                 "TIP_PARTICIPANT_NOT_IN_CONTEST", "Die Recherchehilfe benötigt einen Teilnehmer derselben CSC-Ausgabe."
         );
-        return new TipsSubmissionHistoryResponse(participationId, repository.findSubmissionHistory(showId, participationId).stream()
+        List<TipsSubmissionHistoryResponseItem> entries = repository.findSubmissionHistory(showId, participationId).stream()
                 .map(entry -> new TipsSubmissionHistoryResponseItem(entry.entryId(), entry.showId(), entry.showNumber(), entry.showName(),
                         entry.contestId(), entry.contestName(), entry.currentContest(), entry.countryCode(), countryName(entry.countryCode()),
                         entry.artist(), entry.title(), entry.youtubeUrl()))
-                .toList());
+                .toList();
+        List<TipsBotbSelectionHistoryResponseItem> botbSelections = repository.findBotbSelectionHistory(participationId).stream()
+                .map(selection -> new TipsBotbSelectionHistoryResponseItem(selection.id(), selection.editionNumber(), selection.artist(),
+                        selection.knownSince()))
+                .toList();
+        return new TipsSubmissionHistoryResponse(participationId, entries, botbSelections);
     }
 
     private TipsGameResponse response(TipsShowFacts facts, TipsGame game) {
