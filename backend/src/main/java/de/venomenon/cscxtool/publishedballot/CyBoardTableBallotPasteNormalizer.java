@@ -16,15 +16,31 @@ final class CyBoardTableBallotPasteNormalizer {
             "^Wertung\\s*#\\s*(\\d+)\\s*$",
             Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE
     );
+    private static final Pattern COLLAPSED_BALLOT_HEADING = Pattern.compile(
+            "\\bWertung\\s*#\\s*(\\d+)(?=\\s|$)",
+            Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE
+    );
     private static final Pattern ASSIGNMENT = Pattern.compile("^(.+?)\\s+[-–—]\\s+(.+?)$");
     private static final Pattern SCORE_LABEL = Pattern.compile("^(\\d{1,3})\\s+(\\S+)$");
+    private static final Pattern SPACED_SEPARATOR = Pattern.compile("\\s[-–—]\\s");
+    private static final List<Integer> DISPLAYED_SCORES = List.of(
+            1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 16, 20, 25
+    );
 
     private CyBoardTableBallotPasteNormalizer() { }
 
     static String normalize(String html, String text) {
         String normalizedHtml = normalizeLines(htmlLines(html));
         if (normalizedHtml != null) return normalizedHtml;
-        return normalizeLines(textLines(text));
+
+        String normalizedText = normalizeLines(textLines(text));
+        if (normalizedText != null) return normalizedText;
+
+        // Browser clipboard HTML from the live CyBoard may collapse the visible table into one or two logical
+        // lines per ballot. Parse that representation only after the stricter row-wise variants failed.
+        String collapsedHtml = normalizeCollapsed(visibleHtmlText(html));
+        if (collapsedHtml != null) return collapsedHtml;
+        return normalizeCollapsed(text);
     }
 
     private static String normalizeLines(List<PasteLine> lines) {
@@ -72,6 +88,91 @@ final class CyBoardTableBallotPasteNormalizer {
 
         if (!sawHeading || normalized.isEmpty() || ratingCount == 0) return null;
         return String.join("\n", normalized);
+    }
+
+    private static String normalizeCollapsed(String source) {
+        String value = cleanCollapsedSource(source);
+        if (value.isBlank()) return null;
+
+        Matcher headingMatcher = COLLAPSED_BALLOT_HEADING.matcher(value);
+        List<CollapsedHeading> headings = new ArrayList<>();
+        while (headingMatcher.find()) {
+            headings.add(new CollapsedHeading(
+                    Integer.parseInt(headingMatcher.group(1)), headingMatcher.start(), headingMatcher.end()
+            ));
+        }
+        if (headings.isEmpty()) return null;
+
+        List<String> normalized = new ArrayList<>();
+        for (int index = 0; index < headings.size(); index++) {
+            CollapsedHeading heading = headings.get(index);
+            int bodyEnd = index + 1 < headings.size() ? headings.get(index + 1).start() : value.length();
+            CollapsedBlock block = collapsedBlock(heading.number(), value.substring(heading.end(), bodyEnd));
+            if (block == null) return null;
+            normalized.add(block.header());
+            normalized.addAll(block.ratingLines());
+        }
+        return String.join("\n", normalized);
+    }
+
+    private static CollapsedBlock collapsedBlock(int ballotNumber, String source) {
+        String body = compact(source);
+        List<ScoreMarker> markers = new ArrayList<>();
+        int contentStart = 0;
+        int searchFrom = 0;
+
+        for (int score : DISPLAYED_SCORES) {
+            Matcher matcher = collapsedScorePattern(score).matcher(body);
+            ScoreMarker marker = null;
+            while (matcher.find(searchFrom)) {
+                String preceding = cleanCollapsedSegment(body.substring(contentStart, matcher.start()));
+                boolean validPreceding = markers.isEmpty()
+                        ? isAssignment(preceding)
+                        : looksLikeCollapsedRating(preceding);
+                if (validPreceding) {
+                    marker = new ScoreMarker(score, compact(matcher.group(1)), matcher.start(), matcher.end());
+                    break;
+                }
+                searchFrom = matcher.end();
+            }
+            if (marker == null) return null;
+            markers.add(marker);
+            contentStart = marker.end();
+            searchFrom = marker.end();
+        }
+
+        String voter = cleanCollapsedSegment(body.substring(0, markers.getFirst().start()));
+        if (!isAssignment(voter)) return null;
+
+        List<String> ratingLines = new ArrayList<>();
+        for (int index = 0; index < markers.size(); index++) {
+            ScoreMarker marker = markers.get(index);
+            int ratingEnd = index + 1 < markers.size() ? markers.get(index + 1).start() : body.length();
+            String rating = cleanCollapsedSegment(body.substring(marker.end(), ratingEnd));
+            if (!looksLikeCollapsedRating(rating)) return null;
+            ratingLines.add(marker.score() + " " + marker.pointsWord() + " " + rating);
+        }
+        return new CollapsedBlock("[#" + ballotNumber + "] " + voter, List.copyOf(ratingLines));
+    }
+
+    private static Pattern collapsedScorePattern(int score) {
+        return Pattern.compile(
+                "(?<!\\d)(?:[*_`~]+\\s*)?" + score
+                        + "\\s+([\\p{L}\\p{M}]+)(?:\\s*[*_`~]+)?(?=\\s|$)",
+                Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE
+        );
+    }
+
+    private static boolean isAssignment(String source) {
+        return !source.isBlank() && ASSIGNMENT.matcher(source).matches();
+    }
+
+    private static boolean looksLikeCollapsedRating(String source) {
+        if (source.isBlank()) return false;
+        Matcher separator = SPACED_SEPARATOR.matcher(source);
+        int count = 0;
+        while (separator.find()) count++;
+        return count >= 2;
     }
 
     private static String singleAssignmentCell(PasteLine line) {
@@ -164,6 +265,24 @@ final class CyBoardTableBallotPasteNormalizer {
         for (Element child : element.children()) collectHtml(child, lines);
     }
 
+    private static String visibleHtmlText(String html) {
+        if (html == null || html.isBlank()) return "";
+        Document document = Jsoup.parseBodyFragment(html);
+        document.select("script,style,noscript,template").remove();
+        return document.body().text();
+    }
+
+    private static String cleanCollapsedSource(String source) {
+        if (source == null || source.isBlank()) return "";
+        String value = unescapeMarkdown(source).replace('|', ' ');
+        value = value.replaceAll("(?<!\\S):?-{2,}:?(?!\\S)", " ");
+        return compact(value);
+    }
+
+    private static String cleanCollapsedSegment(String source) {
+        return stripDecoration(cleanCollapsedSource(source));
+    }
+
     private static String stripDecoration(String source) {
         String value = compact(unescapeMarkdown(source));
         int start = 0;
@@ -200,4 +319,7 @@ final class CyBoardTableBallotPasteNormalizer {
     }
 
     private record PasteLine(String text, List<String> cells) { }
+    private record CollapsedHeading(int number, int start, int end) { }
+    private record ScoreMarker(int score, String pointsWord, int start, int end) { }
+    private record CollapsedBlock(String header, List<String> ratingLines) { }
 }

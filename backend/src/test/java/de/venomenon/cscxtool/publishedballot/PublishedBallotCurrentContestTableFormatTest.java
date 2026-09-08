@@ -66,9 +66,39 @@ class PublishedBallotCurrentContestTableFormatTest {
         assertReadyPreview(preview);
     }
 
+    @Test
+    void parsesCollapsedPlainTextWhenTheWholeBallotIsOneLogicalLine() {
+        PublishedBallotPreviewBlock preview = parser.parse(
+                "", "Wertung#1 Vatikanstadt - Die Ente " + collapsedRatings(), participants(), entries(), Set.of()
+        ).getFirst();
+
+        assertReadyPreview(preview);
+    }
+
+    @Test
+    void parsesCollapsedRichHtmlWithHeaderAndRatingsCollapsedPerBallotForSeveralBallots() {
+        String html = "<div>Wertung#1 Vatikanstadt - Die Ente</div><div>" + collapsedRatings() + "</div>"
+                + "<div>Wertung#2 Südkorea - Dr. King Schultz</div><div>" + collapsedRatings() + "</div>";
+
+        List<PublishedBallotPreviewBlock> previews = parser.parse(
+                html, "ignored fallback", participants(), entries(), Set.of()
+        );
+
+        assertThat(previews).hasSize(2);
+        assertReadyPreview(previews.getFirst());
+        PublishedBallotPreviewBlock second = previews.get(1);
+        assertThat(second.displayName()).isEqualTo("Dr. King Schultz");
+        assertThat(second.countryCode()).isEqualTo("KR");
+        assertReadyPositions(second);
+    }
+
     private static void assertReadyPreview(PublishedBallotPreviewBlock preview) {
         assertThat(preview.displayName()).isEqualTo("Die Ente");
         assertThat(preview.countryCode()).isEqualTo("VA");
+        assertReadyPositions(preview);
+    }
+
+    private static void assertReadyPositions(PublishedBallotPreviewBlock preview) {
         assertThat(preview.status()).isEqualTo("READY");
         assertThat(preview.positions()).hasSize(15);
         assertThat(preview.positions()).extracting(PublishedBallotPreviewPosition::rank)
@@ -92,6 +122,9 @@ class PublishedBallotCurrentContestTableFormatTest {
                     id, id, source.submitter(), source.countryCode(), source.countryName(), List.of()
             ));
         }
+        participants.add(new PublishedBallotParticipant(
+                50L, 50L, "Dr. King Schultz", "KR", "Südkorea", List.of()
+        ));
         return List.copyOf(participants);
     }
 
@@ -122,6 +155,21 @@ class PublishedBallotCurrentContestTableFormatTest {
                     .append("</td></tr></table>");
         }
         return html.toString();
+    }
+
+    private static String collapsedRatings() {
+        StringBuilder result = new StringBuilder();
+        for (int index = 0; index < SOURCE_ENTRIES.size(); index++) {
+            SourceEntry source = SOURCE_ENTRIES.get(index);
+            int score = DISPLAYED_POINTS.get(index);
+            int decorationCount = score == 16 ? 1 : score == 20 ? 2 : score == 25 ? 3 : 0;
+            String decoration = "*".repeat(decorationCount);
+            if (!result.isEmpty()) result.append(' ');
+            result.append(decoration).append(score).append(score == 1 ? " punto" : " punti").append(decoration)
+                    .append(' ').append(source.artist()).append(" - ").append(source.title())
+                    .append(' ').append(source.countryName()).append(" - ").append(source.submitter());
+        }
+        return result.toString();
     }
 
     private static String currentContestPaste() {
