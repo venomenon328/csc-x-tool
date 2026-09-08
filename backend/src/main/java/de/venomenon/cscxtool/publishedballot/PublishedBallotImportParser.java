@@ -68,6 +68,11 @@ class PublishedBallotImportParser {
             List<PublishedBallotEntry> entries,
             Set<Long> existingParticipationIds
     ) {
+        String normalizedTablePaste = CyBoardTableBallotPasteNormalizer.normalize(html, text);
+        if (normalizedTablePaste != null) {
+            html = "";
+            text = normalizedTablePaste;
+        }
         List<SourceLine> sources = extract(html, text);
         List<Block> blocks = blocks(sources);
         List<PublishedBallotPreviewBlock> previews = new ArrayList<>();
