@@ -1,46 +1,27 @@
-# Codex repository instructions
+# Agenteneinstieg für CSC X Tool
 
-## Resource safety
+## Verbindlicher Einstieg
 
-Keeping the Windows workstation responsive is a hard requirement for all local agent work in this repository.
+Bei Entwicklungsarbeit vollständig lesen:
 
-Previous local build/test runs have repeatedly made the workstation effectively unusable despite conservative CPU, heap and worker limits. The exact bottleneck is not proven; RAM/commit pressure, page-file activity and GPU/VRAM pressure are all plausible contributors. Do not diagnose this by deliberately stressing the workstation.
+1. [Gemeinsamen Workflow](docs/dev-rules/WORKFLOW.md).
+2. [Projektprofil](docs/PROJECT_PROFILE.md) und die dort für den Auftrag bezeichneten Fachquellen.
+3. Aktuellen vollständigen Issue-/Paket-Body, sofern vorhanden; bei Review oder Nacharbeit zusätzlich PR, tatsächlichen Diff und konkret benannten Reviewstand.
 
-### Hard rule: no local agent builds or tests
+Quellen aus dem beauftragten Arbeitsbranch lesen, sonst aus dem aktuellen `main`. Vorhandene Bereichs-/Override-Regeln berücksichtigen. Bei einer neuen Idee kein bestehendes Issue voraussetzen. Fehlende Pflichtquellen nicht durch Erinnerungen ersetzen.
 
-Unless the user explicitly reverses this rule for one concrete diagnostic command, agents must **not execute build, test, dependency-install, lint or typecheck workloads on the Windows workstation**.
+Nur vor noch auszuführender Implementierung beziehungsweise konkreten technischen Nacharbeiten zusätzlich [Modellauswahl](docs/dev-rules/MODEL_SELECTION.md) und [Modellkatalog](docs/dev-rules/MODEL_CATALOG.md) vollständig heranziehen. Keine rückblickende Empfehlung nach abgeschlossener Arbeit.
 
-This prohibition includes, but is not limited to:
+## Unmittelbar wichtige Grenzen
 
-- Maven build/test/verify/package commands, including `./scripts/mvn-safe.cmd`;
-- `npm ci` / `npm install`;
-- frontend tests, Vitest, Vite builds, ESLint and TypeScript typechecking;
-- direct `npx` or direct tool-binary execution;
-- Playwright, Cypress, Electron, WebView or automated browser/GUI verification;
-- watch mode, dev servers and other long-running development processes used for automated verification.
+Auf der lokalen Windows-Workstation keine Agenten-Builds, Tests, Dependency-Installationen, Lint-/Typecheck-, automatisierten Browser-/GUI- oder Devserver-Arbeitslasten starten. Auch direkte Toolaufrufe und die vorhandenen Schutzwrapper sind keine Umgehung. Automatisierte Verifikation erfolgt remote; die genaue Abgrenzung steht im [Projektprofil](docs/PROJECT_PROFILE.md).
 
-The existing safe wrappers remain available for a future **explicitly user-requested diagnostic**, but they are not part of the normal agent workflow anymore.
+Keine echten Benutzerbestände oder privaten Analyseexporte als Testdaten verwenden oder im öffentlichen Repository veröffentlichen. Fachliche und technische Produktverträge bleiben in ihren jeweiligen Dokumenten; diese Einführung ändert sie nicht.
 
-Local agent work should be limited to low-load operations such as reading/editing files, source inspection, Git status/diff/log operations, commits and pushes. Do not start Java/Node application processes merely to verify an implementation.
+## Fachliche CSC-Analysen
 
-### Verification belongs on GitHub
+Kandidatenbewertung und Tippspielanalyse sind keine Implementierungsaufträge. Dafür [Analyse-Einstieg](docs/ai-workflows/README.md) und dessen auftragsbezogene Pflichtquellen vollständig lesen. Die privaten Analyseexporte bleiben fachliche Datenquellen; der Verzicht auf eine Drive-Laufzeitabhängigkeit für Entwicklungsregeln verbietet diese Datenquelle nicht.
 
-All automated verification must run on GitHub Actions or another remote CI runner.
+## Code Review Rules
 
-- The authoritative full verification is the GitHub Actions root build executing `./mvnw clean verify`.
-- During implementation, commit and push coherent increments and use CI feedback instead of running targeted tests locally.
-- If narrower remote feedback is needed, prefer an existing targeted GitHub Actions workflow. It is acceptable to improve CI workflow ergonomics when that is genuinely useful, but do not weaken test coverage or change product behavior merely to make verification cheaper.
-- Do not claim an implementation is fully verified until the required GitHub Actions checks for the current head commit are green.
-- If CI fails, inspect the remote logs, patch locally without executing the failing workload, push again, and let CI rerun.
-
-### Browser/manual acceptance
-
-Automated browser acceptance on the Windows workstation is prohibited. If a change requires genuine browser or Windows acceptance that CI cannot provide, leave it as an explicit manual check for the user rather than launching hardware-accelerated tooling automatically.
-
-## Required final verification
-
-Unless a task explicitly defines additional remote checks, the required full-suite gate is:
-
-- GitHub Actions / non-Windows CI: `./mvnw clean verify`
-
-No local Windows build or test command is required or permitted for normal agent implementation work.
+Insbesondere Datenintegrität, Import-/Export-/Restore-Verträge, Trennung von aktiven und historischen Wettbewerbsdaten sowie die korrekte Zuordnung von CI- und manuellen Nachweisen prüfen. Allgemeine Befugnisse, Reviewkategorien und Mergegrenzen definiert ausschließlich die eingebundene Workflowfassung. Herkunft und bewusst ersetzte Altregeln stehen in [DEV_RULES_ADOPTION.md](docs/DEV_RULES_ADOPTION.md).
