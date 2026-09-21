@@ -37,7 +37,7 @@ describe('show-card workflow', () => {
     })
     expect(primaryActionForShow(baseShow)).toEqual({ label: 'Abstimmung fortsetzen', to: '/shows/7/voting' })
     expect(primaryActionForShow({ ...baseShow, ballotClosedAt: '2026-08-31T00:00:00Z', assignedEntryCount: 19 })).toEqual({
-      label: 'Einreichende zuordnen', to: '/shows/7/voting',
+      label: 'Einreichende zuordnen', to: '/shows/7/voting?mode=assignments',
     })
     expect(primaryActionForShow({ ...baseShow, ballotClosedAt: '2026-08-31T00:00:00Z', assignedEntryCount: 20 })).toEqual({
       label: 'Auswertung öffnen', to: '/shows/7/evaluation?view=published-ballots',

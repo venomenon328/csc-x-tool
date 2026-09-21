@@ -4,7 +4,7 @@ import {
   IconButton, InputAdornment, Menu, MenuItem, Paper, Select, Skeleton, Stack, TextField, Tooltip, Typography,
 } from '@mui/material'
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { Link as RouterLink, useParams } from 'react-router-dom'
+import { Link as RouterLink, useParams, useSearchParams } from 'react-router-dom'
 import { ApiErrorNotice } from '../../components/ApiErrorNotice'
 import {
   DeleteIcon, DragIcon, EditIcon, FilterIcon, MoreIcon, PlayIcon, RankIcon, SearchIcon, SortIcon, SubmissionIcon,
@@ -20,9 +20,10 @@ import { ParticipantSelect } from '../participants/ParticipantSelect'
 import { YoutubePlayerPanel } from '../songs/YoutubePlayerPanel'
 import { fetchShow, type MottoShow } from '../shows/api'
 import { ClipboardImportArea } from './ClipboardImportArea'
+import { AssignmentImportPanel, type EditableAssignmentLine } from './AssignmentImportPanel'
 import { ImportPreview, type EditableImportLine } from './ImportPreview'
 import {
-  createEntry, deleteEntry, EntryApiError, fetchEntries, importEntries, previewImport, reorderEntryPool,
+  createEntry, deleteEntry, EntryApiError, fetchEntries, importAssignments, importEntries, previewAssignmentImport, previewImport, reorderEntryPool,
   updateEntryAssessment, updateOwnEntryResolution, updateParticipantAssignment, updateEntry, type ContestEntry, type ContestEntryInput,
 } from './api'
 import {
@@ -32,6 +33,8 @@ import {
 const emptyEntryInput: ContestEntryInput = { artist: '', title: '', youtubeUrl: '', comment: '' }
 
 export function EntryPage() {
+  const [searchParams] = useSearchParams()
+  const assignmentMode = searchParams.get('mode') === 'assignments'
   const parsedShowId = Number(useParams().showId)
   const showId = Number.isSafeInteger(parsedShowId) && parsedShowId > 0 ? parsedShowId : null
   const [shows, setShows] = useState<MottoShow[] | null>(null)
@@ -44,9 +47,10 @@ export function EntryPage() {
   const [onlyUnassessed, setOnlyUnassessed] = useState(false)
   const [onlyUncertain, setOnlyUncertain] = useState(false)
   const [onlyUnranked, setOnlyUnranked] = useState(false)
-  const [onlyWithoutParticipant, setOnlyWithoutParticipant] = useState(false)
+  const [onlyWithoutParticipant, setOnlyWithoutParticipant] = useState(assignmentMode)
   const [sortMode, setSortMode] = useState<EntryPoolSortMode>('MANUAL')
   const [previewLines, setPreviewLines] = useState<EditableImportLine[] | null>(null)
+  const [assignmentPreview, setAssignmentPreview] = useState<EditableAssignmentLine[] | null>(null)
   const [importing, setImporting] = useState(false)
   const [editing, setEditing] = useState<ContestEntry | null>(null)
   const [creating, setCreating] = useState(false)
@@ -97,6 +101,13 @@ export function EntryPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void load()
   }, [load])
+
+  useEffect(() => {
+    if (assignmentMode && entries !== null && entries.every((entry) => entry.participantId != null)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setOnlyWithoutParticipant(false)
+    }
+  }, [assignmentMode, entries])
 
   async function reloadShows() {
     if (showId === null) return
@@ -192,6 +203,33 @@ export function EntryPage() {
       setPreviewLines(null)
       void reloadShows()
     } catch (caught) { setError(asEntryApiError(caught, `/api/shows/${showId}/entries/import`)) }
+    finally { setImporting(false) }
+  }
+
+  async function pasteAssignments(html: string, text: string) {
+    if (showId === null) return
+    setError(null)
+    try {
+      const preview = await previewAssignmentImport(showId, html, text)
+      setAssignmentPreview(preview.map((line) => ({
+        ...line, included: line.status === 'READY', warningsReviewed: false, confirmReplacement: false,
+      })))
+    } catch (caught) { setError(asEntryApiError(caught, `/api/shows/${showId}/entries/assignment-import-preview`)) }
+  }
+
+  async function confirmAssignments() {
+    if (showId === null || assignmentPreview === null) return
+    setImporting(true)
+    setError(null)
+    try {
+      const imported = await importAssignments(showId, assignmentPreview.filter((line) => line.included).map((line) => ({
+        entryId: line.entryId!, participationId: line.participationId!,
+        expectedParticipationId: line.previousParticipationId, confirmReplacement: line.confirmReplacement,
+      })))
+      setEntries(imported)
+      setAssignmentPreview(null)
+      await reloadShows()
+    } catch (caught) { setError(asEntryApiError(caught, `/api/shows/${showId}/entries/assignment-import`)) }
     finally { setImporting(false) }
   }
 
@@ -297,7 +335,7 @@ export function EntryPage() {
     setError(null)
     try {
       const updated = await updateParticipantAssignment(showId, entry.id, participant?.id ?? null)
-      setEntries((current) => current?.map((item) => item.id === updated.id ? { ...item, participantId: updated.participantId, updatedAt: updated.updatedAt } : item) ?? null)
+      setEntries((current) => current?.map((item) => item.id === updated.id ? updated : item) ?? null)
       setBallot(await fetchBallot(showId))
       void reloadShows()
     } catch (caught) { setError(asEntryApiError(caught, `/api/shows/${showId}/entries/${entry.id}/participant`)) }
@@ -337,8 +375,13 @@ export function EntryPage() {
       {error !== null && <ApiErrorNotice error={error.apiError} />}
       {entries === null && error === null && <EntryLoading />}
       {entries !== null && show !== null && <>
-        <ClipboardImportArea onPasteData={pasteForPreview} />
-        {previewLines !== null && <ImportPreview importing={importing} lines={previewLines} onCancel={() => setPreviewLines(null)} onChange={setPreviewLines} onImport={() => void confirmImport()} />}
+        {assignmentMode && participantAssignmentOpen && participants !== null && <AssignmentImportPanel
+          busy={importing} entries={entries} lines={assignmentPreview} onCancel={() => setAssignmentPreview(null)}
+          onChange={setAssignmentPreview} onImport={() => void confirmAssignments()} onPaste={pasteAssignments} participants={participants}
+        />}
+        {assignmentMode && !participantAssignmentOpen && <Alert severity="info">Schließe zuerst deine Top 15 ab, bevor du Einreichende zuordnest.</Alert>}
+        {!assignmentMode && <ClipboardImportArea onPasteData={pasteForPreview} />}
+        {!assignmentMode && previewLines !== null && <ImportPreview importing={importing} lines={previewLines} onCancel={() => setPreviewLines(null)} onChange={setPreviewLines} onImport={() => void confirmImport()} />}
         <DragDropContext onDragEnd={(result) => void onDragEnd(result)}>
           <Stack direction={{ xs: 'column', md: 'row' }} spacing={3} sx={{ alignItems: 'flex-start' }}>
             <Box aria-label="Beitragspool" component="section" sx={{ flex: 1, minWidth: 0 }}>

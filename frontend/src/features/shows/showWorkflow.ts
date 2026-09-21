@@ -31,7 +31,7 @@ export function primaryActionForShow(show: MottoShow): ShowPrimaryAction {
   }
 
   if (!entriesAreFullyAssigned(show)) {
-    return { label: 'Einreichende zuordnen', to: `/shows/${show.id}/voting` }
+    return { label: 'Einreichende zuordnen', to: `/shows/${show.id}/voting?mode=assignments` }
   }
 
   return { label: 'Auswertung öffnen', to: evaluationPath(show.id, 'published-ballots') }

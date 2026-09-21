@@ -106,6 +106,20 @@ class ContestEntryController {
         return service.previewHistorical(showId, request);
     }
 
+    @PostMapping("/assignment-import-preview")
+    List<AssignmentImportPreviewLine> previewAssignments(
+            @PathVariable long showId, @RequestBody(required = false) ImportPreviewRequest request
+    ) {
+        return service.previewAssignments(showId, request);
+    }
+
+    @PostMapping("/assignment-import")
+    List<ContestEntryResponse> importAssignments(
+            @PathVariable long showId, @RequestBody(required = false) AssignmentImportRequest request
+    ) {
+        return service.importAssignments(showId, request).stream().map(ContestEntryResponse::from).toList();
+    }
+
     @PostMapping("/historical-import")
     List<ContestEntryResponse> importHistorical(
             @PathVariable long showId, @RequestBody(required = false) HistoricalImportEntriesRequest request

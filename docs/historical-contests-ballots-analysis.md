@@ -347,7 +347,7 @@ Das Entfernen einer Contest-Teilnahme ist blockiert, solange historische Einreic
 
 ### 10.1 Aktueller Contest
 
-Im aktuellen Contest kann die anonyme Songliste wie bisher importiert werden. Nach der Enthüllung werden die Beiträge den Teilnehmern zugeordnet.
+Im aktuellen Contest kann die anonyme Songliste wie bisher importiert werden. Nach der Enthüllung werden die Beiträge den Teilnehmern zugeordnet. Dazu dient weiterhin die manuelle Einzelzuordnung; optional kann ein veröffentlichter Zuordnungsblock über den sichtbaren Zuordnungsmodus der aktuellen Voting-Ansicht eingefügt werden. Dessen Vorschau verwendet dieselben Formatstrategien A–C und löst Quellzeilen auf bereits vorhandene Beiträge dieser Show und gültige Contest-Teilnahmen auf. Unbekannte oder widersprüchliche Zeilen werden manuell geklärt, Ersatz bewusst bestätigt und der gewählte Teilbatch atomar gespeichert. Er erstellt keine neuen Songs und ändert keine Songmetadaten. Die historische Vollimportsemantik in §10.2 bleibt davon unabhängig.
 
 Die Show gilt für den historischen beziehungsweise vollständigen Bewertungsimport erst dann als songseitig vollständig, wenn:
 
