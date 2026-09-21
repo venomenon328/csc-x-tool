@@ -9,7 +9,7 @@ import java.util.regex.Pattern;
 final class BracketedAssignmentHistoricalEntryFormatStrategy implements HistoricalEntryImportFormatStrategy {
 
     private static final Pattern ASSIGNMENT = Pattern.compile(
-            "^(.*?)\\s*\\[([^\\[\\]/]+)\\s*/\\s*([^\\[\\]/]+)]\\s*$"
+            "^(.*?)\\s*\\[([^\\[\\]/]+)\\s*/\\s*([^\\[\\]/]+)\\]\\s*$"
     );
     private static final ImportWarning MALFORMED_ASSIGNMENT = new ImportWarning(
             "MALFORMED_BRACKET_ASSIGNMENT",
@@ -30,12 +30,21 @@ final class BracketedAssignmentHistoricalEntryFormatStrategy implements Historic
             );
         }
 
-        int opening = value.lastIndexOf('[');
-        int slash = opening < 0 ? -1 : value.indexOf('/', opening + 1);
-        if (opening <= 0 || slash < 0) return Optional.empty();
+        int slash = value.lastIndexOf('/');
+        if (slash < 0) return Optional.empty();
 
-        String songText = HistoricalEntryImportText.compact(value.substring(0, opening));
-        Optional<HistoricalEntryImportText.SongParts> song = HistoricalEntryImportText.songParts(songText);
+        int openingBeforeSlash = value.lastIndexOf('[', slash);
+        int closingBeforeSlash = value.lastIndexOf(']', slash);
+        int closingAfterSlash = value.indexOf(']', slash + 1);
+        boolean unmatchedOpening = openingBeforeSlash > closingBeforeSlash;
+        boolean trailingClosingWithoutOpening = closingAfterSlash == value.length() - 1 && !unmatchedOpening;
+        if (!unmatchedOpening && !trailingClosingWithoutOpening) return Optional.empty();
+
+        Optional<HistoricalEntryImportText.SongParts> song = Optional.empty();
+        if (unmatchedOpening && openingBeforeSlash > 0) {
+            String songText = HistoricalEntryImportText.compact(value.substring(0, openingBeforeSlash));
+            song = HistoricalEntryImportText.songParts(songText);
+        }
         return Optional.of(new HistoricalEntryImportParseResult(
                 song.map(HistoricalEntryImportText.SongParts::artist).orElse(null),
                 song.map(HistoricalEntryImportText.SongParts::title).orElse(null),
