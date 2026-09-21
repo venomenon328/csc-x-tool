@@ -68,16 +68,24 @@ class BracketedAssignmentHistoricalEntryFormatTest {
 
     @Test
     void keepsMalformedBracketedAssignmentsVisibleInsteadOfFallingThroughToAnnouncementFormat() {
-        List<HistoricalImportPreviewLine> lines = parser.parse(
-                "", "Band A - Song A [Alice Example/Deutschland", participants()
-        );
+        List<HistoricalImportPreviewLine> lines = parser.parse("", """
+                Band A - Song A [Alice Example/Deutschland
+                Band B - Song B Alice Example/Deutschland]
+                """, participants());
 
-        assertThat(lines).singleElement().satisfies(line -> {
-            assertThat(line.artist()).isEqualTo("Band A");
-            assertThat(line.title()).isEqualTo("Song A");
+        assertThat(lines).hasSize(2);
+        assertThat(lines).allSatisfy(line -> {
             assertThat(line.participantId()).isNull();
             assertThat(line.status()).isEqualTo(ImportPreviewStatus.INCOMPLETE);
             assertThat(line.warnings()).extracting(ImportWarning::code).containsExactly("MALFORMED_BRACKET_ASSIGNMENT");
+        });
+        assertThat(lines.getFirst()).satisfies(line -> {
+            assertThat(line.artist()).isEqualTo("Band A");
+            assertThat(line.title()).isEqualTo("Song A");
+        });
+        assertThat(lines.get(1)).satisfies(line -> {
+            assertThat(line.artist()).isNull();
+            assertThat(line.title()).isNull();
         });
     }
 
