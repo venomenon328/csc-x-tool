@@ -38,6 +38,7 @@ class HistoricalEntryImportParser {
     private final List<HistoricalEntryImportFormatStrategy> formats = List.of(
             new LinkedParticipantPrefixHistoricalEntryFormatStrategy(),
             new LinkedSongSuffixHistoricalEntryFormatStrategy(),
+            new BracketedAssignmentHistoricalEntryFormatStrategy(),
             new ParentheticalHistoricalEntryFormatStrategy(),
             new AnnouncementHistoricalEntryFormatStrategy()
     );
