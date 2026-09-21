@@ -32,7 +32,8 @@ class CurrentAssignmentImportApiIntegrationTest {
     @Test
     void previewsRealFormatsAndCommitsOnlyAtomicAssignmentsToExistingEntries() throws Exception {
         fixture();
-        String html = "<p><strong>Frankreich - Clara </strong><a href=\"https://youtu.be/ccccccccccc\">Band C - Song C</a></p>";
+        String html = "<script>alert('untrusted')</script><p><strong>Frankreich - Clara </strong>"
+                + "<a href=\"https://youtu.be/ccccccccccc\">Band C - Song C</a></p>";
         String text = "Band A - Song A (Deutschland/Alicia)\nBand B - Song B - Bob / Schweiz\n"
                 + "**Frankreich - Clara **[Band C - Song C](https://youtu.be/ccccccccccc)";
         HttpResponse<String> preview = post("/assignment-import-preview", "{\"html\":\"" + json(html) + "\",\"text\":\"" + json(text) + "\"}");
@@ -41,6 +42,7 @@ class CurrentAssignmentImportApiIntegrationTest {
                 "\"participantId\":9711", "\"participantId\":9712", "\"participantId\":9713",
                 "\"action\":\"NEW\"", "https://youtu.be/ccccccccccc");
         assertThat(count(preview.body(), "\"sourcePosition\"")).isEqualTo(3);
+        assertThat(preview.body()).doesNotContain("untrusted", "<script>");
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM contest_entry WHERE motto_show_id = 9710", Integer.class)).isEqualTo(5);
         assertThat(assignment(9721)).isNull();
 
@@ -79,6 +81,7 @@ class CurrentAssignmentImportApiIntegrationTest {
         assertThat(post("/assignment-import", batch(item(9720, 9711, 9710L, true))).statusCode()).isEqualTo(409);
         assertThat(post("/assignment-import", batch(item(9723, 9710, null, false))).statusCode()).isEqualTo(409);
         assertThat(post("/assignment-import", batch(item(9723, 9714, null, false))).statusCode()).isEqualTo(409);
+        assertThat(post("/assignment-import", batch(item(9723, 9760, null, false))).statusCode()).isEqualTo(409);
 
         jdbc.update("INSERT INTO published_ballot (id,motto_show_id,contest_id,contest_participation_id,status,created_at,updated_at) "
                 + "VALUES (9750,9710,1,9715,'ABGESTIMMT',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)");
@@ -108,6 +111,10 @@ class CurrentAssignmentImportApiIntegrationTest {
                     switch (id) { case 9712 -> "CH"; case 9713 -> "FR"; default -> "DE"; }, id == 9714 ? 0 : 1);
         }
         jdbc.update("INSERT INTO participant_alias (participant_id,alias) VALUES (9711,'Alicia')");
+        jdbc.update("INSERT INTO contest (id,name,display_order,is_current,created_at,updated_at) "
+                + "VALUES (9710,'Andere Ausgabe',9710,0,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)");
+        jdbc.update("INSERT INTO contest_participation (id,contest_id,participant_id,country_code,active,created_at,updated_at) "
+                + "VALUES (9760,9710,9711,'DE',1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)");
         jdbc.update("UPDATE contest SET own_participation_id = 9710 WHERE id = 1");
         jdbc.update("INSERT INTO motto_show (id,contest_id,show_number,name,created_at,updated_at) "
                 + "VALUES (9710,1,9710,'Importtest',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)");

@@ -28,14 +28,13 @@ describe('AssignmentImportPanel', () => {
     let lines = [unresolved]
     const onImport = vi.fn()
     const onPaste = vi.fn(async () => {})
-    let view: ReturnType<typeof render>
     const panel = () => <AssignmentImportPanel busy={false} entries={[entry]} lines={lines} onCancel={() => {}}
       onChange={(next) => { lines = next; view.rerender(panel()) }} onImport={onImport} onPaste={onPaste} participants={participants} />
-    view = render(panel())
+    const view = render(panel())
 
     expect(screen.getByText('1 / 1 Beiträge zugeordnet')).toBeVisible()
     expect(screen.getByText(/<script>alert\(1\)<\/script>/)).toBeVisible()
-    expect(screen.queryByRole('script')).not.toBeInTheDocument()
+    expect(view.container.querySelector('script')).not.toBeInTheDocument()
     fireEvent.paste(screen.getByRole('button', { name: 'Einreichenden-Zuordnungsblock einfügen' }), {
       clipboardData: { getData: (type: string) => type === 'text/html' ? '<p>html</p>' : 'plain' },
     })
