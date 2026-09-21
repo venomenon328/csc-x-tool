@@ -377,7 +377,8 @@ export function EntryPage() {
       {entries !== null && show !== null && <>
         {assignmentMode && participantAssignmentOpen && participants !== null && <AssignmentImportPanel
           busy={importing} entries={entries} lines={assignmentPreview} onCancel={() => setAssignmentPreview(null)}
-          onChange={setAssignmentPreview} onImport={() => void confirmAssignments()} onPaste={pasteAssignments} participants={participants}
+          onChange={setAssignmentPreview} onImport={() => void confirmAssignments()} onPaste={pasteAssignments}
+          ownParticipationId={show.ownParticipationId} participants={participants}
         />}
         {assignmentMode && !participantAssignmentOpen && <Alert severity="info">Schließe zuerst deine Top 15 ab, bevor du Einreichende zuordnest.</Alert>}
         {!assignmentMode && <ClipboardImportArea onPasteData={pasteForPreview} />}

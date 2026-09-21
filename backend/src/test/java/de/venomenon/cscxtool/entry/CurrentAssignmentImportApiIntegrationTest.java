@@ -32,6 +32,10 @@ class CurrentAssignmentImportApiIntegrationTest {
     @Test
     void previewsRealFormatsAndCommitsOnlyAtomicAssignmentsToExistingEntries() throws Exception {
         fixture();
+        jdbc.update("UPDATE motto_show SET ballot_closed_at = NULL WHERE id = 9710");
+        assertThat(post("/assignment-import-preview", "{\"text\":\"Band A - Song A (Deutschland/Alice)\"}").statusCode()).isEqualTo(409);
+        assertThat(post("/assignment-import", batch(item(9721, 9711, null, false))).statusCode()).isEqualTo(409);
+        jdbc.update("UPDATE motto_show SET ballot_closed_at = CURRENT_TIMESTAMP WHERE id = 9710");
         String html = "<script>alert('untrusted')</script><p><strong>Frankreich - Clara </strong>"
                 + "<a href=\"https://youtu.be/ccccccccccc\">Band C - Song C</a></p>";
         String text = "Band A - Song A (Deutschland/Alicia)\nBand B - Song B - Bob / Schweiz\n"

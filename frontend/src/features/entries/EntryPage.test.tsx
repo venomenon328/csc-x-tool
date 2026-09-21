@@ -251,7 +251,7 @@ describe('EntryPage', () => {
     const participant = { participationId: 41, id: 31, displayName: 'Mira', countryCode: 'AT', countryName: 'Österreich', active: true, aliases: [], createdAt: '', updatedAt: '' }
     let assigned = false
     let importAttempts = 0
-    fetchMock.mockImplementation(async (input, init) => {
+    fetchMock.mockImplementation(async (input) => {
       const path = String(input)
       if (path === '/api/shows/1') return jsonResponse({ ...show, ballotClosedAt: closedBallot.ballotClosedAt, assignedEntryCount: assigned ? 1 : 0, activeParticipantCount: 1, publishedBallotVotedCount: 0, publishedBallotNotVotedCount: 0, publishedBallotUnrecordedCount: 1 })
       if (path === '/api/shows/1/ballot') return jsonResponse(closedBallot)

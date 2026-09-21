@@ -9,9 +9,10 @@ export type EditableAssignmentLine = AssignmentImportPreviewLine & {
   confirmReplacement: boolean
 }
 
-export function AssignmentImportPanel({ entries, participants, lines, busy, onPaste, onChange, onCancel, onImport }: {
+export function AssignmentImportPanel({ entries, participants, ownParticipationId = null, lines, busy, onPaste, onChange, onCancel, onImport }: {
   entries: ContestEntry[]
   participants: Participant[]
+  ownParticipationId?: number | null
   lines: EditableAssignmentLine[] | null
   busy: boolean
   onPaste: (html: string, text: string) => Promise<void>
@@ -26,7 +27,11 @@ export function AssignmentImportPanel({ entries, participants, lines, busy, onPa
   const duplicate = new Set(assigned).size !== assigned.length || new Set(selected.map((line) => line.entryId)).size !== selected.length
   const invalid = selected.some((line) => {
     const entry = entries.find((item) => item.id === line.entryId)
-    return !entry || line.participationId == null || (line.warnings.length > 0 && !line.warningsReviewed)
+    const participant = participants.find((item) => item.participationId === line.participationId)
+    return !entry || !participant || (!participant.active && entry.contestParticipationId !== participant.participationId)
+      || (entry.ownEntry === true && entry.contestParticipationId !== participant.participationId)
+      || (participant.participationId === ownParticipationId && entry.contestParticipationId !== participant.participationId)
+      || (line.warnings.length > 0 && !line.warningsReviewed)
       || (entry.contestParticipationId != null && entry.contestParticipationId !== line.participationId && !line.confirmReplacement)
   })
 
@@ -49,7 +54,12 @@ export function AssignmentImportPanel({ entries, participants, lines, busy, onPa
           const next = participants.find((item) => item.participationId === line.participationId)
           const action = !entry || !next ? 'Nacharbeit erforderlich' : entry.contestParticipationId == null
             ? 'Neu zuordnen' : entry.contestParticipationId === line.participationId ? 'Unverändert' : 'Bestehende Zuordnung ersetzen'
-          const ready = entry != null && next != null && (line.warnings.length === 0 || line.warningsReviewed)
+          const ready = entry != null && next != null
+            && (next.active || entry.contestParticipationId === next.participationId)
+            && (entry.ownEntry !== true || entry.contestParticipationId === next.participationId)
+            && (next.participationId !== ownParticipationId || entry.contestParticipationId === next.participationId)
+            && (line.warnings.length === 0 || line.warningsReviewed)
+            && (entry.contestParticipationId == null || entry.contestParticipationId === next.participationId || line.confirmReplacement)
           return <Paper key={line.sourcePosition} sx={{ border: 1, borderColor: ready ? 'divider' : 'warning.main', p: 2 }} variant="outlined">
             <Stack spacing={1.5}>
               <Typography variant="subtitle2">Quellzeile {line.sourcePosition}: {line.sourceText}</Typography>
@@ -68,6 +78,10 @@ export function AssignmentImportPanel({ entries, participants, lines, busy, onPa
               </TextField>
               <Typography variant="body2">Bisher: {previous?.displayName ?? 'Ohne Teilnehmer'} · Vorgesehen: {next?.displayName ?? 'Offen'} · Aktion: {action}</Typography>
               {line.warnings.map((warning) => <Alert key={warning.code} severity="warning">{warning.message}</Alert>)}
+              {next && !next.active && entry?.contestParticipationId !== next.participationId && <Alert severity="error">Inaktive Teilnehmer können nicht neu zugeordnet werden.</Alert>}
+              {entry && next && ((entry.ownEntry === true && entry.contestParticipationId !== next.participationId)
+                || (next.participationId === ownParticipationId && entry.contestParticipationId !== next.participationId))
+                && <Alert severity="error">Die eigene Einreichung kann hier nicht geändert werden. Öffne dafür die Abstimmung bewusst wieder.</Alert>}
               {line.warnings.length > 0 && <FormControlLabel control={<Checkbox checked={line.warningsReviewed} onChange={(event) => change(line.sourcePosition, { warningsReviewed: event.target.checked })} />} label="Quellwarnungen geprüft und Auswahl manuell bestätigt" />}
               {entry?.contestParticipationId != null && entry.contestParticipationId !== line.participationId && <FormControlLabel control={<Checkbox checked={line.confirmReplacement} onChange={(event) => change(line.sourcePosition, { confirmReplacement: event.target.checked })} />} label="Bestehende Zuordnung ausdrücklich ersetzen" />}
               <Typography color={ready ? 'success.main' : 'warning.main'} variant="body2">{ready ? 'Importierbar' : 'Nacharbeit erforderlich'}</Typography>
