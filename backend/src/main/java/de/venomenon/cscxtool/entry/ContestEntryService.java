@@ -11,6 +11,8 @@ import de.venomenon.cscxtool.song.YoutubeUrlNormalizer;
 import java.net.URI;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -332,6 +334,169 @@ class ContestEntryService {
                 historicalEntryImportParser.parse(html, text, repository.findHistoricalImportParticipants(showId)),
                 repository.findAllByShowId(showId)
         );
+    }
+
+    List<AssignmentImportPreviewLine> previewAssignments(long showId, ImportPreviewRequest request) {
+        requireAssignmentImportOpen(showId);
+        String html = request == null ? null : request.html();
+        String text = request == null ? null : request.text();
+        if ((html == null || html.isBlank()) && (text == null || text.isBlank())) {
+            throw new ApiBadRequestException("EMPTY_IMPORT_PREVIEW", "Es wurde kein Zwischenablageinhalt erkannt.");
+        }
+        List<HistoricalImportParticipant> participants = repository.findHistoricalImportParticipants(showId);
+        Map<Long, Long> participationByParticipant = new HashMap<>();
+        participants.forEach(participant -> participationByParticipant.put(participant.participantId(), participant.participationId()));
+        ContestEntryRepository.OwnEntryState own = ownEntryState(showId);
+        var activeByParticipation = contests.findParticipations(own.contestId()).stream()
+                .collect(java.util.stream.Collectors.toMap(participation -> participation.id(), participation -> participation.active()));
+        List<ContestEntry> entries = repository.findAllByShowId(showId);
+        List<AssignmentImportPreviewLine> result = new ArrayList<>();
+        Set<Long> seenEntries = new HashSet<>();
+        Set<Long> seenParticipations = new HashSet<>();
+        for (HistoricalImportPreviewLine source : historicalEntryImportParser.parse(html, text, participants)) {
+            List<ImportWarning> warnings = new ArrayList<>(source.warnings());
+            List<ContestEntry> urlMatches = List.of();
+            if (source.youtubeUrl() != null) {
+                try {
+                    String sourceUrl = youtubeUrlNormalizer.normalize(source.youtubeUrl());
+                    urlMatches = entries.stream().filter(entry -> entry.youtubeUrl() != null &&
+                            normalizedYoutubeUrl(entry.youtubeUrl()).equals(sourceUrl)).toList();
+                } catch (ApiBadRequestException ignored) {
+                    // The historical parser already reports invalid links. Text matching remains available.
+                }
+            }
+            List<ContestEntry> textMatches = source.artist() == null || source.title() == null ? List.of() : entries.stream()
+                    .filter(entry -> assignmentSongKey(entry.artist(), entry.title())
+                            .equals(assignmentSongKey(source.artist(), source.title()))).toList();
+            ContestEntry matched = null;
+            if (urlMatches.size() > 1 || textMatches.size() > 1) {
+                warnings.add(new ImportWarning("AMBIGUOUS_ENTRY", "Mehrere vorhandene Beiträge passen; bitte einen Beitrag wählen."));
+            } else if (!urlMatches.isEmpty() && !textMatches.isEmpty() && urlMatches.getFirst().id() != textMatches.getFirst().id()) {
+                warnings.add(new ImportWarning("ENTRY_SIGNAL_CONFLICT", "Link und Interpret/Titel zeigen auf verschiedene Beiträge."));
+            } else if (!urlMatches.isEmpty()) {
+                matched = urlMatches.getFirst();
+            } else if (!textMatches.isEmpty()) {
+                matched = textMatches.getFirst();
+            } else {
+                warnings.add(new ImportWarning("ENTRY_NOT_FOUND", "Kein vorhandener Beitrag passt; bitte einen Beitrag wählen."));
+            }
+            Long participationId = source.participantId() == null ? null : participationByParticipant.get(source.participantId());
+            if (matched != null && !seenEntries.add(matched.id())) {
+                warnings.add(new ImportWarning("DUPLICATE_ENTRY", "Dieser Beitrag kommt im Block mehrfach vor."));
+            }
+            if (participationId != null && !seenParticipations.add(participationId)) {
+                warnings.add(new ImportWarning("DUPLICATE_PARTICIPATION", "Dieser Einreichende kommt im Block mehrfach vor."));
+            }
+            if (matched != null && participationId != null) {
+                if ((matched.ownEntry() && !participationId.equals(matched.contestParticipationId()))
+                        || (participationId.equals(own.currentOwnParticipationId()) && !matched.ownEntry())) {
+                    warnings.add(new ImportWarning("OWN_ENTRY_CHANGE_REQUIRES_REOPEN", "Die bestätigte eigene Einreichung darf hier nicht geändert werden."));
+                }
+                if (Boolean.FALSE.equals(activeByParticipation.get(participationId))
+                        && !participationId.equals(matched.contestParticipationId())) {
+                    warnings.add(new ImportWarning("INACTIVE_PARTICIPANT_CANNOT_BE_ASSIGNED", "Inaktive Teilnehmer können nicht neu zugeordnet werden."));
+                }
+                if (!participationId.equals(matched.contestParticipationId())
+                        && publishedBallots.assignmentWouldMakeOwnEntry(matched.id(), participationId)) {
+                    warnings.add(new ImportWarning("PUBLISHED_BALLOT_OWN_ENTRY_CONFLICT", "Die Zuordnung würde einen veröffentlichten Stimmzettel ungültig machen."));
+                }
+            }
+            String action = matched == null || participationId == null ? null
+                    : matched.contestParticipationId() == null ? "NEW"
+                    : matched.contestParticipationId().equals(participationId) ? "UNCHANGED" : "REPLACE";
+            result.add(new AssignmentImportPreviewLine(
+                    source.sourcePosition(), source.sourceText(), source.artist(), source.title(), source.youtubeUrl(),
+                    source.participantToken(), source.countryToken(), source.participantId(), participationId,
+                    matched == null ? null : matched.id(), matched == null ? null : matched.contestParticipationId(),
+                    action, matched == null || participationId == null ? ImportPreviewStatus.INCOMPLETE
+                            : warnings.isEmpty() ? ImportPreviewStatus.READY : ImportPreviewStatus.WARNING,
+                    List.copyOf(warnings)
+            ));
+        }
+        return List.copyOf(result);
+    }
+
+    @Transactional
+    List<ContestEntry> importAssignments(long showId, AssignmentImportRequest request) {
+        requireAssignmentImportOpen(showId);
+        if (request == null || request.assignments() == null || request.assignments().isEmpty()) {
+            throw new ApiBadRequestException("EMPTY_IMPORT", "Wähle mindestens eine Zuordnung für den Import aus.");
+        }
+        List<ContestEntry> entries = repository.findAllByShowId(showId);
+        Map<Long, ContestEntry> byId = new HashMap<>();
+        entries.forEach(entry -> byId.put(entry.id(), entry));
+        Map<Long, Long> finalAssignments = new LinkedHashMap<>();
+        entries.forEach(entry -> finalAssignments.put(entry.id(), entry.contestParticipationId()));
+        var own = ownEntryState(showId);
+        var participations = contests.findParticipations(own.contestId()).stream()
+                .collect(java.util.stream.Collectors.toMap(participation -> participation.id(), participation -> participation));
+        Set<Long> selected = new HashSet<>();
+        List<AssignmentImportItem> changes = new ArrayList<>();
+        for (AssignmentImportItem item : request.assignments()) {
+            if (item == null || item.entryId() == null || item.participationId() == null || !selected.add(item.entryId())) {
+                throw new ApiBadRequestException("INVALID_ASSIGNMENT_IMPORT", "Jeder ausgewählte Beitrag muss genau einmal mit einem Einreichenden vorkommen.");
+            }
+            ContestEntry entry = byId.get(item.entryId());
+            if (entry == null) throw new ApiConflictException("ASSIGNMENT_ENTRY_CHANGED", "Ein ausgewählter Beitrag existiert in dieser Show nicht mehr.");
+            if (!java.util.Objects.equals(entry.contestParticipationId(), item.expectedParticipationId())) {
+                throw new ApiConflictException("ASSIGNMENT_IMPORT_STALE", "Eine Zuordnung hat sich seit der Vorschau geändert. Bitte den Block erneut prüfen.");
+            }
+            var participation = participations.get(item.participationId());
+            if (participation == null) throw new ApiConflictException("PARTICIPANT_NOT_IN_CONTEST", "Ein Einreichender gehört nicht zum Teilnehmerfeld dieser CSC-Ausgabe.");
+            if (entry.ownEntry() && !item.participationId().equals(entry.contestParticipationId())) {
+                throw ownEntryAssignmentConflict();
+            }
+            if (item.participationId().equals(own.currentOwnParticipationId()) && !item.participationId().equals(entry.contestParticipationId())) {
+                throw ownEntryAssignmentConflict();
+            }
+            if (!participation.active() && !item.participationId().equals(entry.contestParticipationId())) {
+                throw new ApiConflictException("INACTIVE_PARTICIPANT_CANNOT_BE_ASSIGNED", "Inaktive Teilnehmer können nicht neu zugeordnet werden.");
+            }
+            if (!item.participationId().equals(entry.contestParticipationId())) {
+                if (entry.contestParticipationId() != null && !item.confirmReplacement()) {
+                    throw new ApiConflictException("ASSIGNMENT_REPLACEMENT_CONFIRMATION_REQUIRED", "Bestätige den Ersatz einer vorhandenen Zuordnung ausdrücklich.");
+                }
+                if (publishedBallots.assignmentWouldMakeOwnEntry(entry.id(), item.participationId())) throw publishedBallotOwnEntryConflict();
+                changes.add(item);
+            }
+            finalAssignments.put(entry.id(), item.participationId());
+        }
+        Set<Long> usedParticipations = new HashSet<>();
+        for (Long participationId : finalAssignments.values()) {
+            if (participationId != null && !usedParticipations.add(participationId)) throw duplicateParticipantAssignment();
+        }
+        try {
+            repository.clearParticipantAssignments(showId, changes.stream().map(AssignmentImportItem::entryId).toList());
+            for (AssignmentImportItem change : changes) {
+                if (!repository.updateParticipantAssignment(change.entryId(), showId, change.participationId())) {
+                    throw new ApiConflictException("ASSIGNMENT_IMPORT_STALE", "Ein Beitrag hat sich während des Imports geändert.");
+                }
+            }
+        } catch (DataIntegrityViolationException exception) {
+            if (isParticipantAssignmentUniqueConstraint(exception)) throw duplicateParticipantAssignment();
+            throw exception;
+        }
+        return repository.findAllByShowId(showId);
+    }
+
+    private void requireAssignmentImportOpen(long showId) {
+        requireCurrentShow(showId);
+        if (!repository.isBallotClosed(showId)) throw new ApiConflictException(
+                "PARTICIPANT_ASSIGNMENT_REQUIRES_CLOSED_BALLOT", "Einreichende können erst nach Abschluss der eigenen Top 15 importiert werden."
+        );
+    }
+
+    private String normalizedYoutubeUrl(String value) {
+        try { return youtubeUrlNormalizer.normalize(value); }
+        catch (ApiBadRequestException ignored) { return ""; }
+    }
+
+    private static String assignmentSongKey(String artist, String title) {
+        return HistoricalEntryImportText.normalized(artist) + "\u001f" + HistoricalEntryImportText.normalized(title);
+    }
+
+    private static ApiConflictException ownEntryAssignmentConflict() {
+        return new ApiConflictException("OWN_ENTRY_CHANGE_REQUIRES_REOPEN", "Die eigene Einreichung kann erst nach bewusstem Wiederöffnen geändert werden.");
     }
 
     @Transactional

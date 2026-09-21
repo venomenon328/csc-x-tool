@@ -145,6 +145,14 @@ class ContestEntryRepository {
                 """, participationId, entryId, showId) == 1;
     }
 
+    void clearParticipantAssignments(long showId, List<Long> entryIds) {
+        for (Long entryId : entryIds) {
+            if (!updateParticipantAssignment(entryId, showId, null)) {
+                throw new IllegalStateException("A validated contest entry disappeared while clearing its assignment.");
+            }
+        }
+    }
+
     Optional<OwnEntryState> findOwnEntryState(long showId) {
         return jdbcTemplate.query("""
                 SELECT show.contest_id, contest.own_participation_id, show.own_entry_resolution,

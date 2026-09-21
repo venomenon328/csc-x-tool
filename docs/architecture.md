@@ -516,6 +516,10 @@ Bevorzugte Baseline:
 
 Der Vorteil dieser Aufteilung ist, dass die eigentlichen Parserregeln durch normale Backend-Tests mit gespeicherten Fixtures reproduzierbar geprüft werden können. Falls ein Bootstrap-Spike zeigt, dass bestimmte Clipboard-Fragmente im Browser zuverlässiger vorverarbeitet werden müssen, darf die reine HTML-Linkextraktion ins Frontend verschoben werden; die fachliche Preview- und Validierungslogik bleibt trotzdem zentral getestet.
 
+Für veröffentlichte Zuordnungen der **aktuellen** Show nutzt `/shows/:showId/voting?mode=assignments` denselben normalen Paste-Adapter. `POST /api/shows/{showId}/entries/assignment-import-preview` übergibt HTML und Plaintext an die bestehende historische Extraktion und die Formatstrategien A–C. Danach werden die erkannten Songs über zentrale URL- und Textnormalisierung mit vorhandenen `contest_entry`-Zeilen derselben Show abgeglichen; die Vorschau liefert nur Text, IDs, Warnungen und den bisherigen Zuordnungszustand. Bei Konflikten wählt der Benutzer Beitrag und Contest-Teilnahme manuell. Die normale Voting-Route und die historische Vollimportsemantik bleiben bestehen.
+
+`POST /api/shows/{showId}/entries/assignment-import` erhält nur bestätigte IDs, erwartete bisherige Zuordnungen und Ersatzbestätigungen. Innerhalb einer Transaktion validiert der Service den resultierenden Showzustand sowie Eigeneinreichungs-, Aktivitäts- und Published-Ballot-Regeln. Er löscht zuerst nur geänderte Zuordnungen und setzt dann deren neue Teilnahme-IDs, damit SQLite auch Swaps unter dem bestehenden Unique-Constraint zulässt. Keine neue Tabelle, Importsession, Exportversion oder Rohblockpersistenz entsteht.
+
 ### 11.4 HTML-Verarbeitung
 
 HTML aus der Zwischenablage ist vollständig als **nicht vertrauenswürdig** zu behandeln.

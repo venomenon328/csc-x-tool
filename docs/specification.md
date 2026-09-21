@@ -601,6 +601,16 @@ Nicht alle Beiträge müssen sofort zugeordnet werden. Die Oberfläche zeigt feh
 
 Eine unvollständige Zuordnung blockiert die separate Erfassung der für die eigene Einreichung erhaltenen Punkte nicht.
 
+### MAP-004 – Veröffentlichte Zuordnungen gesammelt übernehmen
+
+Nach geschlossenem eigenen Ballot führt die Show-Hauptaktion `Einreichende zuordnen` in den sichtbaren Zuordnungsmodus der bestehenden Abstimmungsansicht. Dort sind Fortschritt, Paste-Fläche, Filter `Ohne Teilnehmer` und der Hinweis auf die weiterhin mögliche Einzelzuordnung unmittelbar sichtbar.
+
+Ein normaler Paste-Event liefert HTML und Plaintext desselben veröffentlichten Blocks. Die bestehende historische Formatpipeline erkennt die bekannten Zuordnungsformate A–C und dedupliziert gleichwertige Repräsentationen. Quell-HTML wird weder gerendert noch gespeichert. Die Vorschau zeigt Quellzeile, Interpret, Titel, Link, Teilnehmer, Land, vorhandenen Beitrag und bisherige sowie vorgesehene Zuordnung. Unbekannte, mehrdeutige und widersprüchliche Zeilen bleiben zur manuellen Auswahl von Beitrag und Einreichendem sichtbar.
+
+Der Import ordnet ausschließlich bereits vorhandene Beiträge derselben Show gültigen Contest-Teilnahmen zu. Eindeutige normalisierte YouTube-Links sowie Interpret/Titel dienen als Songsignale; widersprüchliche Signale werden nicht geraten. Namen und Aliasse werden exakt gegen das Teilnehmerfeld der Ausgabe aufgelöst, das Land dient als Plausibilitätssignal. Es entstehen keine neuen Beiträge, Teilnehmer oder Teilnahmen, und Songmetadaten bleiben unverändert.
+
+Identische Zuordnungen sind idempotent. Ein Ersatz erfordert eine ausdrückliche Bestätigung. Vor dem Schreiben prüft der Server Erwartungszustand, Show und Contest, Eindeutigkeit des gesamten resultierenden Showzustands, inaktive Teilnehmer, bestätigte eigene Einreichung und veröffentlichte Stimmzettel erneut. Ein bestätigter Teilblock ist zulässig. Alle Änderungen werden in einer Transaktion gespeichert; zweiphasige Aktualisierung erlaubt auch konsistente Swaps. Bei einem Fehler bleibt der gesamte Batch unverändert und ein veralteter Vorschauzustand führt zu einem verständlichen Konflikt.
+
 ## 13. Ergebnis der eigenen Einreichung
 
 ### 13.1 Ergebniseintrag je Teilnehmer

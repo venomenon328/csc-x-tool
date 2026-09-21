@@ -71,6 +71,30 @@ export type HistoricalImportEntry = {
   replaceEntryId?: number | null
 }
 
+export type AssignmentImportPreviewLine = {
+  sourcePosition: number
+  sourceText: string
+  artist: string | null
+  title: string | null
+  youtubeUrl: string | null
+  participantToken: string | null
+  countryToken: string | null
+  participantId: number | null
+  participationId: number | null
+  entryId: number | null
+  previousParticipationId: number | null
+  action: 'NEW' | 'UNCHANGED' | 'REPLACE' | null
+  status: ImportPreviewStatus
+  warnings: ImportWarning[]
+}
+
+export type AssignmentImportItem = {
+  entryId: number
+  participationId: number
+  expectedParticipationId: number | null
+  confirmReplacement: boolean
+}
+
 export class EntryApiError extends Error {
   constructor(readonly apiError: ApiError) {
     super(apiError.message)
@@ -159,6 +183,14 @@ export function previewHistoricalImport(showId: number, html: string, text: stri
 
 export function importHistoricalEntries(showId: number, entries: HistoricalImportEntry[]): Promise<ContestEntry[]> {
   return request(`/api/shows/${showId}/entries/historical-import`, json('POST', { entries }))
+}
+
+export function previewAssignmentImport(showId: number, html: string, text: string): Promise<AssignmentImportPreviewLine[]> {
+  return request(`/api/shows/${showId}/entries/assignment-import-preview`, json('POST', { html, text }))
+}
+
+export function importAssignments(showId: number, assignments: AssignmentImportItem[]): Promise<ContestEntry[]> {
+  return request(`/api/shows/${showId}/entries/assignment-import`, json('POST', { assignments }))
 }
 
 export function completeHistoricalEntryList(showId: number): Promise<void> {

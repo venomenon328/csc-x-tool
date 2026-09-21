@@ -245,6 +245,55 @@ describe('EntryPage', () => {
     expect(within(screen.getByLabelText('Beitragspool')).queryByRole('button', { name: 'Paralyzed von Imminence auswählen' })).not.toBeInTheDocument()
   })
 
+  it('opens the assignment mode, previews one normal paste and refreshes progress after confirmation', async () => {
+    window.history.pushState({}, '', '/shows/1/voting?mode=assignments')
+    const closedBallot = { ballotClosedAt: '2026-09-21T10:00:00Z', currentSnapshot: null, snapshots: [], renderedText: null }
+    const participant = { participationId: 41, id: 31, displayName: 'Mira', countryCode: 'AT', countryName: 'Österreich', active: true, aliases: [], createdAt: '', updatedAt: '' }
+    let assigned = false
+    let importAttempts = 0
+    fetchMock.mockImplementation(async (input) => {
+      const path = String(input)
+      if (path === '/api/shows/1') return jsonResponse({ ...show, ballotClosedAt: closedBallot.ballotClosedAt, assignedEntryCount: assigned ? 1 : 0, activeParticipantCount: 1, publishedBallotVotedCount: 0, publishedBallotNotVotedCount: 0, publishedBallotUnrecordedCount: 1 })
+      if (path === '/api/shows/1/ballot') return jsonResponse(closedBallot)
+      if (path === '/api/contests/1/participants?includeInactive=true') return jsonResponse([participant])
+      if (path === '/api/shows/1/entries/assignment-import-preview') return jsonResponse([{
+        sourcePosition: 1, sourceText: 'Imminence - Paralyzed (Österreich/Mira)', artist: 'Imminence', title: 'Paralyzed',
+        youtubeUrl: first.youtubeUrl, participantToken: 'Mira', countryToken: 'Österreich', participantId: 31,
+        participationId: 41, entryId: 11, previousParticipationId: null, action: 'NEW', status: 'READY', warnings: [],
+      }])
+      if (path === '/api/shows/1/entries/assignment-import') {
+        importAttempts++
+        if (importAttempts === 1) return jsonResponse({ code: 'ASSIGNMENT_IMPORT_STALE', message: 'Eine Zuordnung hat sich geändert.' }, 409)
+        assigned = true
+        return jsonResponse([{ ...first, participantId: 31, contestParticipationId: 41 }, second])
+      }
+      if (path === '/api/shows/1/entries') return jsonResponse(assigned ? [{ ...first, participantId: 31, contestParticipationId: 41 }, second] : [first, second])
+      throw new Error(`Unexpected request ${path}`)
+    })
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { name: 'Einreichende zuordnen' })).toBeVisible()
+    expect(screen.getByText('0 / 2 Beiträge zugeordnet')).toBeVisible()
+    expect(screen.getByText(/Beitrag auswählen → Teilnehmer zuordnen/)).toBeVisible()
+    expect(screen.getByLabelText('Ohne Teilnehmer')).toHaveAttribute('aria-pressed', 'true')
+    fireEvent.paste(screen.getByRole('button', { name: 'Einreichenden-Zuordnungsblock einfügen' }), {
+      clipboardData: { getData: (type: string) => type === 'text/html' ? '<p>rich</p>' : 'plain' },
+    })
+    await screen.findByRole('heading', { name: 'Vorschau' })
+    expect(fetchMock).toHaveBeenCalledWith('/api/shows/1/entries/assignment-import-preview', expect.objectContaining({
+      body: JSON.stringify({ html: '<p>rich</p>', text: 'plain' }),
+    }))
+    const confirm = screen.getByRole('button', { name: '1 Zuordnung bestätigen' })
+    await userEvent.setup().click(confirm)
+    expect(await screen.findByText('Eine Zuordnung hat sich geändert.')).toBeVisible()
+    expect(screen.getByText('0 / 2 Beiträge zugeordnet')).toBeVisible()
+    await userEvent.setup().click(confirm)
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/shows/1/entries/assignment-import', expect.objectContaining({
+      body: JSON.stringify({ assignments: [{ entryId: 11, participationId: 41, expectedParticipationId: null, confirmReplacement: false }] }),
+    })))
+    expect(await screen.findByText('1 / 2 Beiträge zugeordnet')).toBeVisible()
+  })
+
   it('applies a ranking suggestion only after its explicit action through the atomic reorder endpoint', async () => {
     const user = userEvent.setup()
     const suggestionEntries = [

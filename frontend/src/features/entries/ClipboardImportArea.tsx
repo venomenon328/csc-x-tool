@@ -2,9 +2,10 @@ import { Paper, Typography } from '@mui/material'
 import { useState, type ClipboardEvent } from 'react'
 
 /** Reads only the formats carried by one user initiated paste event. Nothing is retained here. */
-export function ClipboardImportArea({ onPasteData, disabled = false }: {
+export function ClipboardImportArea({ onPasteData, disabled = false, assignmentMode = false }: {
   onPasteData: (html: string, text: string) => Promise<void>
   disabled?: boolean
+  assignmentMode?: boolean
 }) {
   const [processing, setProcessing] = useState(false)
 
@@ -24,15 +25,15 @@ export function ClipboardImportArea({ onPasteData, disabled = false }: {
   return (
     <Paper
       aria-busy={processing}
-      aria-label="CSC-Beitragsblock einfügen"
+      aria-label={assignmentMode ? 'Einreichenden-Zuordnungsblock einfügen' : 'CSC-Beitragsblock einfügen'}
       onPaste={(event) => void handlePaste(event)}
       role="button"
       tabIndex={disabled ? -1 : 0}
       sx={{ border: 1, borderColor: 'secondary.main', cursor: disabled ? 'default' : 'paste', outlineOffset: 3, p: 3 }}
     >
-      <Typography component="h2" variant="h6">CSC-Beitragsblock importieren</Typography>
+      <Typography component="h2" variant="h6">{assignmentMode ? 'Einreichenden-Zuordnungsblock einfügen' : 'CSC-Beitragsblock importieren'}</Typography>
       <Typography color="text.secondary" sx={{ mt: 1 }}>
-        CSC-Beitragsblock kopieren, hier klicken und Strg+V drücken.
+        {assignmentMode ? 'Veröffentlichten Zuordnungsblock kopieren, hier klicken und Strg+V drücken.' : 'CSC-Beitragsblock kopieren, hier klicken und Strg+V drücken.'}
       </Typography>
       <Typography color="text.secondary" variant="body2" sx={{ mt: 1 }}>
         {processing ? 'Zwischenablage wird geprüft …' : 'Linktexte und Linkziele werden nur für die Vorschau ausgewertet.'}

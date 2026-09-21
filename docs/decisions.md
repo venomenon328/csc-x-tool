@@ -312,6 +312,12 @@ Eine zentrale reine Frontend-Funktion berechnet für bewertete Beiträge den gan
 
 Dieselbe Domänenschicht leitet vor dem Abschluss Hinweise zu unbewerteten Beiträgen, unsicheren oder niedrig eingeschätzten Top-15-Beiträgen, hoch eingeschätzten Beiträgen außerhalb der Top 15 sowie zur knappen unsicheren 15/16-Grenze ab. Sie werden im Client angezeigt und erweitern keine Backendvalidierung: Der bisherige lückenlose Top-15-/Snapshot-Vertrag ist unverändert die einzige harte Blockade.
 
+### A-021 – Aktuelle veröffentlichte Zuordnungen mappen vorhandene Beiträge
+
+Der nach der Enthüllung veröffentlichte Zuordnungsblock ergänzt die bestehende anonyme Songliste. Sein Import erstellt keine `contest_entry`-Datensätze und korrigiert keine Songmetadaten. Er verwendet die historischen Formatstrategien für A–C und die bestehende Namens-, Alias- und Länderauflösung, gleicht Songs aber ausschließlich über eindeutige URL- und Interpret-/Titel-Signale mit vorhandenen Beiträgen derselben Show ab. Die einzige dauerhafte Zuordnung bleibt `contest_entry.contest_participation_id`.
+
+Die Vorschau ist flüchtig und manuell korrigierbar. Der bestätigte Batch enthält stabile IDs, den erwarteten bisherigen Zuordnungszustand und eine ausdrückliche Ersatzbestätigung. Der Server validiert den vollständigen Endzustand erneut und setzt Änderungen einschließlich Swaps atomar in zwei Phasen um. Eigene bestätigte Einreichung, inaktive Teilnehmer und veröffentlichte Stimmzettel behalten ihre bestehenden Schutzregeln. Ein Teilblock lässt alle anderen Zuordnungen unverändert.
+
 ## Bewusst vertagte Entscheidungen
 
 ### O-001 – Vollständiger Import-Testblock
