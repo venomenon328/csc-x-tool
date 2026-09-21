@@ -347,7 +347,7 @@ Das Entfernen einer Contest-Teilnahme ist blockiert, solange historische Einreic
 
 ### 10.1 Aktueller Contest
 
-Im aktuellen Contest kann die anonyme Songliste wie bisher importiert werden. Nach der Enthüllung werden die Beiträge den Teilnehmern zugeordnet. Dazu dient weiterhin die manuelle Einzelzuordnung; optional kann ein veröffentlichter Zuordnungsblock über den sichtbaren Zuordnungsmodus der aktuellen Voting-Ansicht eingefügt werden. Dessen Vorschau verwendet dieselben Formatstrategien A–C und löst Quellzeilen auf bereits vorhandene Beiträge dieser Show und gültige Contest-Teilnahmen auf. Unbekannte oder widersprüchliche Zeilen werden manuell geklärt, Ersatz bewusst bestätigt und der gewählte Teilbatch atomar gespeichert. Er erstellt keine neuen Songs und ändert keine Songmetadaten. Die historische Vollimportsemantik in §10.2 bleibt davon unabhängig.
+Im aktuellen Contest kann die anonyme Songliste wie bisher importiert werden. Nach der Enthüllung werden die Beiträge den Teilnehmern zugeordnet. Dazu dient weiterhin die manuelle Einzelzuordnung; optional kann ein veröffentlichter Zuordnungsblock über den sichtbaren Zuordnungsmodus der aktuellen Voting-Ansicht eingefügt werden. Dessen Vorschau verwendet dieselbe gemeinsame Formatstrategiepipeline wie der historische Import, einschließlich des belegten Suffixformats `Interpret - Titel [Teilnehmer/Land]`, und löst Quellzeilen auf bereits vorhandene Beiträge dieser Show und gültige Contest-Teilnahmen auf. Unbekannte oder widersprüchliche Zeilen werden manuell geklärt, Ersatz bewusst bestätigt und der gewählte Teilbatch atomar gespeichert. Er erstellt keine neuen Songs und ändert keine Songmetadaten. Die historische Vollimportsemantik in §10.2 bleibt davon unabhängig.
 
 Die Show gilt für den historischen beziehungsweise vollständigen Bewertungsimport erst dann als songseitig vollständig, wenn:
 
@@ -371,7 +371,8 @@ Der Import erkennt die derzeit bekannten realen Formate block- oder zeilenweise 
 
 - Format A: `Interpret - Titel (Land/Teilnehmer)` beziehungsweise die eindeutig auflösbare umgekehrte Zuordnung;
 - Format B: `Interpret - Titel - Teilnehmer / Land` mit optionalem Leerraum am Slash;
-- Format C: sichtbares Präfix `Land - Teilnehmer` mit verlinktem `Interpret - Titel`.
+- Format C: sichtbares Präfix `Land - Teilnehmer` mit verlinktem `Interpret - Titel`;
+- zusätzlich belegtes Suffixformat: `Interpret - Titel [Teilnehmer/Land]`.
 
 Bei Format C ist eine eindeutige Rich-HTML-Struktur die bevorzugte Informationsquelle: Das sichtbare Präfix und genau ein Anchor desselben logischen Quellblocks liefern Zuordnung, Songtext und Linkziel. Der Markdown-/Plaintext-Fallback bleibt nutzbar. Liefert ein Paste-Ereignis beide äquivalenten Repräsentationen, wird die eindeutige linkhaltige Variante nur einmal übernommen; die Rich-HTML-Variante hat dabei Vorrang. Widersprüchliche Darstellungen oder mehrere Links bleiben sichtbar zur manuellen Nacharbeit.
 

@@ -59,6 +59,15 @@ class CurrentAssignmentImportApiIntegrationTest {
         HttpResponse<String> countryConflict = post("/assignment-import-preview", "{\"text\":\"Band A - Song A (Schweiz/Alicia)\"}");
         assertThat(countryConflict.body()).contains("COUNTRY_CONFLICT", "\"participantId\":9711");
 
+        HttpResponse<String> bracketed = post(
+                "/assignment-import-preview", "{\"text\":\"Band A - Song A [Alicia/Deutschland]\"}"
+        );
+        assertThat(bracketed.statusCode()).isEqualTo(200);
+        assertThat(bracketed.body()).contains(
+                "\"entryId\":9721", "\"participantId\":9711", "\"participationId\":9711",
+                "\"action\":\"NEW\"", "\"status\":\"READY\""
+        );
+
         assertThat(post("/assignment-import", batch(item(9721, 9711, null, false), item(9722, 9712, null, false))).statusCode()).isEqualTo(200);
         assertThat(assignment(9721)).isEqualTo(9711);
         assertThat(assignment(9722)).isEqualTo(9712);
