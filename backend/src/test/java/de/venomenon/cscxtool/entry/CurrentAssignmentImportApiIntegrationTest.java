@@ -37,22 +37,22 @@ class CurrentAssignmentImportApiIntegrationTest {
         assertThat(post("/assignment-import", batch(item(9721, 9711, null, false))).statusCode()).isEqualTo(409);
         jdbc.update("UPDATE motto_show SET ballot_closed_at = CURRENT_TIMESTAMP WHERE id = 9710");
         String html = "<script>alert('untrusted')</script><p><strong>Frankreich - Clara </strong>"
-                + "<a href=\"https://youtu.be/ccccccccccc\">Band C - Song C</a></p>";
+                + "<a href=\"https://youtu.be/ddddddddddd\">Band C - Song C</a></p>";
         String text = "Band A - Song A (Deutschland/Alicia)\nBand B - Song B - Bob / Schweiz\n"
-                + "**Frankreich - Clara **[Band C - Song C](https://youtu.be/ccccccccccc)";
+                + "**Frankreich - Clara **[Band C - Song C](https://youtu.be/ddddddddddd)";
         HttpResponse<String> preview = post("/assignment-import-preview", "{\"html\":\"" + json(html) + "\",\"text\":\"" + json(text) + "\"}");
         assertThat(preview.statusCode()).isEqualTo(200);
         assertThat(preview.body()).contains("\"entryId\":9721", "\"entryId\":9722", "\"entryId\":9723",
                 "\"participantId\":9711", "\"participantId\":9712", "\"participantId\":9713",
-                "\"action\":\"NEW\"", "https://youtu.be/ccccccccccc");
+                "\"action\":\"NEW\"", "https://youtu.be/ddddddddddd");
         assertThat(count(preview.body(), "\"sourcePosition\"")).isEqualTo(3);
         assertThat(preview.body()).doesNotContain("untrusted", "<script>");
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM contest_entry WHERE motto_show_id = 9710", Integer.class)).isEqualTo(5);
         assertThat(assignment(9721)).isNull();
 
-        HttpResponse<String> urlOnly = post("/assignment-import-preview", "{\"text\":\"**Frankreich - Clara **[Wrong Band - Wrong Song](https://youtu.be/ccccccccccc)\"}");
+        HttpResponse<String> urlOnly = post("/assignment-import-preview", "{\"text\":\"**Frankreich - Clara **[Wrong Band - Wrong Song](https://youtu.be/ddddddddddd)\"}");
         assertThat(urlOnly.body()).contains("\"entryId\":9723");
-        HttpResponse<String> conflictingSignals = post("/assignment-import-preview", "{\"text\":\"**Frankreich - Clara **[Band B - Song B](https://youtu.be/aaaaaaaaaaa)\"}");
+        HttpResponse<String> conflictingSignals = post("/assignment-import-preview", "{\"text\":\"**Frankreich - Clara **[Band B - Song B](https://youtu.be/bbbbbbbbbbb)\"}");
         assertThat(conflictingSignals.body()).contains("ENTRY_SIGNAL_CONFLICT", "\"entryId\":null");
         HttpResponse<String> missingSong = post("/assignment-import-preview", "{\"text\":\"Unknown - New (Deutschland/Alice)\"}");
         assertThat(missingSong.body()).contains("ENTRY_NOT_FOUND", "\"sourceText\":\"Unknown - New (Deutschland/Alice)\"");
@@ -97,7 +97,7 @@ class CurrentAssignmentImportApiIntegrationTest {
 
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM contest_entry WHERE motto_show_id = 9710", Integer.class)).isEqualTo(5);
         assertThat(jdbc.queryForObject("SELECT artist FROM contest_entry WHERE id = 9721", String.class)).isEqualTo("Band A");
-        assertThat(jdbc.queryForObject("SELECT youtube_url FROM contest_entry WHERE id = 9721", String.class)).isEqualTo("https://youtu.be/aaaaaaaaaaa");
+        assertThat(jdbc.queryForObject("SELECT youtube_url FROM contest_entry WHERE id = 9721", String.class)).isEqualTo("https://youtu.be/bbbbbbbbbbb");
 
         jdbc.update("INSERT INTO contest_entry (id,motto_show_id,contest_id,artist,title,youtube_url,pool_position,created_at,updated_at) "
                 + "VALUES (9725,9710,1,'Band A','Song A','https://youtu.be/ffffffffffF',6,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)");
