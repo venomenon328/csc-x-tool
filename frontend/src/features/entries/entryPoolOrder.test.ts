@@ -11,6 +11,19 @@ const entries: ContestEntry[] = [
 const noFilters = { search: '', onlyUnassessed: false, onlyUncertain: false, onlyUnranked: false, onlyWithoutParticipant: false }
 
 describe('entry pool ordering', () => {
+  it('keeps a 100-entry pool complete and separate from its 16 ranked entries', () => {
+    const largePool = Array.from({ length: 100 }, (_, index): ContestEntry => ({
+      ...entries[0], id: index + 1, poolPosition: 100 - index,
+      rankingPosition: index < 16 ? index + 1 : null,
+    }))
+    const ordered = visiblePoolEntries(largePool, noFilters, 'MANUAL')
+
+    expect(ordered).toHaveLength(100)
+    expect(ordered[0]?.id).toBe(100)
+    expect(ordered[99]?.id).toBe(1)
+    expect(ordered.filter((entry) => entry.rankingPosition !== null)).toHaveLength(16)
+  })
+
   it('uses pool positions for manual order and as the stable tie-breaker for other sorts', () => {
     expect(visiblePoolEntries(entries, noFilters, 'MANUAL').map((entry) => entry.id)).toEqual([2, 1, 3])
     expect(visiblePoolEntries(entries, noFilters, 'ARTIST').map((entry) => entry.id)).toEqual([1, 3, 2])

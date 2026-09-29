@@ -146,10 +146,10 @@ function AppShell() {
         </Box>
       </Drawer>
       <Box component="main" sx={{
-        flexGrow: 1, ml: '272px', minWidth: 0, p: { xs: 3, md: 5 },
+        flexGrow: 1, ml: '272px', p: { xs: 3, md: 5 },
         ...(votingWorkspace && {
           '@media (min-width:1200px)': {
-            display: 'flex', flexDirection: 'column', height: '100dvh', minHeight: 0,
+            display: 'flex', flexDirection: 'column', height: '100dvh', minHeight: 0, minWidth: 0,
             overflow: 'hidden', py: 1,
             '& > .MuiAutocomplete-root': { flexShrink: 0 },
           },

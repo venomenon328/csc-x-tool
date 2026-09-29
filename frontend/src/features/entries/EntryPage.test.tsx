@@ -28,14 +28,14 @@ describe('EntryPage', () => {
 
   afterEach(() => vi.unstubAllGlobals())
 
-  it('keeps both work areas, the player, and their scroll positions stable with 100 synthetic entries', async () => {
-    const manyEntries = Array.from({ length: 100 }, (_, index): ContestEntry => ({
+  it('keeps both work areas, the player, and their scroll positions stable with 30 synthetic entries', async () => {
+    const manyEntries = Array.from({ length: 30 }, (_, index): ContestEntry => ({
       ...first, id: index + 1, artist: `Artist ${index + 1}`, title: `Song ${index + 1}`,
       poolPosition: index + 1, rankingPosition: index < 16 ? index + 1 : null,
     }))
     fetchMock.mockImplementation(async (input) => {
       const path = String(input)
-      if (path === '/api/shows/1') return jsonResponse({ ...show, contestEntryCount: 100 })
+      if (path === '/api/shows/1') return jsonResponse({ ...show, contestEntryCount: 30 })
       if (path === '/api/shows/1/ballot') return jsonResponse(openBallot)
       if (path === '/api/shows/1/entries') return jsonResponse(manyEntries)
       return jsonResponse([])
@@ -46,7 +46,7 @@ describe('EntryPage', () => {
     expect(await within(left).findByRole('heading', { name: 'Show Eins – Abstimmung' })).toBeVisible()
     const right = screen.getByRole('complementary', { name: 'Ranglistenarbeitsbereich' })
     expect(within(left).getByRole('button', { name: 'CSC-Beitragsblock einfügen' })).toBeVisible()
-    expect(within(left).getAllByRole('button', { name: /Song \d+ von Artist \d+ auswählen/ })).toHaveLength(100)
+    expect(within(left).getAllByRole('button', { name: /Song \d+ von Artist \d+ auswählen/ })).toHaveLength(30)
     expect(within(right).getByLabelText('Persönliche Rangliste')).toBeVisible()
     expect(within(right).getByText('Außerhalb der Top 15')).toBeVisible()
 
