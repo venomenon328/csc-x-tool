@@ -8,6 +8,7 @@ Bei Produktänderungen die betroffenen vollständigen Abschnitte der [Produktspe
 
 | Gegenstand | Fachliche Pflichtquelle |
 | --- | --- |
+| Voting-Arbeitsplatz, Scrollverhalten und Top-15-Sichtbarkeit | [Arbeitsplatz-Spezifikation](voting-workspace.md) vollständig; freigegebene Ablösung der Scrollfestlegung aus #58 und des ungefähren Höhenziels aus PR #65 |
 | Historische Wettbewerbe, Stimmzettel und Analyseexport | [Erweiterungsspezifikation](historical-contests-ballots-analysis.md) |
 | Externe Profile, Bewertungen und Tippspiel | [Analyseprotokoll](external-ai-analysis.md) und [Analyse-Einstieg](ai-workflows/README.md) mit dem passenden konkreten Ablauf |
 | Herkunft fachlicher Referenzen | [Quellenabgrenzung](reference/README.md) |
