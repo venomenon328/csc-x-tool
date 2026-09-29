@@ -1,7 +1,9 @@
 # Abstimmungsarbeitsplatz: unabhängige Scrollbereiche
 
-**Stand:** 29.09.2026  
-**Status:** vom Nutzer freigegebene Spezifikation; kein Nachweis einer Implementierung  
+**Stand:** 29.09.2026
+
+**Status:** vom Nutzer freigegebene Spezifikation; kein Nachweis einer Implementierung
+
 **Lieferumfang und Abnahmestand:** [Issue #174](https://github.com/venomenon328/csc-x-tool/issues/174)
 
 ## 1. Geltung und Ablösung
