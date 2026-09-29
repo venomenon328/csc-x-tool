@@ -361,7 +361,16 @@ export function EntryPage() {
   if (showId === null) return <Alert severity="error">Die Mottoshow-ID ist ungültig.</Alert>
 
   return (
-    <Stack spacing={3}>
+    <Stack sx={{ flex: { lg: '1 1 0' }, minHeight: 0 }}>
+      <DragDropContext onDragEnd={(result) => void onDragEnd(result)}>
+        <Stack direction={{ xs: 'column', lg: 'row' }} spacing={3} sx={{ alignItems: 'stretch', flex: { lg: '1 1 0' }, minHeight: { lg: 0 } }}>
+          <Box
+            aria-label="Beitragsarbeitsbereich"
+            component="section"
+            tabIndex={0}
+            sx={{ flex: { lg: '1 1 0' }, minWidth: 0, overflowY: { lg: 'auto' }, overscrollBehaviorY: { lg: 'contain' }, pr: { lg: 1 } }}
+          >
+            <Stack spacing={3}>
       <Button component={RouterLink} sx={{ alignSelf: 'flex-start' }} to="/">Zur Übersicht</Button>
       {show === null && shows !== null && <Alert severity="error">Die Mottoshow wurde nicht gefunden.</Alert>}
       {show !== null && <Box>
@@ -383,9 +392,7 @@ export function EntryPage() {
         {assignmentMode && !participantAssignmentOpen && <Alert severity="info">Schließe zuerst deine Top 15 ab, bevor du Einreichende zuordnest.</Alert>}
         {!assignmentMode && <ClipboardImportArea onPasteData={pasteForPreview} />}
         {!assignmentMode && previewLines !== null && <ImportPreview importing={importing} lines={previewLines} onCancel={() => setPreviewLines(null)} onChange={setPreviewLines} onImport={() => void confirmImport()} />}
-        <DragDropContext onDragEnd={(result) => void onDragEnd(result)}>
-          <Stack direction={{ xs: 'column', md: 'row' }} spacing={3} sx={{ alignItems: 'flex-start' }}>
-            <Box aria-label="Beitragspool" component="section" sx={{ flex: 1, minWidth: 0 }}>
+            <Box aria-label="Beitragspool" component="section" sx={{ minWidth: 0 }}>
               <Stack spacing={1.5}>
                 <Stack direction={{ sm: 'row', xs: 'column' }} spacing={1} sx={{ alignItems: { sm: 'center' }, justifyContent: 'space-between' }}>
                   <Stack direction="row" spacing={1} sx={{ alignItems: 'center', minWidth: 0 }}>
@@ -416,8 +423,20 @@ export function EntryPage() {
                   pendingAssessmentIds={pendingAssessmentIds}
                 />}
               </Stack>
-            </Box>
-            <Paper component="aside" elevation={0} sx={{ backgroundColor: 'action.hover', border: 1, borderColor: 'divider', p: 2, position: { md: 'sticky' }, top: 24, width: { md: 450, xs: '100%' } }}>
+            </Box></>}
+            </Stack>
+          </Box>
+          {entries !== null && show !== null && <Paper
+            aria-label="Ranglistenarbeitsbereich"
+            component="aside"
+            elevation={0}
+            tabIndex={0}
+            sx={{
+              backgroundColor: 'action.hover', border: 1, borderColor: 'divider', p: { xs: 2, lg: 1 },
+              width: { lg: 450, xs: '100%' }, flexShrink: 0,
+              overflowY: { lg: 'auto' }, overscrollBehaviorY: { lg: 'contain' },
+            }}
+          >
               <Stack spacing={2}>
                 <YoutubePlayerPanel contextLabel="Aktuell ausgewählter Wettbewerbsbeitrag" emptyMessage="Wähle einen Wettbewerbsbeitrag aus, um ihn hier anzuhören." song={activeEntry} />
                 <OwnEntryResolutionPanel
@@ -458,10 +477,9 @@ export function EntryPage() {
                   ownParticipationId={show.ownParticipationId}
                 />}
               </Stack>
-            </Paper>
-          </Stack>
-        </DragDropContext>
-      </>}
+            </Paper>}
+        </Stack>
+      </DragDropContext>
       <EntryDialog creating={creating} entry={editing} key={`${creating}-${editing?.id ?? 'none'}`} onClose={() => { setEditing(null); setCreating(false) }} onCreate={(input) => void saveNewEntry(input)} onSave={(entry) => void saveEntry(entry)} saving={savingNewEntry} />
       <DeleteEntryDialog entry={entryPendingDeletion} onClose={() => setEntryPendingDeletion(null)} onConfirm={() => entryPendingDeletion !== null && void removeEntry(entryPendingDeletion)} />
       <Dialog onClose={() => setOwnEntryResolutionConfirmation(null)} open={ownEntryResolutionConfirmation !== null}>

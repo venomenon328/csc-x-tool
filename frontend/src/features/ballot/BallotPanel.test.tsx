@@ -20,6 +20,19 @@ function renderPanel(ballot: Ballot = { ballotClosedAt: null, currentSnapshot: n
 }
 
 describe('BallotPanel', () => {
+  it.each([0, 14, 15, 16])('keeps the full ranking in the work area with %i ranked entries', (count) => {
+    const ranked = entries.slice(0, count)
+    render(<DragDropContext onDragEnd={vi.fn()}><BallotPanel
+      activeEntryId={null} ballot={{ ballotClosedAt: null, currentSnapshot: null, snapshots: [], renderedText: null }} entries={ranked}
+      onApplySuggestion={vi.fn()} onClose={vi.fn()} onRemove={vi.fn()} onReopen={vi.fn()} onSelect={vi.fn()} reordering={false} showId={1}
+    /></DragDropContext>)
+
+    const ranking = screen.getByLabelText('Persönliche Rangliste')
+    expect(within(ranking).getAllByText(/Hier ablegen, um am Ende anzuhängen/)).toHaveLength(1)
+    expect(within(ranking).queryAllByRole('button', { name: /auswählen/ })).toHaveLength(count)
+    expect(within(ranking).queryByText('Außerhalb der Top 15') !== null).toBe(count > 15)
+  })
+
   it('renders one compact ranking surface with a real append drop target', () => {
     renderPanel()
 
