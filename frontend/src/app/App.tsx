@@ -57,6 +57,7 @@ function LegacyEvaluationRedirect({ view }: { view: 'published-ballots' | 'own-e
 
 function AppShell() {
   const location = useLocation()
+  const votingWorkspace = /^\/shows\/[^/]+\/voting\/?$/.test(location.pathname)
   const [shuttingDown, setShuttingDown] = useState(false)
   const [shutdownError, setShutdownError] = useState<string | null>(null)
   const { contests, selectedContest, selectContest } = useContest()
@@ -144,7 +145,16 @@ function AppShell() {
           </Button>
         </Box>
       </Drawer>
-      <Box component="main" sx={{ flexGrow: 1, ml: '272px', p: { xs: 3, md: 5 } }}>
+      <Box component="main" sx={{
+        flexGrow: 1, ml: '272px', minWidth: 0, p: { xs: 3, md: 5 },
+        ...(votingWorkspace && {
+          '@media (min-width:1200px)': {
+            display: 'flex', flexDirection: 'column', height: '100dvh', minHeight: 0,
+            overflow: 'hidden', py: 1,
+            '& > .MuiAutocomplete-root': { flexShrink: 0 },
+          },
+        }),
+      }}>
         <GlobalSearch />
         <Routes>
           <Route element={<ShowOverview />} path="/" />

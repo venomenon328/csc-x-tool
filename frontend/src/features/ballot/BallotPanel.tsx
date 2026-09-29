@@ -192,15 +192,14 @@ function RankingSurface({ activeEntryId, closed, entries, reordering, canClose, 
       : !canClose ? `Für den Abschluss fehlen noch ${15 - entries.length} gerankte Beiträge.` : undefined
 
   return (
-    <Paper component="section" elevation={0} sx={{ border: 1, borderColor: closed ? 'divider' : 'secondary.main', p: 1.5 }}>
-      <Stack direction="row" spacing={1} sx={{ alignItems: 'center', justifyContent: 'space-between', minWidth: 0 }}>
+    <Paper component="section" elevation={0} sx={{ border: 1, borderColor: closed ? 'divider' : 'secondary.main', p: { xs: 1.5, lg: 1 } }}>
+      <Stack direction="row" spacing={1} sx={{ alignItems: 'center', backgroundColor: 'background.paper', justifyContent: 'space-between', minWidth: 0, position: { lg: 'sticky' }, top: 0, zIndex: 2 }}>
         <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flex: 1, minWidth: 0 }}>
           <Typography component="h2" noWrap sx={{ minWidth: 0 }} variant="h6">{closed ? 'Rangliste (gesperrt)' : 'Persönliche Rangliste'}</Typography>
           <Chip aria-label={`${entries.length} gerankte Beiträge`} label={entries.length} size="small" sx={{ flexShrink: 0 }} />
         </Stack>
         {action}
       </Stack>
-      {notice !== undefined && <Alert severity={closed ? 'success' : 'info'} sx={{ mt: 1 }}>{notice}</Alert>}
       {closed
         ? <ReadOnlyRanking activeEntryId={activeEntryId} entries={entries} onSelect={onSelect} />
         : <Droppable droppableId={RANKING_DROPPABLE_ID} isDropDisabled={reordering}>
@@ -209,7 +208,7 @@ function RankingSurface({ activeEntryId, closed, entries, reordering, canClose, 
               {...provided.droppableProps}
               aria-label="Persönliche Rangliste"
               ref={provided.innerRef}
-              sx={{ maxHeight: { xs: '64vh', md: 900 }, minHeight: 200, mt: 1.25, overflowY: 'auto', pr: 0.5 }}
+              sx={{ maxHeight: { xs: '64vh', lg: 'none' }, minHeight: 200, mt: 1.25, overflowY: { xs: 'auto', lg: 'visible' }, pr: 0.5 }}
             >
               {entries.length === 0 && !snapshot.isDraggingOver && <Alert severity="info">Ziehe Beiträge hierher.</Alert>}
               <Stack spacing={0.5}>
@@ -243,13 +242,14 @@ function RankingSurface({ activeEntryId, closed, entries, reordering, canClose, 
             </Box>
           )}
         </Droppable>}
+      {notice !== undefined && <Alert severity={closed ? 'success' : 'info'} sx={{ mt: 1 }}>{notice}</Alert>}
     </Paper>
   )
 }
 
 function ReadOnlyRanking({ activeEntryId, entries, onSelect }: { activeEntryId: number | null, entries: ContestEntry[], onSelect: (entry: ContestEntry) => void }) {
   return (
-    <Stack spacing={0.5} sx={{ maxHeight: { xs: '64vh', md: 900 }, mt: 1.25, overflowY: 'auto', pr: 0.5 }}>
+    <Stack spacing={0.5} sx={{ maxHeight: { xs: '64vh', lg: 'none' }, mt: 1.25, overflowY: { xs: 'auto', lg: 'visible' }, pr: 0.5 }}>
       {entries.length === 0 && <Alert severity="info">Keine gerankten Beiträge.</Alert>}
       {entries.map((entry, index) => (
         <Box key={entry.id}>

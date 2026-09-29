@@ -28,6 +28,41 @@ describe('EntryPage', () => {
 
   afterEach(() => vi.unstubAllGlobals())
 
+  it('keeps both work areas, the player, and their scroll positions stable with 100 synthetic entries', async () => {
+    const user = userEvent.setup()
+    const manyEntries = Array.from({ length: 100 }, (_, index): ContestEntry => ({
+      ...first, id: index + 1, artist: `Artist ${index + 1}`, title: `Song ${index + 1}`,
+      poolPosition: index + 1, rankingPosition: index < 16 ? index + 1 : null,
+    }))
+    fetchMock.mockImplementation(async (input) => {
+      const path = String(input)
+      if (path === '/api/shows/1') return jsonResponse({ ...show, contestEntryCount: 100 })
+      if (path === '/api/shows/1/ballot') return jsonResponse(openBallot)
+      if (path === '/api/shows/1/entries') return jsonResponse(manyEntries)
+      return jsonResponse([])
+    })
+    render(<App />)
+
+    const left = await screen.findByRole('region', { name: 'Beitragsarbeitsbereich' })
+    expect(await within(left).findByRole('heading', { name: 'Show Eins – Abstimmung' })).toBeVisible()
+    const right = screen.getByRole('complementary', { name: 'Ranglistenarbeitsbereich' })
+    expect(within(left).getByRole('button', { name: 'CSC-Beitragsblock einfügen' })).toBeVisible()
+    expect(within(left).getAllByRole('button', { name: /Song \d+ von Artist \d+ auswählen/ })).toHaveLength(100)
+    expect(within(right).getByLabelText('Persönliche Rangliste')).toBeVisible()
+    expect(within(right).getByText('Außerhalb der Top 15')).toBeVisible()
+
+    await user.click(within(left).getByRole('button', { name: 'Song 1 von Artist 1 auswählen' }))
+    const player = within(right).getByTitle('YouTube: Artist 1 – Song 1')
+    const playerSource = player.getAttribute('src')
+    left.scrollTop = 320
+    right.scrollTop = 540
+    await user.type(within(left).getByRole('textbox', { name: 'Beiträge suchen' }), 'Song 2')
+    expect(left.scrollTop).toBe(320)
+    expect(right.scrollTop).toBe(540)
+    expect(within(right).getByTitle('YouTube: Artist 1 – Song 1')).toBe(player)
+    expect(within(right).getByTitle('YouTube: Artist 1 – Song 1')).toHaveAttribute('src', playerSource)
+  })
+
   it('sends html and plaintext from one paste event, renders only preview text, and imports exactly selected rows', async () => {
     const preview: ImportPreviewLine[] = [
       {
