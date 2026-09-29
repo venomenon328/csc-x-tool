@@ -363,12 +363,12 @@ export function EntryPage() {
   return (
     <Stack sx={{ flex: { lg: '1 1 0' }, minHeight: 0 }}>
       <DragDropContext onDragEnd={(result) => void onDragEnd(result)}>
-        <Stack direction={{ xs: 'column', lg: 'row' }} spacing={3} sx={{ alignItems: { xs: 'stretch', lg: 'stretch' }, flex: 1, minHeight: 0 }}>
+        <Stack direction={{ xs: 'column', lg: 'row' }} spacing={3} sx={{ alignItems: 'stretch', flex: { lg: '1 1 0' }, minHeight: { lg: 0 } }}>
           <Box
             aria-label="Beitragsarbeitsbereich"
             component="section"
             tabIndex={0}
-            sx={{ flex: 1, minWidth: 0, overflowY: { lg: 'auto' }, overscrollBehaviorY: { lg: 'contain' }, pr: { lg: 1 } }}
+            sx={{ flex: { lg: '1 1 0' }, minWidth: 0, overflowY: { lg: 'auto' }, overscrollBehaviorY: { lg: 'contain' }, pr: { lg: 1 } }}
           >
             <Stack spacing={3}>
       <Button component={RouterLink} sx={{ alignSelf: 'flex-start' }} to="/">Zur Übersicht</Button>
