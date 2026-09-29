@@ -1,6 +1,6 @@
 # Entscheidungsprotokoll
 
-**Stand:** 27.08.2026
+**Stand:** 29.09.2026
 
 Dieses Dokument hält die bisher verbindlich getroffenen Produkt- und Architekturentscheidungen fest. Es ersetzt keine ausführliche Anforderung aus der [Produktspezifikation](specification.md), sondern erklärt die maßgeblichen Grenzziehungen.
 
@@ -180,6 +180,14 @@ Eine BOTB-Auswahl dokumentiert ausschließlich die ursprüngliche Interpretwahl 
 
 BOTB wird nicht als `contest`, nicht als eigener Navigationsbereich und nicht mit Songs, Runden, Punkten, Platzierungen oder Ergebnissen modelliert. Die Teilnehmerübersicht zeigt nur die voraggregierte Anzahl. Die vollständige Liste wird atomar in einem eigenen Identitätsdialog gepflegt und im vollständigen JSON-Export/Restore verlustfrei mitgeführt.
 
+### D-026 – Unabhängiger Voting-Arbeitsplatz mit vollständig sichtbaren Top 15
+
+Am 29.09.2026 ist für #174 die [Arbeitsplatz-Spezifikation](voting-workspace.md) freigegeben worden. Auf dem Desktop scrollen Hauptspalte und rechte Arbeitsspalte unabhängig voneinander. Showkopf und Import/-vorschau gehören in den linken Scrollbereich. Der Player darf rechts aus dem sichtbaren Ausschnitt scrollen; er muss nicht gleichzeitig mit 15 Rangplätzen sichtbar sein.
+
+Verbindliche Referenz des einzigen Nutzers: Windows, Bildschirmauflösung 2560 × 1440, Vivaldi maximiert und 100 % Browserzoom. Wenn die Rangliste rechts nach oben gescrollt ist, müssen die Plätze 1 bis 15 offen wie gesperrt vollständig gleichzeitig sichtbar sein, unabhängig von der linken Scrollposition. Die tatsächliche Windows-Skalierung und der CSS-Inhaltsviewport werden beim Nachweis protokolliert, nicht aus der Bildschirmauflösung erfunden. Kleinere Fenster/mehr Zoom bleiben bedienbar, ohne dort 15 sichtbare Zeilen zu garantieren.
+
+Damit werden ausschließlich #58 „Zielbild / Scrollverhalten“ und das ungefähre Höhenziel aus PR #65 abgelöst. Hauptlisten-/Rankingsemantik und alle Datenverträge bleiben bestehen. Die Entscheidung ist eine Spezifikations-, keine Implementierungs- oder Mergefreigabe; den Lieferstand führt #174.
+
 ## Verbindliche Architekturentscheidungen
 
 ### A-001 – Lokale Webanwendung im Browser
@@ -317,6 +325,14 @@ Dieselbe Domänenschicht leitet vor dem Abschluss Hinweise zu unbewerteten Beitr
 Der nach der Enthüllung veröffentlichte Zuordnungsblock ergänzt die bestehende anonyme Songliste. Sein Import erstellt keine `contest_entry`-Datensätze und korrigiert keine Songmetadaten. Er verwendet die gemeinsame historische Formatstrategiepipeline einschließlich des veröffentlichten Suffixformats `Interpret - Titel [Teilnehmer/Land]` und die bestehende Namens-, Alias- und Länderauflösung, gleicht Songs aber ausschließlich über eindeutige URL- und Interpret-/Titel-Signale mit vorhandenen Beiträgen derselben Show ab. Die einzige dauerhafte Zuordnung bleibt `contest_entry.contest_participation_id`.
 
 Die Vorschau ist flüchtig und manuell korrigierbar. Der bestätigte Batch enthält stabile IDs, den erwarteten bisherigen Zuordnungszustand und eine ausdrückliche Ersatzbestätigung. Der Server validiert den vollständigen Endzustand erneut und setzt Änderungen einschließlich Swaps atomar in zwei Phasen um. Eigene bestätigte Einreichung, inaktive Teilnehmer und veröffentlichte Stimmzettel behalten ihre bestehenden Schutzregeln. Ein Teilblock lässt alle anderen Zuordnungen unverändert.
+
+### A-022 – Eine Scroll-Ebene je Voting-Dropbereich und stabiler Player
+
+Für den freigegebenen Voting-Arbeitsplatz aus D-026 wird die verfügbare Browserhöhe zwischen zwei unabhängig scrollbar begrenzten Spalten genutzt. Die Rangliste wächst innerhalb der rechten Spalte ohne zusätzlichen inneren vertikalen Scrollcontainer; ihr Kopf bleibt beim Erreichen der oberen Kante während der Rankingarbeit sticky. Normales Scrollen an Spaltengrenzen bewegt keine andere Spalte oder gemeinsame Arbeitsseite.
+
+`@hello-pangea/dnd`, ein gemeinsamer DnD-Kontext, eindeutige Draggable-IDs je Darstellung, Auto-Scroll, End-Dropzone und getrennte Pool-/Ranking-Reorder bleiben erhalten. Übergeordnete Overflow-Regeln dürfen keine zusätzliche Scroll-Ebene im Droppable-Pfad erzeugen. Reines Scrollen darf weder die Playerinstanz neu mounten noch ihre Quelle neu setzen. Normale Auswahl-/Bewertungsänderungen und Re-Renders dürfen keine ungefragten Scrollsprünge auslösen.
+
+Die Änderung bleibt frontendseitig und auf die Voting-Route einschließlich ihres bestehenden Zuordnungsmodus begrenzt. Kein Datenmodell-, API-, Bibliotheks- oder Exportwechsel. Vollständiger Vertrag und reales Vivaldi-Abnahmeziel: [voting-workspace.md](voting-workspace.md). Dies dokumentiert die beschlossene Zielarchitektur, nicht deren bereits erfolgte Umsetzung.
 
 ## Bewusst vertagte Entscheidungen
 
