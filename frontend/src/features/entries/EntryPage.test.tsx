@@ -29,7 +29,6 @@ describe('EntryPage', () => {
   afterEach(() => vi.unstubAllGlobals())
 
   it('keeps both work areas, the player, and their scroll positions stable with 100 synthetic entries', async () => {
-    const user = userEvent.setup()
     const manyEntries = Array.from({ length: 100 }, (_, index): ContestEntry => ({
       ...first, id: index + 1, artist: `Artist ${index + 1}`, title: `Song ${index + 1}`,
       poolPosition: index + 1, rankingPosition: index < 16 ? index + 1 : null,
@@ -51,12 +50,12 @@ describe('EntryPage', () => {
     expect(within(right).getByLabelText('Persönliche Rangliste')).toBeVisible()
     expect(within(right).getByText('Außerhalb der Top 15')).toBeVisible()
 
-    await user.click(within(left).getByRole('button', { name: 'Song 1 von Artist 1 auswählen' }))
+    fireEvent.click(within(left).getByRole('button', { name: 'Song 1 von Artist 1 auswählen' }))
     const player = within(right).getByTitle('YouTube: Artist 1 – Song 1')
     const playerSource = player.getAttribute('src')
     left.scrollTop = 320
     right.scrollTop = 540
-    await user.type(within(left).getByRole('textbox', { name: 'Beiträge suchen' }), 'Song 2')
+    fireEvent.change(within(left).getByRole('textbox', { name: 'Beiträge suchen' }), { target: { value: 'Song 2' } })
     expect(left.scrollTop).toBe(320)
     expect(right.scrollTop).toBe(540)
     expect(within(right).getByTitle('YouTube: Artist 1 – Song 1')).toBe(player)
