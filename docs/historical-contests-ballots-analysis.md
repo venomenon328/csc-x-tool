@@ -781,4 +781,3 @@ Es besteht kein weiterer fachlicher Klärungsbedarf für die Paketabgrenzung.
 ## 22. Nachgelagerte Gesamtwertung und Statistiken
 
 Die neuen Auswertungen sind in [contest-statistics.md](contest-statistics.md) und [Roadmap #14](https://github.com/venomenon328/csc-x-tool/issues/14) spezifiziert. Sie bilden eine eigene Lieferung nach den vorhandenen Historik-/Stimmzettelpaketen. Bereits abgeschlossene Kernpakete werden dadurch nicht rückwirkend erweitert oder wieder geöffnet. Der bestehende Analyseexport behält seinen unabhängigen Quellenumfang einschließlich ausdrücklich ausgewählter laufender Shows.
-

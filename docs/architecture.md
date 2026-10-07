@@ -832,4 +832,3 @@ Verbindliche fachliche Details und Paketgrenzen: [contest-statistics.md](contest
 Vier contestbezogene Ansichten: Gesamtwertung, Teilnehmerprofile, Punktebeziehungen und Rekorde. Details verlinken zu bestehenden Show-/Stimmzettelauswertungen. Routen und DTO-Namen werden bei der Vorbereitung im vorhandenen Router-/API-Stil festgelegt. Tabellen, Heatmap und Verlauf erhalten zugängliche Beschriftungen und eine lesbare Darstellung bei schmalerem Fenster.
 
 Der vollständige JSON-Vertrag muss den Abschluss tragen. Der bestehende Analyseexport behält seinen separaten Quellen-/Auswahlvertrag; neue Statistikdateien und ein Filter auf ausschließlich abgeschlossene Shows sind dafür nicht beauftragt.
-

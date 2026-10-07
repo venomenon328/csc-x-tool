@@ -576,4 +576,3 @@ Der Plan wird angepasst, wenn:
 - ein neues blockierendes Risiko entdeckt wird
 
 Reine Implementierungsdetails werden im jeweiligen Issue oder PR dokumentiert und müssen nicht jede Zeile dieses Dokuments in Bewegung versetzen.
-

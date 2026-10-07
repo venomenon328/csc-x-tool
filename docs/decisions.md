@@ -403,4 +403,3 @@ Das Produktverhalten ist festgelegt; konkrete Paketierungswerkzeuge, Icon und In
 Die vertagten Punkte blockieren die Grundstruktur, das Datenmodell und die ersten Entwicklungsinkremente nicht.
 
 Insbesondere ist der bisherige offene Punkt zum grundsätzlichen Importformat ausreichend geklärt: Der technische Bootstrap kann die Importfläche und den Preview-Contract bereits berücksichtigen; der vollständige reale Block wird später für Parserhärtung und Tests benötigt.
-

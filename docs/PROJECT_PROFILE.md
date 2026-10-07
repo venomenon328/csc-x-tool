@@ -49,4 +49,3 @@ Der aktuelle Issue-Body bestimmt den Auftrag; dauerhafte Fachentscheidungen blei
 Zielbranch `main`; neue Branches nach gemeinsamer Konvention. Vorbereitung erstellt standardmäßig noch keinen Branch/PR; ein Implementierungsauftrag erlaubt dies. Bereits ausdrücklich vereinbarte Arbeitsbranches und Abhängigkeiten bleiben gültig. PR bis zur Abnahme Draft; Standardmerge Squash nach Freigabe, keine automatische Branchlöschung. Technischen Branchschutz nicht als eingerichtet voraussetzen oder ungefragt ändern.
 
 Modell-/Reasoning-Empfehlungen folgen nur der lokalen Regelkopie. Die frühere Datei `Codex-Empfehlung.txt` wird bei Umstellung der Projekteinstellungen als Pflichtquelle ersetzt. Die [bereitgestellten Einstellungen](CHATGPT_PROJECT_INSTRUCTIONS.md) sind erst nach dem Einführungsmerge zu aktivieren; ihre Ablage im Repository ändert die ChatGPT-Oberfläche nicht.
-

@@ -98,4 +98,3 @@ Die Anwendung darf folgende kleine, stabile Datenmengen direkt als Migration ode
 - lokal gebündelte Ländercodes, Ländernamen und Flaggenzuordnungen
 
 Die vollständigen Regel- und Ausschlussdokumente sind keine Laufzeitabhängigkeit der Anwendung.
-

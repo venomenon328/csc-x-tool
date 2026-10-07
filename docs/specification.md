@@ -989,4 +989,3 @@ Er bedeutet:
 > Der Benutzer hat den Kandidaten außerhalb des Tools geprüft und möchte ihn innerhalb dieser Mottoshow organisatorisch weiterverfolgen.
 
 Diese Grenze ist bewusst und verbindlich. Das CSC X Tool ist ein Arbeits- und Abstimmungscockpit, keine Recherche- oder Regelprüfmaschine.
-
