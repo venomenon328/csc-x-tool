@@ -10,6 +10,7 @@ Bei Produktänderungen die betroffenen vollständigen Abschnitte der [Produktspe
 | --- | --- |
 | Voting-Arbeitsplatz, Scrollverhalten und Top-15-Sichtbarkeit | [Arbeitsplatz-Spezifikation](voting-workspace.md) vollständig; freigegebene Ablösung der Scrollfestlegung aus #58 und des ungefähren Höhenziels aus PR #65 |
 | Historische Wettbewerbe, Stimmzettel und Analyseexport | [Erweiterungsspezifikation](historical-contests-ballots-analysis.md) |
+| Showabschluss, Contest-Gesamtwertung, Teilnehmerstatistiken und Rekorde | [Gesamtwertungs- und Statistikspezifikation](contest-statistics.md) vollständig; gezielte Erweiterung der bisherigen Ergebnisabgrenzung, Roadmap #14 |
 | Externe Profile, Bewertungen und Tippspiel | [Analyseprotokoll](external-ai-analysis.md) und [Analyse-Einstieg](ai-workflows/README.md) mit dem passenden konkreten Ablauf |
 | Herkunft fachlicher Referenzen | [Quellenabgrenzung](reference/README.md) |
 | Launcher, Installer oder Release | [Paketierung](../launcher/packaging/README.md) und [Release-Checkliste](release-checklist-0.1.0.md) |
@@ -48,3 +49,4 @@ Der aktuelle Issue-Body bestimmt den Auftrag; dauerhafte Fachentscheidungen blei
 Zielbranch `main`; neue Branches nach gemeinsamer Konvention. Vorbereitung erstellt standardmäßig noch keinen Branch/PR; ein Implementierungsauftrag erlaubt dies. Bereits ausdrücklich vereinbarte Arbeitsbranches und Abhängigkeiten bleiben gültig. PR bis zur Abnahme Draft; Standardmerge Squash nach Freigabe, keine automatische Branchlöschung. Technischen Branchschutz nicht als eingerichtet voraussetzen oder ungefragt ändern.
 
 Modell-/Reasoning-Empfehlungen folgen nur der lokalen Regelkopie. Die frühere Datei `Codex-Empfehlung.txt` wird bei Umstellung der Projekteinstellungen als Pflichtquelle ersetzt. Die [bereitgestellten Einstellungen](CHATGPT_PROJECT_INSTRUCTIONS.md) sind erst nach dem Einführungsmerge zu aktivieren; ihre Ablage im Repository ändert die ChatGPT-Oberfläche nicht.
+

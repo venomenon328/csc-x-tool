@@ -9,14 +9,16 @@ Das Tool begleitet den praktischen Ablauf einer Mottoshow:
 3. die anonymen Beiträge der anderen Teilnehmer direkt aus dem formatierten CSC-Beitragsblock per Zwischenablage importieren und anhören
 4. Beiträge mit Einschätzung und Sicherheit kompakt bewerten, bei Bedarf einen bewussten Ranglistenvorschlag anwenden und die persönliche Top 15 per Drag-and-drop finalisieren
 5. nach Abschluss der Abstimmung Beiträge den Teilnehmern zuordnen
-6. die für die eigene Einreichung erhaltenen Punkte erfassen
-7. Gesamtpunktzahl und Endplatzierung dokumentieren
+6. veröffentlichte vollständige Stimmzettel erfassen und die erhaltenen Punkte daraus ableiten
+7. den Showzwischenstand und die eigene Einreichung auswerten
 
 ## Projektstatus
 
 Die Entwicklungsinhalte bis 0.1.0 sind umgesetzt: Die Anwendung verwaltet die zwölf Mottoshows, Kandidaten, Beiträge, Top 15, Teilnehmer, Ergebnisse sowie Sicherungen lokal in SQLite. Der Windows-Releasepfad erzeugt ein App-Image und einen per-user MSI; die manuelle Windows-/Vivaldi-Abnahme bleibt vor einer Freigabe verpflichtend.
 
-Die geplante Erweiterung um mehrere CSC-Ausgaben, vollständige historische Songlisten, veröffentlichte Einzelwertungen, Analyseexporte und ein späteres Tippspiel ist bereits verbindlich spezifiziert, aber noch nicht umgesetzt. Sie wird in der [Erweiterungsroadmap #66](https://github.com/venomenon328/csc-x-tool/issues/66) verfolgt.
+Die Grundlage für mehrere CSC-Ausgaben, historische Songlisten, veröffentlichte Einzelwertungen, Analyseexporte und Tippspiel ist implementiert. Den Abschluss der zugehörigen Roadmap und ihrer realen Abnahmen führt [#66](https://github.com/venomenon328/csc-x-tool/issues/66).
+
+Am 07.10.2026 wurde die Erweiterung um explizite Show-Ergebnisabschlüsse, Contest-Gesamtwertung, Teilnehmerprofile, Punktebeziehungen und Rekorde freigegeben. Sie ist [verbindlich spezifiziert](docs/contest-statistics.md), aber noch nicht implementiert; Entwicklungspakete und Lieferstand stehen in [Roadmap #14](https://github.com/venomenon328/csc-x-tool/issues/14).
 
 ## Sicherungen und Exporte
 
@@ -33,13 +35,15 @@ Der vollständige JSON-Download verwendet den versionierten Contract `csc-x-tool
 - SQLite als lokale Datenbank
 - keine Anmeldung und keine Benutzerverwaltung
 - komfortabler Windows-Launcher, der die Anwendung startet und den Browser öffnet
-- genau eine CSC-Ausgabe mit zwölf Mottoshows
+- aktuelle und historische CSC-Ausgaben; die aktuelle Kandidaten-/Voting-Arbeit bleibt auf die ausgewählte aktuelle Ausgabe fokussiert
 - Beitragsimport per normalem Browser-Paste-Event mit bevorzugter Auswertung formatierter Linkdaten (`text/html`)
 
 ## Dokumentation
 
 - [Produktspezifikation](docs/specification.md)
 - [Erweiterungsspezifikation: Historische CSC-Daten, Einzelwertungen und Analyseexport](docs/historical-contests-ballots-analysis.md)
+- [Gesamtwertung, Showabschluss und Conteststatistiken](docs/contest-statistics.md)
+- [GitHub-Roadmap für Gesamtwertung und Statistiken](https://github.com/venomenon328/csc-x-tool/issues/14)
 - [Technische Architektur](docs/architecture.md)
 - [Implementierungsplan](docs/implementation-plan.md)
 - [Entscheidungsprotokoll](docs/decisions.md)
@@ -59,7 +63,7 @@ Der vollständige JSON-Download verwendet den versionierten Contract `csc-x-tool
 
 ## Bewusste Abgrenzung
 
-Das Tool recherchiert keine Kandidaten, prüft keine Mottoregeln und gleicht Songs nicht gegen die CSC-Ausschlussliste ab. Diese Arbeit findet vor dem Eintragen außerhalb der Anwendung statt. Ebenfalls nicht verwaltet werden die vollständigen Abstimmungen oder Ergebnisse anderer Teilnehmer.
+Das Tool recherchiert keine Kandidaten, prüft keine Mottoregeln und gleicht Songs nicht gegen die CSC-Ausschlussliste ab. Diese Arbeit findet vor dem Eintragen außerhalb der Anwendung statt. Veröffentlichte Stimmzettel bleiben die kanonische Bewertungsquelle; die geplante Gesamtwertung ergänzt keine manuelle offizielle Ergebnistabelle und keine integrierte KI-Prognose.
 
 ## Toolchain
 

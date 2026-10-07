@@ -2,7 +2,9 @@
 
 **Version:** 1.0  
 **Stand:** 30.08.2026  
-**Status:** verbindliche fachliche Grundlage für die nachgelagerte Erweiterungsroadmap
+**Status:** verbindliche fachliche Grundlage der Historik-Erweiterung; gezielte Fortschreibung am 07.10.2026
+
+Die freigegebene [Gesamtwertungs- und Statistikspezifikation](contest-statistics.md) ergänzt explizite Show-Ergebnisabschlüsse, abgeleitete Show-/Contestränge und Statistikansichten. Sie ersetzt die früheren pauschalen Ausschlüsse dieser Ableitungen in §§4 und 12.3. Die kanonischen Einreichungs-, Stimmzettel- und Legacy-Verträge dieses Dokuments bleiben erhalten; der neue Umfang ist noch nicht implementiert.
 
 ## 1. Einordnung und Geltungsbereich
 
@@ -69,10 +71,9 @@ Die historische Einreichungsliste kann später in einer eigenen Arbeitsfläche a
 
 Nicht Bestandteil dieser Erweiterung sind:
 
-- Berechnung oder Speicherung offizieller Gesamtpunktzahlen,
-- Berechnung oder Speicherung offizieller Platzierungen,
-- Verwaltung von Siegen oder geteilten Gesamtplatzierungen,
-- Berechnung eines Mottoshow-Siegers oder Gesamtsiegers,
+- zusätzliche manuelle Speicherung offizieller Gesamtpunktzahlen oder Platzierungen neben den kanonischen Stimmzetteln,
+- Import offizieller Endtabellen als zweite Ergebnisquelle,
+- zusätzliche fachliche Tiebreaks jenseits der freigegebenen geteilten Ränge aus [contest-statistics.md](contest-statistics.md),
 - Erfindung einer Reihenfolge für Songs außerhalb der veröffentlichten Top 15,
 - Speicherung einer vermeintlich genauen Rangposition ab Platz 16,
 - Speicherung einer fachlich relevanten „genauen Aufnahme oder Version“,
@@ -475,11 +476,13 @@ Die bisherige Ansicht „Welche Punkte erhielt meine Einreichung von Teilnehmer 
 - Stimmzettel unerfasst: unbekannt,
 - eigene Teilnehmeridentität: eigene Einreichung und deshalb nicht wählbar.
 
-### 12.3 Keine offiziellen Gesamtwerte
+### 12.3 Abgeleitete Show- und Contestauswertung
 
-Die Anwendung berechnet für diesen Erweiterungszweck keine offizielle Mottoshow-Gesamtwertung und speichert keine offizielle Gesamtpunktzahl oder Endplatzierung.
+Der vorhandene read-only Showzwischenstand aus #97 bleibt eine jederzeit aus erfassten Stimmzetteln berechnete Arbeitssicht. Seine Darstellung wird nicht automatisch zum Showabschluss.
 
-Eine Summe der für die eigene Einreichung abgeleiteten Punkte darf als reine Komfortanzeige existieren, ist aber kein offizielles Ergebnisobjekt und keine zusätzliche Quelle der Wahrheit.
+Die am 07.10.2026 freigegebene Erweiterung [contest-statistics.md](contest-statistics.md) ergänzt einen bewussten Ergebnisabschluss je Show. Ausschließlich abgeschlossene Shows liefern ihre aus geteilten Showrängen berechneten Gesamtwertungspunkte und fließen in die neuen Conteststatistiken ein. Geteilte Ränge überspringen Folgeplätze; nach einer Wiederöffnung entfällt die Show bis zum erneuten Abschluss aus diesen Auswertungen.
+
+Stimmzettel und Beitrag-Zuordnungen bleiben die einzige Ergebnisquelle. Manuelle offizielle Gesamtpunkte, isolierte Einzelwerte oder importierte Endtabellen werden nicht reaktiviert. Die ursprüngliche generelle Abgrenzung gegen berechnete Platzierungen und Sieger ist genau für diesen freigegebenen Umfang abgelöst.
 
 ## 13. Analyseexport für externe KI
 
@@ -633,7 +636,7 @@ Daher gilt:
 - keine automatische Erzeugung veröffentlichter Stimmzettel aus isolierten Punktwerten,
 - vorhandene Werte bis zur vollständigen Neuerfassung höchstens als klar gekennzeichnete Legacy-Daten behandeln,
 - nach vollständigem Import der Stimmzettel werden Ergebnisanzeigen ausschließlich daraus abgeleitet,
-- offizielle Gesamtpunktzahl, Endplatzierung und Gleichstandskennzeichnung gehören nicht zum neuen Zielmodell,
+- manuell gepflegte offizielle Gesamtpunktzahl, Endplatzierung und Gleichstandskennzeichnung bleiben außerhalb des aktiven Modells; die neue berechnete Gesamtwertung aus #14 verwendet ausschließlich vollständige veröffentlichte Stimmzettel,
 - eine spätere Entfernung alter Felder erfolgt erst mit gesicherter Backup-, Restore- und JSON-Migrationsstrategie.
 
 ### 16.5 Backup und Export
@@ -669,7 +672,7 @@ Die Erweiterungsroadmap ist fachlich vollständig abgenommen, wenn folgendes Sze
 12. für jeden abgegebenen Stimmzettel Top 15, außerhalb der Top 15 und eigene Einreichung korrekt ableiten.
 13. eine vorhandene eigene Ergebnisansicht aus den vollständigen Stimmzetteln ableiten.
 14. ein Analysepaket mit JSON, Markdown und CSV erzeugen.
-15. prüfen, dass keine Gesamtplatzierung, kein Sieger und keine Ausschlussprüfung aus dem Archiv berechnet werden.
+15. prüfen, dass weder eine zweite manuelle/offiziell importierte Ergebnisquelle noch eine Ausschlussprüfung aus dem Archiv entsteht; berechnete Gesamtwertungen und Sieger sind erst im ausdrücklich freigegebenen Umfang von #14 mit dessen eigenen Abnahmekriterien enthalten.
 16. die bestehende aktuelle Kandidaten- und persönliche Abstimmungsfunktion für `CSC X` weiterhin ohne Regression verwenden.
 
 ## 19. Entwicklungspakete und Abhängigkeiten
@@ -719,7 +722,7 @@ Ziel:
 - eigene Teilnehmeridentität je Contest optional festlegen,
 - bisherige Ansicht der erhaltenen Punkte aus vollständigen Stimmzetteln ableiten,
 - redundante isolierte Punktpflege beenden,
-- offizielle Gesamtpunkte, Endplatzierung und Gleichstand aus dem aktiven Produktumfang entfernen,
+- die damalige manuelle offizielle Gesamtpunkt-, Endplatzierungs- und Gleichstandspflege aus dem aktiven Produktumfang entfernen; die spätere berechnete Erweiterung #14 reaktiviert diese Legacy-Felder nicht,
 - Legacy-Daten und alte JSON-Formate sicher migrieren.
 
 Benötigt P11.
@@ -774,3 +777,8 @@ Vor der konkreten Vorbereitung beziehungsweise Umsetzung von P10 wird ein realer
 Für P11 liegt bereits ein hinreichendes Beispiel eines veröffentlichten Einzelstimmzettels vor. Für robuste Mehrfachblock- und Clipboard-Tests ist später zusätzlich ein längerer zusammenhängender Quellblock sinnvoll.
 
 Es besteht kein weiterer fachlicher Klärungsbedarf für die Paketabgrenzung.
+
+## 22. Nachgelagerte Gesamtwertung und Statistiken
+
+Die neuen Auswertungen sind in [contest-statistics.md](contest-statistics.md) und [Roadmap #14](https://github.com/venomenon328/csc-x-tool/issues/14) spezifiziert. Sie bilden eine eigene Lieferung nach den vorhandenen Historik-/Stimmzettelpaketen. Bereits abgeschlossene Kernpakete werden dadurch nicht rückwirkend erweitert oder wieder geöffnet. Der bestehende Analyseexport behält seinen unabhängigen Quellenumfang einschließlich ausdrücklich ausgewählter laufender Shows.
+

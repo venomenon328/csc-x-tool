@@ -4,6 +4,8 @@
 **Stand:** 30.08.2026
 **Status:** technische Baseline; die fachlichen Erweiterungen P10--P12 ergänzen und korrigieren ältere Modellskizzen in diesem Dokument.
 
+**Fortschreibung 07.10.2026:** Das historische Stimmzettel-/Teilnahmemodell aus [historical-contests-ballots-analysis.md](historical-contests-ballots-analysis.md) ist maßgeblich gegenüber älteren Baselineskizzen. Die freigegebene, noch nicht implementierte [Contestauswertung](contest-statistics.md) ergänzt den getrennten Show-Ergebnisabschluss und abgeleitete Statistiken; ihre Architektur ist in §23 zusammengefasst.
+
 ## 1. Architekturziele
 
 Die technische Architektur soll folgende Eigenschaften unterstützen:
@@ -228,6 +230,8 @@ candidate/
 
 #### `result`
 
+Die nachstehende ursprüngliche Modulskizze ist durch die abgeleitete eigene Ergebnisansicht aus P12 ersetzt. Sie ist kein Auftrag zur erneuten manuellen Ergebnisverwaltung; die neue Contestauswertung folgt §23.
+
 - Ergebniseinträge je Teilnehmer und Show
 - Status `UNBEKANNT`, `NICHT_ABGESTIMMT`, `ABGESTIMMT`
 - Punktvalidierung und Summen
@@ -429,7 +433,7 @@ Soweit SQLite dies sinnvoll unterstützt, werden folgende Regeln zusätzlich in 
 - positive manuelle Positionen
 - höchstens eine Teilnehmerzuordnung je Teilnehmer und Show
 - eine eigene Ergebnisansicht setzt explizit gewählte eigene Contest-Teilnahme, vollständige Songzuordnung und veröffentlichte Stimmzettel voraus
-- offizielle Gesamtpunkte, Endplatzierung, Gleichstand und Ergebnisabschluss gehören nicht zum aktiven Modell
+- manuell gepflegte offizielle Gesamtpunkte, Endplatzierung und Gleichstandskennzeichen gehören nicht zum aktiven Modell; der neue getrennte Show-Ergebnisabschluss und berechnete Ränge folgen ausschließlich [contest-statistics.md](contest-statistics.md)
 - Snapshot-Ränge 1 bis 15 und innerhalb des Snapshots eindeutig
 - aktivierte Foreign-Key-Prüfung für jede Verbindung
 
@@ -800,3 +804,32 @@ Folgende Details werden beim jeweiligen Bootstrap-Issue entschieden und in Code 
 - konkrete Log- und Backup-Aufbewahrungsgrößen jenseits des fachlichen Standards
 
 Keine dieser Entscheidungen erfordert vor dem Entwicklungsbeginn zusätzliche fachliche Klärung.
+
+## 23. Geplante Contest-Gesamtwertung und Statistiken
+
+Verbindliche fachliche Details und Paketgrenzen: [contest-statistics.md](contest-statistics.md), [Roadmap #14](https://github.com/venomenon328/csc-x-tool/issues/14). Architekturentscheidung: [A-023](decisions.md#a-023--abgeleitete-contestauswertung-mit-getrenntem-abschlusszustand). Diese Beschreibung ist keine Behauptung einer vorhandenen Implementierung.
+
+### Persistenz und Abschluss
+
+- Separater Ergebnisabschluss je `motto_show` einschließlich Abschlusszeitpunkt, beispielsweise `result_closed_at`; der konkrete technische Name wird bei der Umsetzung konsistent festgelegt.
+- `ballot_closed_at`, persönliche Snapshots und `entry_list_complete` behalten ihre bestehenden Aufgaben.
+- Abschluss und erneuter Abschluss validieren serverseitig den vollständigen aktuellen Showzustand in einer Transaktion. Alle Contest-Teilnahmen werden entsprechend dem kanonischen Published-Ballot-Teilnehmerfeld berücksichtigt, unabhängig vom Aktivflag.
+- Wertungsrelevante Stimmzettel-, Beitrags-, Zuordnungs- oder Teilnehmerfeldänderungen prüfen sämtliche betroffenen Showabschlüsse. Wiederöffnung ist ein bewusster eigener Command; normale Änderungen dürfen keinen Abschluss still entfernen oder entwerten.
+- Bestehende historische Korrektursperren bleiben bestehen. Reine Namens-, Länder- oder andere nicht wertungsrelevante Metadatenänderungen benötigen keine Wiederöffnung.
+- Migration, SQLite-Backup und vollständiger JSON-Roundtrip erhalten den Zustand. Unterstützte Altdaten ohne Marker werden offen eingelesen; vorhandene Stimmzettel werden weder erfunden noch verändert.
+
+### Berechnung und Schnittstellen
+
+- Ein gemeinsamer, rein berechnender Kern verwendet die zentrale `CscPoints`-Abbildung und Wettbewerbsränge. Er wird für Show-/Contestsummen und die hypothetische Entfernung eines Stimmzettels wiederverwendet.
+- Read-only Auswertungen werden strikt nach ausgewählter Ausgabe und den darin aktuell abgeschlossenen Shows aufgebaut. Der bestehende laufende Showzwischenstand bleibt verfügbar.
+- Gerichtete Beziehungen entstehen aus Geber-Contest-Teilnahme, Stimmzettelposition, Beitrag und Einreichenden-Contest-Teilnahme. Stabile Teilnehmer-IDs bestimmen die Identität; Aliasse und Länder sind keine Join-Heuristik.
+- Keine zusätzliche Stimme aus dem persönlichen Snapshot, keine Legacy-Einzelwerte oder Tippspielvermutungen in Statistiken.
+- API-Antworten liefern die berücksichtigten Shows und fachlich unterscheidbare Datenzustände. Nenner und ungerundete Vergleichswerte müssen belastbar für Gleichstände und Rekorde verfügbar sein; bloße Anzeigeformatierung entscheidet keine Rangfolge.
+- Keine neue Laufzeitplattform, Hintergrundsynchronisation oder persistierte Aggregat-Schattenverwaltung. Technische Zwischenspeicherung wäre nur mit korrekter Invalidierung aller Eingaben zulässig und ist kein eigenes Lieferziel.
+
+### Oberfläche und bestehende Exporte
+
+Vier contestbezogene Ansichten: Gesamtwertung, Teilnehmerprofile, Punktebeziehungen und Rekorde. Details verlinken zu bestehenden Show-/Stimmzettelauswertungen. Routen und DTO-Namen werden bei der Vorbereitung im vorhandenen Router-/API-Stil festgelegt. Tabellen, Heatmap und Verlauf erhalten zugängliche Beschriftungen und eine lesbare Darstellung bei schmalerem Fenster.
+
+Der vollständige JSON-Vertrag muss den Abschluss tragen. Der bestehende Analyseexport behält seinen separaten Quellen-/Auswahlvertrag; neue Statistikdateien und ein Filter auf ausschließlich abgeschlossene Shows sind dafür nicht beauftragt.
+
