@@ -76,6 +76,15 @@ public class ContestRepository {
     }
 
     public void makeCurrent(long contestId) {
+        // A closed current show has proven a complete canonical list. Preserve that proof when
+        // it becomes historical; subsequent historical list corrections still require reopening.
+        jdbcTemplate.update("""
+                UPDATE motto_show SET entry_list_complete = 1
+                WHERE result_closed_at IS NOT NULL AND contest_id <> ?
+                  AND contest_id IN (SELECT id FROM contest WHERE is_current = 1)
+                """, contestId);
+        // Current lists use the existing dynamic readiness contract, never the historical marker.
+        jdbcTemplate.update("UPDATE motto_show SET entry_list_complete = 0 WHERE contest_id = ?", contestId);
         jdbcTemplate.update("UPDATE contest SET is_current = 0, updated_at = CURRENT_TIMESTAMP WHERE is_current = 1");
         int changed = jdbcTemplate.update("UPDATE contest SET is_current = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?", contestId);
         if (changed != 1) {

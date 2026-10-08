@@ -31,6 +31,7 @@ class ContestEntryService {
     private final ContestRepository contests;
     private final HistoricalEntryImportParser historicalEntryImportParser;
     private final PublishedBallotService publishedBallots;
+    private final de.venomenon.cscxtool.standings.ResultClosureGuard closureGuard;
 
     ContestEntryService(
             ContestEntryRepository repository,
@@ -38,7 +39,8 @@ class ContestEntryService {
             YoutubeUrlNormalizer youtubeUrlNormalizer,
             ContestRepository contests,
             HistoricalEntryImportParser historicalEntryImportParser,
-            PublishedBallotService publishedBallots
+            PublishedBallotService publishedBallots,
+            de.venomenon.cscxtool.standings.ResultClosureGuard closureGuard
     ) {
         this.repository = repository;
         this.clipboardEntryParser = clipboardEntryParser;
@@ -46,6 +48,7 @@ class ContestEntryService {
         this.contests = contests;
         this.historicalEntryImportParser = historicalEntryImportParser;
         this.publishedBallots = publishedBallots;
+        this.closureGuard = closureGuard;
     }
 
     List<ContestEntry> findAll(long showId) {
@@ -73,6 +76,7 @@ class ContestEntryService {
 
     @Transactional
     ContestEntry create(long showId, CreateContestEntryRequest request) {
+        closureGuard.showOpen(showId);
         ShowContext context = requireShowContext(showId);
         String artist = requiredText(request.artist(), "Der Interpret darf nicht leer sein.");
         String title = requiredText(request.title(), "Der Titel darf nicht leer sein.");
@@ -102,6 +106,10 @@ class ContestEntryService {
             );
         } else {
             requireHistoricalListOpen(context);
+            Long next = requiredParticipationForShow(showId, request.participantId());
+            if (!java.util.Objects.equals(repository.findActualParticipationId(entryId, showId).orElse(null), next)) {
+                closureGuard.showOpen(showId);
+            }
             updated = updateHistoricalEntry(
                     entryId, showId, artist, title, optionalHistoricalUrl(request.youtubeUrl()), optionalText(request.comment()),
                     requiredParticipationForShow(showId, request.participantId())
@@ -181,6 +189,9 @@ class ContestEntryService {
             }
         }
         try {
+            if (!java.util.Objects.equals(repository.findActualParticipationId(entryId, showId).orElse(null), participationId)) {
+                closureGuard.showOpen(showId);
+            }
             if (!repository.updateParticipantAssignment(entryId, showId, participationId)) {
                 throw new ContestEntryNotFoundException(entryId, showId);
             }
@@ -224,6 +235,7 @@ class ContestEntryService {
                         "INVALID_OWN_ENTRY_RESOLUTION", "Die Bestätigung ohne eigene Einreichung darf keinen Beitrag enthalten."
                 );
             }
+            guardOwnAssignmentChanges(showId, state, null);
             clearResolvedOwnEntry(showId, state);
             repository.clearOwnEntryParticipationAssignments(showId, ownParticipationId);
             repository.updateOwnEntryResolution(showId, OwnEntryResolution.NO_OWN_ENTRY, ownParticipationId, null);
@@ -253,6 +265,7 @@ class ContestEntryService {
                     "Der Beitrag ist bereits gerankt. Bestätige bewusst, dass er atomar aus deiner Rangliste entfernt wird."
             );
         }
+        guardOwnAssignmentChanges(showId, state, target.id());
         clearResolvedOwnEntry(showId, state);
         repository.clearOwnEntryParticipationAssignments(showId, ownParticipationId);
         repository.assignOwnEntry(showId, target.id(), ownParticipationId);
@@ -265,6 +278,7 @@ class ContestEntryService {
 
     @Transactional
     void delete(long showId, long entryId) {
+        closureGuard.showOpen(showId);
         ShowContext context = requireShowContext(showId);
         if (!context.currentContest()) requireHistoricalListOpen(context);
         ContestEntry entry = repository.findByIdAndShowId(entryId, showId)
@@ -308,6 +322,7 @@ class ContestEntryService {
 
     @Transactional
     List<ContestEntry> importEntries(long showId, ImportContestEntriesRequest request) {
+        closureGuard.showOpen(showId);
         requireCurrentShow(showId);
         if (request == null || request.entries() == null || request.entries().isEmpty()) {
             throw new ApiBadRequestException(
@@ -466,6 +481,7 @@ class ContestEntryService {
             if (participationId != null && !usedParticipations.add(participationId)) throw duplicateParticipantAssignment();
         }
         try {
+            if (!changes.isEmpty()) closureGuard.showOpen(showId);
             repository.clearParticipantAssignments(showId, changes.stream().map(AssignmentImportItem::entryId).toList());
             for (AssignmentImportItem change : changes) {
                 if (!repository.updateParticipantAssignment(change.entryId(), showId, change.participationId())) {
@@ -501,6 +517,7 @@ class ContestEntryService {
 
     @Transactional
     List<ContestEntry> importHistoricalEntries(long showId, HistoricalImportEntriesRequest request) {
+        closureGuard.showOpen(showId);
         ShowContext context = requireShowContext(showId);
         requireHistoricalListOpen(context);
         if (request == null || request.entries() == null || request.entries().isEmpty()) {
@@ -559,6 +576,7 @@ class ContestEntryService {
 
     @Transactional
     void reopenHistoricalEntryList(long showId) {
+        closureGuard.showOpen(showId);
         ShowContext context = requireShowContext(showId);
         requireHistorical(context);
         if (publishedBallots.hasBallotsForShow(showId)) {
@@ -668,6 +686,21 @@ class ContestEntryService {
         }
         if (state.resolvedParticipationId() != null) {
             repository.clearOwnEntryParticipationAssignments(showId, state.resolvedParticipationId());
+        }
+    }
+
+    private void guardOwnAssignmentChanges(long showId, ContestEntryRepository.OwnEntryState state, Long targetEntryId) {
+        Set<Long> clearedParticipations = new HashSet<>();
+        if (state.resolvedParticipationId() != null) clearedParticipations.add(state.resolvedParticipationId());
+        if (state.currentOwnParticipationId() != null) clearedParticipations.add(state.currentOwnParticipationId());
+        for (long participationId : clearedParticipations) {
+            repository.findEntryIdByParticipation(showId, participationId).ifPresent(entryId -> {
+                if (!java.util.Objects.equals(entryId, targetEntryId)) closureGuard.showOpen(showId);
+            });
+        }
+        if (targetEntryId != null && !java.util.Objects.equals(
+                repository.findActualParticipationId(targetEntryId, showId).orElse(null), state.currentOwnParticipationId())) {
+            closureGuard.showOpen(showId);
         }
     }
 

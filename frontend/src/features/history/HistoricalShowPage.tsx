@@ -9,12 +9,15 @@ import { fetchShow, type MottoShow } from '../shows/api'
 import { evaluationPath } from '../shows/showWorkflow'
 import { PublishedBallotsPanel } from '../published-ballots/PublishedBallotsPanel'
 
+import { ResultClosurePanel } from '../standings/ResultClosurePanel'
+
 type EditablePreviewLine = HistoricalImportPreviewLine & { included: boolean, replaceExisting: boolean }
 type EntryDraft = ContestEntryInput & { participantId: number | null }
 const emptyDraft: EntryDraft = { artist: '', title: '', youtubeUrl: '', comment: null, participantId: null }
 
 export function HistoricalShowPage() {
   const showId = Number(useParams().showId)
+  const [revision, setRevision] = useState(0)
   const [show, setShow] = useState<MottoShow | null>(null)
   const [entries, setEntries] = useState<ContestEntry[]>([])
   const [participants, setParticipants] = useState<Participant[]>([])
@@ -32,7 +35,7 @@ export function HistoricalShowPage() {
       const [loadedEntries, loadedParticipants] = await Promise.all([
         fetchEntries(showId), fetchParticipants({ contestId: loadedShow.contestId, includeInactive: true }),
       ])
-      setShow(loadedShow); setEntries(loadedEntries); setParticipants(loadedParticipants); setError(null)
+      setShow(loadedShow); setEntries(loadedEntries); setParticipants(loadedParticipants); setError(null); setRevision((n) => n + 1)
     } catch (caught) { setError(asEntryError(caught)); setShow(null) }
   }, [showId])
   useEffect(() => {
@@ -43,7 +46,7 @@ export function HistoricalShowPage() {
         const [loadedEntries, loadedParticipants] = await Promise.all([
           fetchEntries(showId), fetchParticipants({ contestId: loadedShow.contestId, includeInactive: true }),
         ])
-        if (!cancelled) { setShow(loadedShow); setEntries(loadedEntries); setParticipants(loadedParticipants); setError(null) }
+        if (!cancelled) { setShow(loadedShow); setEntries(loadedEntries); setParticipants(loadedParticipants); setError(null); setRevision((n) => n + 1) }
       })
       .catch((caught: unknown) => { if (!cancelled) { setError(asEntryError(caught)); setShow(null) } })
     return () => { cancelled = true }
@@ -89,14 +92,15 @@ export function HistoricalShowPage() {
     } catch (caught) { setError(asEntryError(caught)); setConfirmAction(null) }
   }
 
-  if (show === null) return error === null ? <Typography>Archivshow wird geladen …</Typography> : <ApiErrorNotice error={error.apiError} />
+  if (show === null || show.id !== showId) return error === null ? <Typography>Archivshow wird geladen …</Typography> : <ApiErrorNotice error={error.apiError} />
   const complete = show.entryListComplete
   return <Stack spacing={3}>
-    <Box><Typography component="h1" variant="h4">Show {show.showNumber} · {show.name}</Typography><Typography color="text.secondary">Historische vollständige Songliste mit Einreichenden und veröffentlichten persönlichen Top 15. Eine Gesamtwertung wird hier nicht berechnet.</Typography>{complete && <Button component={RouterLink} sx={{ mt: 1.5 }} to={evaluationPath(showId, 'published-ballots')} variant="outlined">Auswertung öffnen</Button>}</Box>
+    <Box><Typography component="h1" variant="h4">Show {show.showNumber} · {show.name}</Typography><Typography color="text.secondary">Historische vollständige Songliste mit Einreichenden und veröffentlichten persönlichen Top 15. Die Contest-Gesamtwertung berücksichtigt bewusst abgeschlossene Showergebnisse.</Typography>{complete && <Button component={RouterLink} sx={{ mt: 1.5 }} to={evaluationPath(showId, 'published-ballots')} variant="outlined">Auswertung öffnen</Button>}</Box>
+    <ResultClosurePanel key={showId} showId={showId} revision={revision} />
     {error !== null && <ApiErrorNotice error={error.apiError} />}
     <Paper sx={{ border: 1, borderColor: complete ? 'success.main' : 'divider', p: 2 }}><Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ alignItems: { sm: 'center' }, justifyContent: 'space-between' }}><Box><Typography sx={{ fontWeight: 700 }}>Songliste: {complete ? 'vollständig bestätigt' : 'offen'}</Typography><Typography color="text.secondary" variant="body2">{complete ? 'Korrekturen erfordern ein bewusstes Wiederöffnen.' : 'Alle Einreichenden zuordnen und anschließend bewusst bestätigen.'}</Typography></Box><Button color={complete ? 'warning' : 'success'} onClick={() => setConfirmAction(complete ? 'reopen' : 'complete')} variant="contained">{complete ? 'Songliste wieder öffnen' : 'Vollständigkeit bestätigen'}</Button></Stack></Paper>
     {!complete && <Stack spacing={2}><Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}><Button onClick={() => setEditor(null)} variant="outlined">Beitrag manuell anlegen</Button></Stack><ClipboardImportArea onPasteData={previewPaste} />{preview !== null && <HistoricalImportPreview importing={importing} lines={preview} participants={participants} onCancel={() => setPreview(null)} onChange={setPreview} onImport={importSelected} />}</Stack>}
-    {complete && <PublishedBallotsPanel entries={entries} participants={participants} showId={showId} />}
+    {complete && <PublishedBallotsPanel onChanged={() => setRevision((n) => n + 1)} entries={entries} participants={participants} showId={showId} />}
     <Paper sx={{ p: 2 }}><Stack direction={{ xs: 'column', md: 'row' }} spacing={1}><TextField fullWidth label="Song oder Teilnehmer suchen" onChange={(event) => setSearch(event.target.value)} value={search} /><FormControlLabel control={<Checkbox checked={onlyUnassigned} onChange={(event) => setOnlyUnassigned(event.target.checked)} />} label="Nur ohne Einreichenden" /></Stack></Paper>
     {visibleEntries.length === 0 ? <Alert severity="info">{entries.length === 0 ? 'Noch keine Beiträge erfasst.' : 'Keine Beiträge für diesen Filter.'}</Alert> : <Paper sx={{ overflowX: 'auto' }}><Table aria-label="Historische Songliste"><TableHead><TableRow><TableCell>Interpret</TableCell><TableCell>Titel</TableCell><TableCell>Einreichender</TableCell><TableCell>Land</TableCell><TableCell>Quelle</TableCell>{!complete && <TableCell align="right">Aktionen</TableCell>}</TableRow></TableHead><TableBody>{visibleEntries.map((entry) => { const participant = entry.participantId === null ? null : participantsById.get(entry.participantId); return <TableRow key={entry.id}><TableCell>{entry.artist}</TableCell><TableCell>{entry.title}</TableCell><TableCell>{participant?.displayName ?? <Typography color="warning.main">Unzugeordnet</Typography>}</TableCell><TableCell>{participant?.countryName ?? '—'}</TableCell><TableCell>{entry.youtubeUrl ? <a href={entry.youtubeUrl} rel="noreferrer" target="_blank">Link öffnen</a> : '—'}</TableCell>{!complete && <TableCell align="right"><Button onClick={() => setEditor(entry)}>Bearbeiten</Button><Button color="error" onClick={() => void remove(entry)}>Löschen</Button></TableCell>}</TableRow> })}</TableBody></Table></Paper>}
     <EntryEditor key={editor === null ? 'new' : editor?.id ?? 'closed'} entry={editor} onClose={() => setEditor(undefined)} onSave={saveEntry} participants={participants} />

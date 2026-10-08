@@ -1,0 +1,7 @@
+databaseChangeLog:
+  - changeSet:
+      id: 017-show-result-closure
+      author: codex
+      changes:
+        - sql:
+            sql: ALTER TABLE motto_show ADD COLUMN result_closed_at TEXT

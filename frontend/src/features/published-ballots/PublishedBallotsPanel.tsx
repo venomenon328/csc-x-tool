@@ -10,7 +10,7 @@ import { voterSelectionPatch } from './voterSelection'
 
 type EditableBlock = BallotPreviewBlock & { included: boolean, replaceExisting: boolean }
 
-export function PublishedBallotsPanel({ showId, entries, participants, headingLevel = 'h2' }: { showId: number, entries: ContestEntry[], participants: Participant[], headingLevel?: 'h2' | 'h3' }) {
+export function PublishedBallotsPanel({ showId, entries, participants, headingLevel = 'h2', onChanged }: { showId: number, entries: ContestEntry[], participants: Participant[], headingLevel?: 'h2' | 'h3', onChanged?: () => void }) {
   const [overview, setOverview] = useState<PublishedBallotOverview | null>(null)
   const [detail, setDetail] = useState<PublishedBallotDetail | null>(null)
   const [preview, setPreview] = useState<EditableBlock[] | null>(null)
@@ -45,13 +45,13 @@ export function PublishedBallotsPanel({ showId, entries, participants, headingLe
     setSaving(true)
     try {
       await importPublishedBallots(showId, selected.map((block) => ({ participationId: block.participationId ?? -1, replaceExisting: block.replaceExisting, positions: block.positions.map((position) => ({ entryId: position.entryId ?? -1, rank: position.rank })) })))
-      setPreview(null); setDetail(null); await load()
+      setPreview(null); setDetail(null); await load(); onChanged?.()
     } catch (caught) { setError(asError(caught)) } finally { setSaving(false) }
   }
   async function confirmStatus() {
     if (statusAction === null) return
     setSaving(true)
-    try { await setPublishedBallotStatus(showId, statusAction.participationId, statusAction.status); setStatusAction(null); setDetail(null); await load() }
+    try { await setPublishedBallotStatus(showId, statusAction.participationId, statusAction.status); setStatusAction(null); setDetail(null); await load(); onChanged?.() }
     catch (caught) { setError(asError(caught)) } finally { setSaving(false) }
   }
   function updateBlock(position: number, patch: Partial<EditableBlock>) { setPreview((current) => current?.map((block) => block.sourcePosition === position ? { ...block, ...patch } : block) ?? null) }

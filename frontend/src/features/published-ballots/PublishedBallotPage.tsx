@@ -8,7 +8,7 @@ import { PublishedBallotsPanel } from './PublishedBallotsPanel'
 
 type PageError = EntryApiError | ParticipantApiError | ShowApiError
 
-export function PublishedBallotsEvaluation({ show, showId }: { show: MottoShow, showId: number }) {
+export function PublishedBallotsEvaluation({ show, showId, onChanged }: { show: MottoShow, showId: number, onChanged?: () => void }) {
   const [entries, setEntries] = useState<ContestEntry[]>([])
   const [participants, setParticipants] = useState<Participant[]>([])
   const [error, setError] = useState<PageError | null>(null)
@@ -32,7 +32,7 @@ export function PublishedBallotsEvaluation({ show, showId }: { show: MottoShow, 
     {error !== null && <ApiErrorNotice error={error.apiError} />}
     {!show.entryListComplete && show.ballotClosedAt === null
       ? <Alert severity="info">Veröffentlichte Stimmzettel können nach dem Abschluss der eigenen Top 15 gepflegt werden.</Alert>
-      : <PublishedBallotsPanel entries={entries} headingLevel="h3" participants={participants} showId={showId} />}
+      : <PublishedBallotsPanel onChanged={onChanged} entries={entries} headingLevel="h3" participants={participants} showId={showId} />}
   </Stack>
 }
 

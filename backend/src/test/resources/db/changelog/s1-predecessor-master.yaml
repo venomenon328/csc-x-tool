@@ -1,0 +1,7 @@
+databaseChangeLog:
+  - include:
+      file: db/changelog/p15-master.yaml
+      relativeToChangelogFile: false
+  - include:
+      file: db/changelog/016-participant-botb-selections.yaml
+      relativeToChangelogFile: false

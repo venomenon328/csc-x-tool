@@ -6,7 +6,7 @@ import java.util.List;
 public final class ExportFormat {
 
     public static final String FORMAT = "csc-x-tool-full-export";
-    public static final int VERSION = 10;
+    public static final int VERSION = 11;
     public static final int LEGACY_VERSION = 1;
     public static final int VERSION_2 = 2;
     public static final int VERSION_3 = 3;
@@ -16,6 +16,7 @@ public final class ExportFormat {
     public static final int VERSION_7 = 7;
     public static final int VERSION_8 = 8;
     public static final int VERSION_9 = 9;
+    public static final int VERSION_10 = 10;
 
     private ExportFormat() { }
 
@@ -86,7 +87,22 @@ public final class ExportFormat {
         }
     }
     public record MottoShow(long id, long contestId, int showNumber, String name, boolean entryListComplete, Long selectedCandidateId,
-                            String ballotClosedAt, String createdAt, String updatedAt) { }
+                            String ballotClosedAt, String createdAt, String updatedAt, String resultClosedAt) {
+        public MottoShow(long id, long contestId, int showNumber, String name, boolean entryListComplete, Long selectedCandidateId,
+                         String ballotClosedAt, String createdAt, String updatedAt) {
+            this(id, contestId, showNumber, name, entryListComplete, selectedCandidateId, ballotClosedAt, createdAt, updatedAt, null);
+        }
+    }
+    public record MottoShowV10(long id, long contestId, int showNumber, String name, boolean entryListComplete, Long selectedCandidateId,
+                               String ballotClosedAt, String createdAt, String updatedAt) {
+        public MottoShow upgrade() {
+            return new MottoShow(id, contestId, showNumber, name, entryListComplete, selectedCandidateId, ballotClosedAt, createdAt, updatedAt);
+        }
+        public static MottoShowV10 from(MottoShow show) {
+            return new MottoShowV10(show.id(), show.contestId(), show.showNumber(), show.name(), show.entryListComplete(),
+                    show.selectedCandidateId(), show.ballotClosedAt(), show.createdAt(), show.updatedAt());
+        }
+    }
     public record OwnEntryResolutionRecord(long mottoShowId, String resolution, Long participationId, Long entryId) { }
     public record Candidate(long id, long mottoShowId, String artist, String title, String youtubeUrl, String comment,
                             String status, int manualPosition, String createdAt, String updatedAt) { }
@@ -128,10 +144,22 @@ public final class ExportFormat {
     public record TipsGameAssignment(long id, long tipsGameId, long contestEntryId, long guessedParticipationId,
                                      String confidence, String note) { }
 
+    public record FullExportV10(String format, int formatVersion, String exportedAt, String applicationVersion,
+                                int schemaVersion, DataV10 data) { }
+    public record DataV10(List<Contest> contests, List<MottoShowV10> mottoShows, List<OwnEntryResolutionRecord> ownEntryResolutions,
+                       List<Candidate> candidates,
+                       List<Participant> participants, List<ContestParticipation> contestParticipations,
+                       List<ParticipantAlias> participantAliases, List<ParticipantBotbSelection> participantBotbSelections,
+                       List<ContestEntry> contestEntries,
+                       List<BallotSnapshot> ballotSnapshots, List<BallotSnapshotItem> ballotSnapshotItems,
+                       List<LegacyResult> legacyResults, List<LegacyReceivedScore> legacyReceivedScores, List<PublishedBallot> publishedBallots,
+                       List<PublishedBallotPosition> publishedBallotPositions, List<TipsGame> tipsGames,
+                       List<TipsGameAssignment> tipsGameAssignments) { }
+
     /** Schema-15/P15 contract before BOTB selections were added. */
     public record FullExportV9(String format, int formatVersion, String exportedAt, String applicationVersion,
                                int schemaVersion, DataV9 data) { }
-    public record DataV9(List<Contest> contests, List<MottoShow> mottoShows, List<OwnEntryResolutionRecord> ownEntryResolutions,
+    public record DataV9(List<Contest> contests, List<MottoShowV10> mottoShows, List<OwnEntryResolutionRecord> ownEntryResolutions,
                          List<Candidate> candidates, List<Participant> participants, List<ContestParticipation> contestParticipations,
                          List<ParticipantAlias> participantAliases, List<ContestEntry> contestEntries,
                          List<BallotSnapshot> ballotSnapshots, List<BallotSnapshotItem> ballotSnapshotItems,
@@ -142,7 +170,7 @@ public final class ExportFormat {
     /** Schema-14/P14 contract without the explicit own-entry resolution. */
     public record FullExportV8(String format, int formatVersion, String exportedAt, String applicationVersion,
                                int schemaVersion, DataV8 data) { }
-    public record DataV8(List<Contest> contests, List<MottoShow> mottoShows, List<Candidate> candidates,
+    public record DataV8(List<Contest> contests, List<MottoShowV10> mottoShows, List<Candidate> candidates,
                          List<Participant> participants, List<ContestParticipation> contestParticipations,
                          List<ParticipantAlias> participantAliases, List<ContestEntry> contestEntries,
                          List<BallotSnapshot> ballotSnapshots, List<BallotSnapshotItem> ballotSnapshotItems,
@@ -153,7 +181,7 @@ public final class ExportFormat {
     /** Schema-13/P13 contract: same active data shape, without the P14 tips game tables. */
     public record FullExportV7(String format, int formatVersion, String exportedAt, String applicationVersion,
                                int schemaVersion, DataV7 data) { }
-    public record DataV7(List<Contest> contests, List<MottoShow> mottoShows, List<Candidate> candidates,
+    public record DataV7(List<Contest> contests, List<MottoShowV10> mottoShows, List<Candidate> candidates,
                          List<Participant> participants, List<ContestParticipation> contestParticipations,
                          List<ParticipantAlias> participantAliases, List<ContestEntry> contestEntries,
                          List<BallotSnapshot> ballotSnapshots, List<BallotSnapshotItem> ballotSnapshotItems,

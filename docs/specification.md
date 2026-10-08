@@ -742,7 +742,7 @@ Sie werden nicht im Installationsverzeichnis gespeichert.
 
 Die Anwendung kann alle fachlichen Daten in ein versioniertes JSON-Format exportieren und aus einem kompatiblen vollständigen Export wiederherstellen.
 
-Der vollständige Export verwendet Version 10. Er enthält BOTB-Auswahlen normalisiert mit stabilen IDs, Teilnehmerreferenzen, Ausgabe, Interpret, optionalem Bekannt-seit-Datum und Zeitstempeln. Die Importstrecke unterstützt weiterhin die älteren freigegebenen Formate; Format 9 wird dabei mit einer leeren BOTB-Auswahlliste hochgestuft. Ungültige Teilnehmerreferenzen, doppelte Teilnehmer-/Ausgabekombinationen oder ungültige BOTB-Daten blockieren die Wiederherstellung vor einer teilweisen Übernahme.
+Der vollständige Export verwendet Version 11 einschließlich nullable `resultClosedAt` je Show. Die Formate 1–10 bleiben importierbar und ergänzen den fehlenden Ergebnisabschluss als offen. Abgeschlossene Shows werden vor jeder Übernahme fachlich validiert; Schema 17 erhält den Zustand auch in nativen Backups. Er enthält BOTB-Auswahlen normalisiert mit stabilen IDs, Teilnehmerreferenzen, Ausgabe, Interpret, optionalem Bekannt-seit-Datum und Zeitstempeln. Die Importstrecke unterstützt weiterhin die älteren freigegebenen Formate; Format 9 wird dabei mit einer leeren BOTB-Auswahlliste hochgestuft. Ungültige Teilnehmerreferenzen, doppelte Teilnehmer-/Ausgabekombinationen oder ungültige BOTB-Daten blockieren die Wiederherstellung vor einer teilweisen Übernahme.
 
 Vor einer Wiederherstellung wird automatisch eine Sicherung des aktuellen Stands angelegt.
 
@@ -954,7 +954,7 @@ Diese Erweiterungen dürfen den initialen Workflow nicht verkomplizieren.
 
 ## 23. Contest-Gesamtwertung und Statistiken
 
-Am 07.10.2026 freigegeben, noch nicht implementiert: [verbindliche Detailspezifikation](contest-statistics.md), [Roadmap #14](https://github.com/venomenon328/csc-x-tool/issues/14).
+Am 07.10.2026 freigegeben; S1 (Showabschluss und Gesamtwertung mit Verlauf) am 08.10.2026 implementiert, weitere Statistikpakete nachgelagert: [verbindliche Detailspezifikation](contest-statistics.md), [Roadmap #14](https://github.com/venomenon328/csc-x-tool/issues/14).
 
 - Stimmzettelpunkte bestimmen den Showrang; Showränge bis einschließlich 15 erzeugen nach demselben Schlüssel Gesamtwertungspunkte.
 - Punktgleiche Beiträge bzw. Teilnehmer teilen den Rang; Folgeränge werden übersprungen. Alle Mitglieder einer punktberechtigten Ranggruppe erhalten die vollen Rangpunkte, auch über die 15. Tabellenzeile hinaus. Auch die Contestsumme kennt geteilte Plätze ohne zusätzlichen Tiebreak.

@@ -370,6 +370,8 @@ Abschlussprüfung und Änderungen müssen transaktional gegen alle betroffenen w
 
 Liquibase-Migration und vollständiger JSON-Export/Restore führen den neuen Abschluss verlustfrei und rückwärtskompatibel. Alte Daten ohne Abschlussmarker bleiben offen. Der bestehende Analyseexport behält seine eigene Auswahlsemantik für aktuelle und historische Quellen; Statistikfilter werden ihm nicht untergeschoben. Eine Stimmzettel-Simulation ist rein lesend und verändert weder Stimmzettelstatus noch Abschluss oder persistierte Punkte.
 
+S1-Konkretisierung vom 08.10.2026: Schema 17 speichert `result_closed_at`, JSON v11 führt es als verpflichtendes nullable Feld `resultClosedAt`. Frühere unterstützte Formate bleiben offen. Ein separater fairer Transaktionslock serialisiert Guard und Mutation vor JDBC-Verbindungsbezug; Lesetransaktionen liefern einen durchgängigen SQLite-Snapshot und bleiben durch den vorhandenen Datenlock gegen Restore geschützt. Beim Wechsel aktuell → historisch wird der Vollständigkeitsbeleg bereits abgeschlossener Shows in den historischen Listenmarker übertragen. Kanonische Zuordnungen werden bei jedem neuen Abschluss unabhängig davon geprüft. Technische Details und API: Architektur §23.
+
 ## Bewusst vertagte Entscheidungen
 
 ### O-001 – Vollständiger Import-Testblock

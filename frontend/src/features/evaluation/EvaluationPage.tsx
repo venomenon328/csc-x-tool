@@ -8,12 +8,15 @@ import { ShowStandingsEvaluation } from '../standings/ShowStandingsPage'
 import { fetchShow, ShowApiError, type MottoShow } from '../shows/api'
 import { evaluationPath } from '../shows/showWorkflow'
 
+import { ResultClosurePanel } from '../standings/ResultClosurePanel'
+
 type EvaluationView = 'published-ballots' | 'own-entry' | 'standings'
 
 export function EvaluationPage() {
   const parsedShowId = Number(useParams().showId)
   const showId = Number.isSafeInteger(parsedShowId) && parsedShowId > 0 ? parsedShowId : null
   const [searchParams] = useSearchParams()
+  const [revision, setRevision] = useState(0)
   const [show, setShow] = useState<MottoShow | null>(null)
   const [error, setError] = useState<ShowApiError | null>(null)
   const requestedView = searchParams.get('view')
@@ -32,7 +35,7 @@ export function EvaluationPage() {
 
   if (showId === null) return <Alert severity="error">Die Mottoshow-ID ist ungültig.</Alert>
   if (error !== null) return <ApiErrorNotice error={error.apiError} />
-  if (show === null) return <Typography color="text.secondary">Auswertung wird geladen …</Typography>
+  if (show === null || show.id !== showId) return <Typography color="text.secondary">Auswertung wird geladen …</Typography>
 
   return <Stack spacing={3}>
     <Button component={RouterLink} sx={{ alignSelf: 'flex-start' }} to="/">Zur Übersicht</Button>
@@ -40,13 +43,14 @@ export function EvaluationPage() {
       <Typography color="secondary" variant="overline">Show {show.showNumber}</Typography>
       <Typography component="h1" variant="h4">{show.name} – Auswertung</Typography>
     </Box>
+    <ResultClosurePanel key={showId} showId={showId} revision={revision} />
     <Tabs aria-label="Auswertungsansichten" value={view} variant="scrollable">
       <Tab aria-label="Veröffentlichte Stimmzettel" component={RouterLink} label="Veröffentlichte Stimmzettel" to={evaluationPath(showId, 'published-ballots')} value="published-ballots" />
       <Tab aria-label="Meine Einreichung" component={RouterLink} label="Meine Einreichung" to={evaluationPath(showId, 'own-entry')} value="own-entry" />
       <Tab aria-label="Zwischenstand" component={RouterLink} label="Zwischenstand" to={evaluationPath(showId, 'standings')} value="standings" />
     </Tabs>
     {view === 'published-ballots'
-      ? <PublishedBallotsEvaluation show={show} showId={showId} />
+      ? <PublishedBallotsEvaluation key={showId} show={show} showId={showId} onChanged={() => setRevision((n) => n + 1)} />
       : view === 'own-entry'
         ? <OwnEntryEvaluation showId={showId} />
         : <ShowStandingsEvaluation showId={showId} />}

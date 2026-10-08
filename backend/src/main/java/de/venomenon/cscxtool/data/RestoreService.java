@@ -144,6 +144,16 @@ public class RestoreService {
         } catch (BackupFileException exception) {
             throw new BackupStorageException("Die migrierte Staging-Sicherung besteht die SQLite-Prüfung nicht.", exception);
         }
+        // A technically valid SQLite file can still carry an impossible completed result.
+        JdbcTemplate stageJdbc = new JdbcTemplate(SqliteDataSourceFactory.create(stage));
+        var results = new de.venomenon.cscxtool.standings.ContestResultRepository(stageJdbc);
+        for (long contestId : stageJdbc.query("SELECT id FROM contest", (r, n) -> r.getLong(1))) {
+            try {
+                de.venomenon.cscxtool.standings.ResultClosureRules.validateClosed(results.load(contestId));
+            } catch (IllegalArgumentException failure) {
+                throw new BackupFileException("BACKUP_RESULT_CLOSURE_INVALID", failure.getMessage(), failure);
+            }
+        }
     }
 
     private void verifyLiveDatabase() {
