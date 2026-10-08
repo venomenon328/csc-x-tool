@@ -1,0 +1,11 @@
+databaseChangeLog:
+  - changeSet:
+      id: 017-show-result-closure
+      author: codex
+      changes:
+        - addColumn:
+            tableName: motto_show
+            columns:
+              - column:
+                  name: result_closed_at
+                  type: TEXT

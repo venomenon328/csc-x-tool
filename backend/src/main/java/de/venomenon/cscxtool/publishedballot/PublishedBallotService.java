@@ -22,11 +22,14 @@ public class PublishedBallotService {
     private final PublishedBallotRepository repository;
     private final PublishedBallotImportParser parser;
     private final CountryCatalog countries;
+    private final de.venomenon.cscxtool.standings.ResultClosureGuard closureGuard;
 
-    PublishedBallotService(PublishedBallotRepository repository, PublishedBallotImportParser parser, CountryCatalog countries) {
+    PublishedBallotService(PublishedBallotRepository repository, PublishedBallotImportParser parser, CountryCatalog countries,
+            de.venomenon.cscxtool.standings.ResultClosureGuard closureGuard) {
         this.repository = repository;
         this.parser = parser;
         this.countries = countries;
+        this.closureGuard = closureGuard;
     }
 
     PublishedBallotOverviewResponse overview(long showId) {
@@ -63,6 +66,7 @@ public class PublishedBallotService {
                 status, ballot != null, positions, derived);
     }
 
+    @Transactional(readOnly = true)
     PublishedBallotStandingsResponse standings(long showId) {
         facts(showId);
         List<PublishedBallotEntry> entries = repository.findEntries(showId);
@@ -92,13 +96,12 @@ public class PublishedBallotService {
         // The stable encounter order only makes equal scores readable; it is not a CSC tie-break rule.
         ordered.sort(Comparator.comparingInt(StandingAccumulator::points).reversed());
         List<PublishedBallotStandingEntryResponse> responseEntries = new ArrayList<>();
-        int interimRank = 0;
-        Integer previousPoints = null;
+        Map<Long, Integer> totals = new LinkedHashMap<>();
+        ordered.forEach(standing -> totals.put(standing.entry.id(), standing.points()));
+        Map<Long, Integer> ranks = de.venomenon.cscxtool.shared.CompetitionRanks.of(totals);
         for (int index = 0; index < ordered.size(); index++) {
             StandingAccumulator standing = ordered.get(index);
-            if (previousPoints == null || standing.points() != previousPoints) interimRank = index + 1;
-            responseEntries.add(standing.response(interimRank, countries));
-            previousPoints = standing.points();
+            responseEntries.add(standing.response(ranks.get(standing.entry.id()), countries));
         }
         return new PublishedBallotStandingsResponse(showId, voted, notVoted, participants.size() - voted - notVoted, List.copyOf(responseEntries));
     }
@@ -116,6 +119,7 @@ public class PublishedBallotService {
 
     @Transactional
     PublishedBallotOverviewResponse importBallots(long showId, PublishedBallotImportBatchRequest request) {
+        closureGuard.showOpen(showId);
         PublishedBallotRepository.ShowFacts facts = requireReady(showId);
         if (request == null || request.ballots() == null || request.ballots().isEmpty()) {
             throw new ApiBadRequestException("EMPTY_BALLOT_IMPORT", "Wählen Sie mindestens einen vollständigen Stimmzettel für den Import aus.");
@@ -144,6 +148,7 @@ public class PublishedBallotService {
 
     @Transactional
     void updateStatus(long showId, long participationId, UpdatePublishedBallotStatusRequest request) {
+        closureGuard.showOpen(showId);
         PublishedBallotRepository.ShowFacts facts = requireReady(showId);
         if (!participantsById(showId).containsKey(participationId)) {
             throw new ApiConflictException("PARTICIPANT_NOT_IN_CONTEST", "Der Teilnehmer nimmt nicht an der CSC-Ausgabe dieser Mottoshow teil.");

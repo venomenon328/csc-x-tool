@@ -152,7 +152,7 @@ class HistoricalExportRestoreIntegrationTest {
         ExportFormat.Data data = current.data();
         ExportFormat.FullExportV9 legacy = new ExportFormat.FullExportV9(ExportFormat.FORMAT, ExportFormat.VERSION_9,
                 current.exportedAt(), current.applicationVersion(), 15, new ExportFormat.DataV9(
-                data.contests(), data.mottoShows(), data.ownEntryResolutions(), data.candidates(), data.participants(),
+                data.contests(), data.mottoShows().stream().map(ExportFormat.MottoShowV10::from).toList(), data.ownEntryResolutions(), data.candidates(), data.participants(),
                 data.contestParticipations(), data.participantAliases(), data.contestEntries(), data.ballotSnapshots(),
                 data.ballotSnapshotItems(), data.legacyResults(), data.legacyReceivedScores(), data.publishedBallots(),
                 data.publishedBallotPositions(), data.tipsGames(), data.tipsGameAssignments()
@@ -171,7 +171,7 @@ class HistoricalExportRestoreIntegrationTest {
         ExportFormat.FullExport current = exports.snapshot();
         ExportFormat.Data data = current.data();
         ExportFormat.FullExportV7 legacy = new ExportFormat.FullExportV7(ExportFormat.FORMAT, ExportFormat.VERSION_7,
-                current.exportedAt(), current.applicationVersion(), 13, new ExportFormat.DataV7(data.contests(), data.mottoShows(),
+                current.exportedAt(), current.applicationVersion(), 13, new ExportFormat.DataV7(data.contests(), data.mottoShows().stream().map(ExportFormat.MottoShowV10::from).toList(),
                 data.candidates(), data.participants(), data.contestParticipations(), data.participantAliases(), data.contestEntries(),
                 data.ballotSnapshots(), data.ballotSnapshotItems(), data.legacyResults(), data.legacyReceivedScores(),
                 data.publishedBallots(), data.publishedBallotPositions()));

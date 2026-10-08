@@ -121,6 +121,7 @@ public class ExportService {
                 case ExportFormat.VERSION_7 -> upgradeV7(strictMapper.readValue(input, ExportFormat.FullExportV7.class));
                 case ExportFormat.VERSION_8 -> upgradeV8(strictMapper.readValue(input, ExportFormat.FullExportV8.class));
                 case ExportFormat.VERSION_9 -> upgradeV9(strictMapper.readValue(input, ExportFormat.FullExportV9.class));
+                case ExportFormat.VERSION_10 -> upgradeV10(strictMapper.readValue(input, ExportFormat.FullExportV10.class));
                 case ExportFormat.VERSION -> strictMapper.readValue(input, ExportFormat.FullExport.class);
                 default -> throw invalid("Das JSON-Format wird von dieser Anwendung nicht unterstützt.");
             };
@@ -170,9 +171,9 @@ public class ExportService {
             }
             for (ExportFormat.MottoShow row : data.mottoShows()) {
                 stage.update("""
-                        INSERT INTO motto_show (id,contest_id,show_number,name,entry_list_complete,selected_candidate_id,ballot_closed_at,created_at,updated_at)
-                        VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?)
-                        """, row.id(), row.contestId(), row.showNumber(), row.name(), row.entryListComplete(), row.ballotClosedAt(), row.createdAt(), row.updatedAt());
+                        INSERT INTO motto_show (id,contest_id,show_number,name,entry_list_complete,selected_candidate_id,ballot_closed_at,created_at,updated_at,result_closed_at)
+                        VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?, ?)
+                        """, row.id(), row.contestId(), row.showNumber(), row.name(), row.entryListComplete(), row.ballotClosedAt(), row.createdAt(), row.updatedAt(), row.resultClosedAt());
             }
             for (ExportFormat.Participant row : data.participants()) {
                 stage.update("INSERT INTO participant (id,display_name,active,created_at,updated_at) VALUES (?, ?, ?, ?, ?)",
@@ -662,6 +663,26 @@ public class ExportService {
                 throw invalid("Eine abgeschlossene Abstimmung benötigt genau einen vollständigen Top-15-Snapshot.");
             }
         }
+        validateResultClosures(data);
+    }
+
+    private static void validateResultClosures(ExportFormat.Data data) {
+        for (var contest : data.contests()) {
+            var shows = data.mottoShows().stream().filter(s -> s.contestId() == contest.id())
+                    .map(s -> new de.venomenon.cscxtool.standings.ResultData.Show(s.id(), s.showNumber(), s.name(), s.entryListComplete(), s.resultClosedAt())).toList();
+            var participants = data.contestParticipations().stream().filter(p -> p.contestId() == contest.id())
+                    .map(p -> new de.venomenon.cscxtool.standings.ResultData.Participation(p.id(), p.participantId(), "", p.countryCode())).toList();
+            var entries = data.contestEntries().stream().filter(e -> e.contestId() == contest.id())
+                    .map(e -> new de.venomenon.cscxtool.standings.ResultData.Entry(e.id(), e.mottoShowId(), e.contestParticipationId(), e.artist(), e.title())).toList();
+            var ballots = data.publishedBallots().stream().filter(b -> b.contestId() == contest.id())
+                    .map(b -> new de.venomenon.cscxtool.standings.ResultData.Ballot(b.id(), b.mottoShowId(), b.contestParticipationId(), b.status())).toList();
+            var positions = data.publishedBallotPositions().stream()
+                    .map(p -> new de.venomenon.cscxtool.standings.ResultData.Position(p.publishedBallotId(), p.contestEntryId(), p.rank())).toList();
+            try {
+                de.venomenon.cscxtool.standings.ResultClosureRules.validateClosed(new de.venomenon.cscxtool.standings.ResultData(
+                        contest.id(), contest.current(), shows, participants, entries, ballots, positions));
+            } catch (IllegalArgumentException failure) { throw invalid(failure.getMessage()); }
+        }
     }
 
     private static ExportFormat.FullExportV3 upgradeV1(ExportFormat.FullExportV1 legacy) {
@@ -787,7 +808,7 @@ public class ExportService {
                 legacy == null ? null : legacy.applicationVersion(), legacy == null ? 0 : legacy.schemaVersion(), null);
         ExportFormat.DataV7 data = legacy.data();
         return new ExportFormat.FullExport(legacy.format(), ExportFormat.VERSION, legacy.exportedAt(), legacy.applicationVersion(),
-                legacy.schemaVersion(), new ExportFormat.Data(data.contests(), data.mottoShows(), data.candidates(), data.participants(),
+                legacy.schemaVersion(), new ExportFormat.Data(data.contests(), upgradeShows(data.mottoShows()), data.candidates(), data.participants(),
                         data.contestParticipations(), data.participantAliases(), data.contestEntries(), data.ballotSnapshots(),
                         data.ballotSnapshotItems(), data.legacyResults(), data.legacyReceivedScores(), data.publishedBallots(),
                         data.publishedBallotPositions()));
@@ -799,7 +820,7 @@ public class ExportService {
                 legacy == null ? null : legacy.applicationVersion(), legacy == null ? 0 : legacy.schemaVersion(), null);
         ExportFormat.DataV8 data = legacy.data();
         return new ExportFormat.FullExport(legacy.format(), ExportFormat.VERSION, legacy.exportedAt(), legacy.applicationVersion(),
-                legacy.schemaVersion(), new ExportFormat.Data(data.contests(), data.mottoShows(), data.candidates(), data.participants(),
+                legacy.schemaVersion(), new ExportFormat.Data(data.contests(), upgradeShows(data.mottoShows()), data.candidates(), data.participants(),
                         data.contestParticipations(), data.participantAliases(), data.contestEntries(), data.ballotSnapshots(),
                         data.ballotSnapshotItems(), data.legacyResults(), data.legacyReceivedScores(), data.publishedBallots(),
                         data.publishedBallotPositions(), data.tipsGames(), data.tipsGameAssignments()));
@@ -811,10 +832,26 @@ public class ExportService {
                 legacy == null ? null : legacy.applicationVersion(), legacy == null ? 0 : legacy.schemaVersion(), null);
         ExportFormat.DataV9 data = legacy.data();
         return new ExportFormat.FullExport(legacy.format(), ExportFormat.VERSION, legacy.exportedAt(), legacy.applicationVersion(),
-                legacy.schemaVersion(), new ExportFormat.Data(data.contests(), data.mottoShows(), data.ownEntryResolutions(), data.candidates(),
+                legacy.schemaVersion(), new ExportFormat.Data(data.contests(), upgradeShows(data.mottoShows()), data.ownEntryResolutions(), data.candidates(),
                         data.participants(), data.contestParticipations(), data.participantAliases(), List.of(), data.contestEntries(),
                         data.ballotSnapshots(), data.ballotSnapshotItems(), data.legacyResults(), data.legacyReceivedScores(),
                         data.publishedBallots(), data.publishedBallotPositions(), data.tipsGames(), data.tipsGameAssignments()));
+    }
+
+    private static ExportFormat.FullExport upgradeV10(ExportFormat.FullExportV10 legacy) {
+        if (legacy == null || legacy.data() == null) return new ExportFormat.FullExport(
+                legacy == null ? null : legacy.format(), ExportFormat.VERSION, legacy == null ? null : legacy.exportedAt(),
+                legacy == null ? null : legacy.applicationVersion(), legacy == null ? 0 : legacy.schemaVersion(), null);
+        ExportFormat.DataV10 data = legacy.data();
+        return new ExportFormat.FullExport(legacy.format(), ExportFormat.VERSION, legacy.exportedAt(), legacy.applicationVersion(),
+                legacy.schemaVersion(), new ExportFormat.Data(data.contests(), upgradeShows(data.mottoShows()), data.ownEntryResolutions(), data.candidates(),
+                        data.participants(), data.contestParticipations(), data.participantAliases(), data.participantBotbSelections(), data.contestEntries(),
+                        data.ballotSnapshots(), data.ballotSnapshotItems(), data.legacyResults(), data.legacyReceivedScores(),
+                        data.publishedBallots(), data.publishedBallotPositions(), data.tipsGames(), data.tipsGameAssignments()));
+    }
+
+    private static List<ExportFormat.MottoShow> upgradeShows(List<ExportFormat.MottoShowV10> shows) {
+        return shows == null ? null : shows.stream().map(ExportFormat.MottoShowV10::upgrade).toList();
     }
 
     private static boolean validAssessmentPair(Integer assessment, Integer confidence) {
@@ -857,9 +894,9 @@ public class ExportService {
                 r -> new ExportFormat.Contest(r.getLong(1), r.getString(2), r.getInt(3), r.getBoolean(4), nullableLong(r, 5), r.getString(6), r.getString(7)));
     }
     private static List<ExportFormat.MottoShow> mottoShows(Connection connection) throws SQLException {
-        return query(connection, "SELECT id,contest_id,show_number,name,entry_list_complete,selected_candidate_id,ballot_closed_at,created_at,updated_at FROM motto_show ORDER BY id",
+        return query(connection, "SELECT id,contest_id,show_number,name,entry_list_complete,selected_candidate_id,ballot_closed_at,created_at,updated_at,result_closed_at FROM motto_show ORDER BY id",
                 r -> new ExportFormat.MottoShow(r.getLong(1), r.getLong(2), r.getInt(3), r.getString(4), r.getBoolean(5), nullableLong(r, 6),
-                        r.getString(7), r.getString(8), r.getString(9)));
+                        r.getString(7), r.getString(8), r.getString(9), r.getString(10)));
     }
     private static List<ExportFormat.OwnEntryResolutionRecord> ownEntryResolutions(Connection connection) throws SQLException {
         return query(connection, "SELECT id,own_entry_resolution,own_entry_participation_id,own_entry_id FROM motto_show ORDER BY id",

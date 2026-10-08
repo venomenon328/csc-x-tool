@@ -13,10 +13,13 @@ class MottoShowService {
 
     private final MottoShowRepository repository;
     private final ContestRepository contests;
+    private final de.venomenon.cscxtool.standings.ResultClosureGuard closureGuard;
 
-    MottoShowService(MottoShowRepository repository, ContestRepository contests) {
+    MottoShowService(MottoShowRepository repository, ContestRepository contests,
+            de.venomenon.cscxtool.standings.ResultClosureGuard closureGuard) {
         this.repository = repository;
         this.contests = contests;
+        this.closureGuard = closureGuard;
     }
 
     List<MottoShow> findAll(Long contestId) {
@@ -79,6 +82,7 @@ class MottoShowService {
         if (context.contestId() != contestId) throw new ShowNotFoundException(showId);
         requireHistorical(context);
         if (repository.otherShowNumberExists(contestId, showId, request.showNumber())) throw duplicateShowNumber();
+        if (findById(showId).showNumber() != request.showNumber()) closureGuard.showOpen(showId);
         try {
             if (!repository.updateHistorical(contestId, showId, request.showNumber(), request.name().trim())) {
                 throw new ShowNotFoundException(showId);

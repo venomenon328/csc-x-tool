@@ -24,6 +24,7 @@ import { DataManagementPage } from '../features/data/DataManagementPage'
 import { ContestPage } from '../features/contests/ContestPage'
 import { HistoricalShowPage } from '../features/history/HistoricalShowPage'
 import { TipsGamePage } from '../features/tips/TipsGamePage'
+import { ContestStandingsPage } from '../features/standings/ContestStandingsPage'
 import { EvaluationPage } from '../features/evaluation/EvaluationPage'
 import { ContestProvider, useContest } from '../features/contests/ContestContext'
 import { ErrorBoundary } from './ErrorBoundary'
@@ -36,6 +37,7 @@ const navigation = [
   { label: 'CSC-Ausgaben', to: '/contests' },
   { label: 'Übersicht', to: '/' },
   { label: 'Teilnehmer', to: '/participants' },
+  { label: 'Gesamtwertung', to: '/standings' },
   { label: 'Daten und Sicherungen', to: '/data' },
 ]
 
@@ -146,7 +148,7 @@ function AppShell() {
         </Box>
       </Drawer>
       <Box component="main" sx={{
-        flexGrow: 1, ml: '272px', p: { xs: 3, md: 5 },
+        minWidth: 0, flexGrow: 1, ml: '272px', p: { xs: 3, md: 5 },
         ...(votingWorkspace && {
           '@media (min-width:1200px)': {
             display: 'flex', flexDirection: 'column', height: '100dvh', minHeight: 0, minWidth: 0,
@@ -160,6 +162,7 @@ function AppShell() {
           <Route element={<ShowOverview />} path="/" />
           <Route element={<ParticipantPage />} path="/participants" />
           <Route element={<ContestPage />} path="/contests" />
+          <Route element={<ContestStandingsPage />} path="/standings" />
           <Route element={<DataManagementPage />} path="/data" />
           <Route element={<CandidatePage />} path="/shows/:showId/candidates" />
           <Route element={<EntryPage />} path="/shows/:showId/voting" />

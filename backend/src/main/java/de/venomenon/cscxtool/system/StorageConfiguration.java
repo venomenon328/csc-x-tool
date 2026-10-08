@@ -51,4 +51,9 @@ class StorageConfiguration {
     DataSource dataSource(@Qualifier("sqliteDataSource") DataSource sqliteDataSource, DatabaseAccessLock accessLock) {
         return new LockedDataSource(sqliteDataSource, accessLock);
     }
+
+    @Bean
+    de.venomenon.cscxtool.data.SerializedTransactionManager transactionManager(DataSource dataSource) {
+        return new de.venomenon.cscxtool.data.SerializedTransactionManager(dataSource);
+    }
 }

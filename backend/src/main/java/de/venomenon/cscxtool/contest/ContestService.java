@@ -10,9 +10,11 @@ import org.springframework.transaction.annotation.Transactional;
 class ContestService {
 
     private final ContestRepository repository;
+    private final de.venomenon.cscxtool.standings.ResultClosureGuard closureGuard;
 
-    ContestService(ContestRepository repository) {
+    ContestService(ContestRepository repository, de.venomenon.cscxtool.standings.ResultClosureGuard closureGuard) {
         this.repository = repository;
+        this.closureGuard = closureGuard;
     }
 
     List<ContestResponse> findAll() {
@@ -90,6 +92,7 @@ class ContestService {
         }
         if (!java.util.Objects.equals(contest.ownParticipationId(), nextParticipationId)) {
             List<Long> openOwnEntryIds = repository.findOpenResolvedOwnEntryIds(contestId);
+            closureGuard.entryAssignmentsOpen(openOwnEntryIds);
             repository.resetOwnEntryResolutions(contestId);
             repository.clearEntryAssignments(openOwnEntryIds);
         }

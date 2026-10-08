@@ -130,7 +130,7 @@ class BackupRestoreIntegrationTest {
             jdbc.update("UPDATE contest_entry SET pool_position = ? WHERE id = ?", 16 - rank, 199 + rank);
         }
         byte[] json = exports.exportJson();
-        assertThat(new String(json, StandardCharsets.UTF_8)).contains("\"formatVersion\":10", "\"assessment\":3", "\"assessmentConfidence\":1", "\"legacyReceivedScores\"")
+        assertThat(new String(json, StandardCharsets.UTF_8)).contains("\"formatVersion\":11", "\"assessment\":3", "\"assessmentConfidence\":1", "\"legacyReceivedScores\"")
                 .doesNotContain("\"listened\"", "\"relisten\"");
         jdbc.update("DELETE FROM legacy_received_score");
         jdbc.update("DELETE FROM ballot_snapshot_item");
@@ -276,7 +276,7 @@ class BackupRestoreIntegrationTest {
     @Test
     void rejectsUnknownNewerJsonWithoutChangingLiveDatabase() throws Exception {
         insertFullData("Live");
-        String newer = new String(exports.exportJson(), StandardCharsets.UTF_8).replace("\"formatVersion\":10", "\"formatVersion\":11");
+        String newer = new String(exports.exportJson(), StandardCharsets.UTF_8).replace("\"formatVersion\":11", "\"formatVersion\":12");
         assertThatThrownBy(() -> restores.previewUploadedJson(new ByteArrayInputStream(newer.getBytes(StandardCharsets.UTF_8)), "new.json"))
                 .isInstanceOf(BackupFileException.class).hasMessageContaining("nicht unterst");
         assertThat(jdbc.queryForObject("SELECT comment FROM candidate WHERE id = 100", String.class)).isEqualTo("Live");

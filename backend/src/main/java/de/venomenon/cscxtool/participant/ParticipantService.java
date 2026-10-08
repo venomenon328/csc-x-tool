@@ -22,11 +22,14 @@ class ParticipantService {
     private final ParticipantRepository repository;
     private final ContestRepository contests;
     private final CountryCatalog countryCatalog;
+    private final de.venomenon.cscxtool.standings.ResultClosureGuard closureGuard;
 
-    ParticipantService(ParticipantRepository repository, ContestRepository contests, CountryCatalog countryCatalog) {
+    ParticipantService(ParticipantRepository repository, ContestRepository contests, CountryCatalog countryCatalog,
+            de.venomenon.cscxtool.standings.ResultClosureGuard closureGuard) {
         this.repository = repository;
         this.contests = contests;
         this.countryCatalog = countryCatalog;
+        this.closureGuard = closureGuard;
     }
 
     List<ParticipantResponse> findAll(String query, boolean includeInactive) {
@@ -107,6 +110,7 @@ class ParticipantService {
     @Transactional
     ContestParticipantResponse createParticipation(long contestId, CreateContestParticipationRequest request) {
         requireContest(contestId);
+        closureGuard.contestOpen(contestId);
         Country country = countryCatalog.findRequired(request.countryCode());
         long participantId = request.participantId() == null
                 ? repository.create(
@@ -137,6 +141,7 @@ class ParticipantService {
     @Transactional
     void deleteParticipation(long contestId, long participantId) {
         requireContest(contestId);
+        closureGuard.contestOpen(contestId);
         if (contests.findParticipation(contestId, participantId).isEmpty()) {
             throw missingParticipation(participantId);
         }
