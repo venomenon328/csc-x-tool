@@ -374,6 +374,8 @@ S1-Konkretisierung vom 08.10.2026: Schema 17 speichert `result_closed_at`, JSON 
 
 S2-Konkretisierung vom 08.10.2026: Ein aggregierter lesender Statistikendpunkt enthält S1-Gesamtwertung, gerichtete Opportunities, gemeinsame Paarbasis, 25er, Serien und alle Drilldownbelege aus einer einzigen kanonischen Eingabeladung. Neue Statistikpersistenz, Schemaänderung und Exportversion sind nicht erforderlich. Die vier Auswertungsbereiche sind verbunden; paginierte Heatmapausschnitte und Vollansichten berücksichtigen 100 Teilnehmer. Aktualisierung ersetzt die gesamte Antwort samt offenen Details; gleiche eingeschlossene Show-IDs allein gelten nicht als unveränderter Datenstand. Paketnachweise und offene gemeinsame manuelle Abnahme: [S2-Matrix](participant-statistics-verification.md).
 
+S3a-Konkretisierung vom 08.10.2026: Die sechs Präferenzstatistiken ergänzen denselben Antwortsnapshot. Exakte gekürzte BigInteger-Brüche bestimmen Quotienten, Showmittel, Listen und Rekordgleichstände. Paarvergleich und Konsens besitzen ihre getrennten Vergleichspopulationen; Beitragskennzahlen teilen eine wählbare Bewertungspopulation. Gemeinsame Stimmzettelbelege werden je Show einmal referenziert. Keine neue Persistenz oder Exportversion; technische Nachweise und spätere gemeinsame Abnahme: [S3a-Matrix](preference-statistics-verification.md).
+
 ## Bewusst vertagte Entscheidungen
 
 ### O-001 – Vollständiger Import-Testblock

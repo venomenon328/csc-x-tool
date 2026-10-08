@@ -11,7 +11,16 @@ export type Run = { length: number, firstShowId: number, lastShowId: number, sho
 export type Profile = { participationId: number, topGiverIds: number[], topReceiverIds: number[], twentyFives: number, opportunities: number, twentyFiveRate: number | null, countedEntries: number, top15Count: number, podiumCount: number, wins: number, pointRuns: Run[], podiumRuns: Run[] }
 export type Entry = { id: number, showId: number, participationId: number | null, artist: string, title: string }
 export type EntryAward = { entryId: number, twentyFives: number, opportunities: number, rate: number | null }
+export type Metric = { numerator: string | null, denominator: string | null, value: number | null, reason: string | null }
+export type BallotBasis = { ballotId: number, participationId: number, positions: { entryId: number, rank: number, points: number }[] }
+export type PairShow = { showId: number, similarity: Metric, comparisonEntries: number, excludedEntryIds: number[] }
+export type SimilarityPair = { firstId: number, secondId: number, similarity: Metric, comparedShows: number, shows: PairShow[] }
+export type EntryPreference = { entryId: number, evaluations: number, positiveEvaluations: number, sumPoints: number, twentyFives: number, audienceRate: Metric, variance: Metric, standardDeviation: number | null, polarizationEligible: boolean, histogram: { points: number, count: number }[], exclusiveGiverId: number | null, exclusivePoints: number }
+export type ConsensusShow = { showId: number, similarity: Metric, otherBallots: number, comparisonEntries: number, excludedEntryId: number | null, ownPointSum: number, fieldPointSum: number }
+export type ParticipantPreference = { participationId: number, consensus: Metric, comparedShows: number, shows: ConsensusShow[], exclusivePoints: number, exclusiveEntryIds: number[], exclusiveTwentyFiveEntryIds: number[] }
+export type Preferences = { showBases: { showId: number, ballots: BallotBasis[] }[], pairs: SimilarityPair[], parallelOrder: Direction[], entries: EntryPreference[], audienceOrder: number[], polarizationOrder: number[], participants: ParticipantPreference[], exclusiveOrder: number[], records: { twins: Direction[], parallels: Direction[], audienceEntryIds: number[], polarizationEntryIds: number[], exclusiveParticipantIds: number[], consensusParticipantIds: number[] } }
 export type Statistics = {
+  preferences: Preferences,
   standings: ContestStandings, entries: Entry[], relations: Relation[], topRelations: Direction[], pairs: Pair[], profiles: Profile[], entryAwards: EntryAward[],
   records: { partnerships: Direction[], unrequited: Direction[], twentyFiveParticipantIds: number[], twentyFiveEntryIds: number[], pointRunParticipantIds: number[], podiumRunParticipantIds: number[], top15ParticipantIds: number[], podiumParticipantIds: number[] },
 }

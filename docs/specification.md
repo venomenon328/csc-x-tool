@@ -954,7 +954,7 @@ Diese Erweiterungen dürfen den initialen Workflow nicht verkomplizieren.
 
 ## 23. Contest-Gesamtwertung und Statistiken
 
-Am 07.10.2026 freigegeben; S1 (Showabschluss/Gesamtwertung mit Verlauf) und S2 (Teilnehmerprofile, Punktebeziehungen, Heatmap und vier einfache Rekordarten) am 08.10.2026 implementiert. Weitere Kennzahlen folgen in S3a/S3b; gemeinsame manuelle Abnahme auf integriertem `main` ausstehend: [verbindliche Detailspezifikation](contest-statistics.md), [Roadmap #14](https://github.com/venomenon328/csc-x-tool/issues/14).
+Am 07.10.2026 freigegeben; S1 (Showabschluss/Gesamtwertung mit Verlauf), S2 (Teilnehmerprofile, Punktebeziehungen, Heatmap und vier einfache Rekordarten) und S3a (sechs Präferenzstatistiken mit Histogramm und Belegen) am 08.10.2026 implementiert. S3b bleibt ausstehend; gemeinsame manuelle Abnahme auf integriertem `main` ausstehend: [verbindliche Detailspezifikation](contest-statistics.md), [Roadmap #14](https://github.com/venomenon328/csc-x-tool/issues/14).
 
 - Stimmzettelpunkte bestimmen den Showrang; Showränge bis einschließlich 15 erzeugen nach demselben Schlüssel Gesamtwertungspunkte.
 - Punktgleiche Beiträge bzw. Teilnehmer teilen den Rang; Folgeränge werden übersprungen. Alle Mitglieder einer punktberechtigten Ranggruppe erhalten die vollen Rangpunkte, auch über die 15. Tabellenzeile hinaus. Auch die Contestsumme kennt geteilte Plätze ohne zusätzlichen Tiebreak.

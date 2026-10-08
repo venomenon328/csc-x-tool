@@ -139,6 +139,8 @@ class ShowResultApiIntegrationTest {
         var statisticsBefore = service.statistics(id);
         assertThat(send("PUT", "/api/shows/" + id + "/entries/" + (id + 18) + "/participant", "{\"participantId\":null}").body()).contains("SHOW_RESULT_CLOSED");
         assertThat(statisticsBefore.relations().stream().mapToInt(ContestStatisticsResponse.Relation::points).sum()).isEqualTo(140);
+        assertThat(statisticsBefore.preferences().showBases().getFirst().ballots()).hasSize(1);
+        assertThat(statisticsBefore.preferences().entries().stream().mapToInt(PreferenceStatisticsResponse.EntryPreference::sumPoints).sum()).isEqualTo(140);
         String swap = mapper.writeValueAsString(Map.of("assignments", List.of(
                 Map.of("entryId", id + 16, "participationId", id + 17, "expectedParticipationId", id + 16, "confirmReplacement", true),
                 Map.of("entryId", id + 17, "participationId", id + 16, "expectedParticipationId", id + 17, "confirmReplacement", true))));
@@ -148,6 +150,7 @@ class ShowResultApiIntegrationTest {
         assertThat(send("POST", "/api/shows/" + id + "/ballot/reopen", "").statusCode()).isEqualTo(200);
         assertThat(service.statistics(id).relations()).isEqualTo(statisticsBefore.relations());
         assertThat(service.statistics(id).profiles()).isEqualTo(statisticsBefore.profiles());
+        assertThat(service.statistics(id).preferences()).isEqualTo(statisticsBefore.preferences());
         assertThat(service.standings(id).rows().stream().map(ContestStandingsResponse.Row::totalPoints)).containsExactlyElementsOf(before.rows().stream().map(ContestStandingsResponse.Row::totalPoints).toList());
         // Reconfirming a personal state without any canonical assignment change stays allowed.
         assertThat(send("PUT", "/api/shows/" + id + "/entries/own-entry-resolution", "{\"resolution\":\"NO_OWN_ENTRY\"}").statusCode()).isEqualTo(204);
@@ -245,6 +248,15 @@ class ShowResultApiIntegrationTest {
                 assertThat(statistics.relations().stream().mapToInt(ContestStatisticsResponse.Relation::opportunities).sum()).isEqualTo(closed ? 18 : 0);
                 assertThat(statistics.entryAwards().stream().mapToInt(ContestStatisticsResponse.EntryAward::twentyFives).sum()).isEqualTo(closed ? 1 : 0);
                 assertThat(statistics.records().twentyFiveParticipantIds()).hasSize(closed ? 1 : 0);
+                var preferences = statistics.preferences();
+                assertThat(preferences.showBases()).hasSize(closed ? 1 : 0);
+                assertThat(preferences.entries().stream().mapToInt(PreferenceStatisticsResponse.EntryPreference::sumPoints).sum()).isEqualTo(closed ? 140 : 0);
+                assertThat(preferences.entries().stream().mapToInt(PreferenceStatisticsResponse.EntryPreference::evaluations).sum()).isEqualTo(closed ? 18 : 0);
+                assertThat(preferences.records().audienceEntryIds()).hasSize(closed ? 15 : 0);
+                assertThat(preferences.records().exclusiveParticipantIds()).hasSize(closed ? 1 : 0);
+                assertThat(preferences.records().polarizationEntryIds()).isEmpty();
+                assertThat(preferences.records().twins()).isEmpty();
+                assertThat(preferences.records().consensusParticipantIds()).isEmpty();
             }
         });
         var changing = CompletableFuture.runAsync(() -> {
@@ -296,6 +308,7 @@ class ShowResultApiIntegrationTest {
         jdbc.update("INSERT INTO contest_participation(contest_id,participant_id,country_code,active,created_at,updated_at) VALUES (1,?,'GB',1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", id + 1);
         assertThat(service.statistics(id).relations()).isEqualTo(result.relations());
         assertThat(service.statistics(id).profiles()).isEqualTo(result.profiles());
+        assertThat(service.statistics(id).preferences()).isEqualTo(result.preferences());
         service.reopen(second);
         assertThat(ContestStatisticsTest.relation(service.statistics(id), id + 1, id + 2).points()).isEqualTo(25);
         replacePairBallots(id, second, 1, null);
@@ -304,6 +317,41 @@ class ShowResultApiIntegrationTest {
         assertThat(ContestStatisticsTest.relation(corrected, id + 1, id + 2).points()).isEqualTo(50);
         assertThat(corrected.standings().includedShowIds()).isEqualTo(result.standings().includedShowIds());
         assertThat(corrected.relations()).isNotEqualTo(result.relations());
+        assertThat(corrected.preferences()).isNotEqualTo(result.preferences());
+    }
+
+    @Test
+    void s3aT06SQLitePreferenceOraclesReopenCorrectionAndBothRestoreRoundtrips() throws Exception {
+        long id = fixture();
+        // Remove the fixture's sole original published vote and create two complete exchanged-rank-1 ballots.
+        assertThat(send("PUT", ballotPath(id, id + 19), "{\"status\":\"NICHT_ABGESTIMMT\"}").statusCode()).isEqualTo(204);
+        replacePairBallots(id, id, 1, 1);
+        service.close(id);
+        var before = service.statistics(id).preferences();
+        var pair = PreferenceStatisticsTest.pair(before, id + 1, id + 2);
+        assertThat(pair.similarity().value()).isEqualTo(1);
+        assertThat(pair.comparedShows()).isEqualTo(1);
+        assertThat(pair.shows().getFirst().excludedEntryIds()).containsExactly(id + 1, id + 2);
+        assertThat(PreferenceStatisticsTest.entry(before,id + 3).evaluations()).isEqualTo(2);
+        assertThat(PreferenceStatisticsTest.entry(before,id + 3).audienceRate().value()).isEqualTo(1);
+        assertThat(PreferenceStatisticsTest.entry(before,id + 3).variance().value()).isZero();
+        assertThat(before.records().exclusiveParticipantIds()).containsExactly(id + 1, id + 2);
+        var api = send("GET", "/api/contests/" + id + "/statistics", null);
+        assertThat(mapper.readValue(api.body(), ContestStatisticsResponse.class).preferences()).isEqualTo(before);
+        byte[] json = exports.exportJson();
+        var backup = backups.create(BackupReason.MANUAL);
+        service.reopen(id);
+        assertThat(service.statistics(id).preferences().records().twins()).isEmpty();
+        replacePairBallots(id, id, 2, 1);
+        service.close(id);
+        assertThat(service.statistics(id).standings().includedShowIds()).containsExactly(id);
+        assertThat(service.statistics(id).preferences()).isNotEqualTo(before);
+        assertThat(PreferenceStatisticsTest.pair(service.statistics(id).preferences(), id + 1,id + 2).similarity().value()).isLessThan(1);
+        restores.restore(restores.previewUploadedJson(new ByteArrayInputStream(json), "s3a-synthetic.json").token());
+        assertThat(service.statistics(id).preferences()).isEqualTo(before);
+        service.reopen(id);
+        restores.restore(restores.previewKnownBackup(backup.id()).token());
+        assertThat(service.statistics(id).preferences()).isEqualTo(before);
     }
 
     private void extraShow(long contest, long show, int number) {
