@@ -357,7 +357,9 @@ class ShowResultApiIntegrationTest {
     @Test
     void s3bT05ReadsWithoutAnySqliteMutationAndRejectsRequestBoundaries() {
         long id = fixture(), foreign = fixture(), second = id + 40;
+        assertThat(send("POST","/api/contests/" + id + "/make-current","").statusCode()).isEqualTo(200);
         preparePersonalBallot(id, id + 19);
+        assertThat(send("POST","/api/contests/1/make-current","").statusCode()).isEqualTo(200);
         // A belongs to E16 and cannot vote for that own entry; B votes for E2..E16.
         setImpactBallot(id,id,id + 19,2);
         setImpactBallot(id,id,id + 16,1);
