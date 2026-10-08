@@ -260,4 +260,24 @@ describe('App', () => {
 
     expect(await screen.findByRole('heading', { name: 'Anwendung wurde beendet' })).toBeVisible()
   })
+
+  it('connects all statistics areas while keeping participant administration reachable', async () => {
+    const user = userEvent.setup()
+    const statistics = { standings: { contestId: 1, shows: [], includedShowIds: [], rows: [] }, entries: [], relations: [], topRelations: [], pairs: [], profiles: [], entryAwards: [], records: { partnerships: [], unrequited: [], twentyFiveParticipantIds: [], twentyFiveEntryIds: [], pointRunParticipantIds: [], podiumRunParticipantIds: [], top15ParticipantIds: [], podiumParticipantIds: [] } }
+    fetchMock.mockImplementation(async input => {
+      if (input === '/api/contests') return jsonResponse([currentContest])
+      if (input === '/api/contests/1/statistics') return jsonResponse(statistics)
+      if (input === '/api/contests/1/standings') return jsonResponse(statistics.standings)
+      return jsonResponse([])
+    })
+    render(<App />)
+    const mainNavigation = screen.getByRole('list', { name: 'Hauptnavigation' })
+    expect(within(mainNavigation).getByRole('link', { name: 'Teilnehmer' })).toHaveAttribute('href', '/participants')
+    for (const area of ['Teilnehmerprofile', 'Punktebeziehungen', 'Rekorde', 'Gesamtwertung']) {
+      await user.click(within(mainNavigation).getByRole('link', { name: area }))
+      expect(await screen.findByRole('heading', { name: area, level: 1 })).toBeVisible()
+      expect(screen.getByRole('navigation', { name: 'Contestauswertung' }).querySelectorAll('a')).toHaveLength(4)
+    }
+    expect(fetchMock).toHaveBeenCalledWith('/api/contests/1/statistics')
+  })
 })

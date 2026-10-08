@@ -63,6 +63,7 @@ class ShowResultApiIntegrationTest {
         long id = fixture();
         assertThat(send("POST", closurePath(id) + "/close", "").statusCode()).isEqualTo(200);
         var before = service.standings(id);
+        var statisticsBefore = service.statistics(id);
         String timestamp = closure(id).closedAt();
         assertThat(send("POST", closurePath(id) + "/close", "").statusCode()).isEqualTo(200);
         assertThat(closure(id).closedAt()).isEqualTo(timestamp);
@@ -78,6 +79,7 @@ class ShowResultApiIntegrationTest {
                 send("PATCH", "/api/contests/" + id + "/shows/" + id, "{\"showNumber\":2,\"name\":\"Changed\"}"));
         assertThat(conflicts).allSatisfy(r -> { assertThat(r.statusCode()).isEqualTo(409); assertThat(r.body()).contains("SHOW_RESULT_CLOSED"); });
         assertThat(service.standings(id)).isEqualTo(before);
+        assertThat(service.statistics(id)).isEqualTo(statisticsBefore);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM participant WHERE display_name = 'Must not leak'", Integer.class)).isZero();
         assertThat(send("PATCH", "/api/participants/" + (id + 1), "{\"displayName\":\"Renamed\",\"active\":false}").statusCode()).isEqualTo(200);
         assertThat(send("PATCH", "/api/contests/" + id + "/participants/" + (id + 1), "{\"countryCode\":\"AT\",\"active\":false}").statusCode()).isEqualTo(200);
@@ -100,17 +102,21 @@ class ShowResultApiIntegrationTest {
         // The personal-open entry projection masks assignments, but closure uses canonical IDs.
         service.close(id);
         var before = service.standings(id);
+        var statisticsBefore = service.statistics(id);
         assertThat(send("POST", "/api/contests/1/make-current", "").statusCode()).isEqualTo(200);
         assertThat(jdbc.queryForObject("SELECT entry_list_complete FROM motto_show WHERE id = ?", Integer.class, id)).isEqualTo(1);
         assertThat(service.standings(id)).isEqualTo(before);
+        assertThat(service.statistics(id)).isEqualTo(statisticsBefore);
         byte[] json = exports.exportJson();
         var backup = backups.create(BackupReason.MANUAL);
         service.reopen(id);
         restores.restore(restores.previewUploadedJson(new ByteArrayInputStream(json), "s1.json").token());
         assertThat(service.standings(id)).isEqualTo(before);
+        assertThat(service.statistics(id)).isEqualTo(statisticsBefore);
         service.reopen(id);
         restores.restore(restores.previewKnownBackup(backup.id()).token());
         assertThat(service.standings(id)).isEqualTo(before);
+        assertThat(service.statistics(id)).isEqualTo(statisticsBefore);
         service.reopen(id);
         // Correct through the allowed current-show assignment path after changing the edition back.
         send("POST", "/api/contests/" + id + "/make-current", "");
@@ -130,7 +136,9 @@ class ShowResultApiIntegrationTest {
         preparePersonalBallot(id, id + 19);
         service.close(id);
         var before = service.standings(id);
+        var statisticsBefore = service.statistics(id);
         assertThat(send("PUT", "/api/shows/" + id + "/entries/" + (id + 18) + "/participant", "{\"participantId\":null}").body()).contains("SHOW_RESULT_CLOSED");
+        assertThat(statisticsBefore.relations().stream().mapToInt(ContestStatisticsResponse.Relation::points).sum()).isEqualTo(140);
         String swap = mapper.writeValueAsString(Map.of("assignments", List.of(
                 Map.of("entryId", id + 16, "participationId", id + 17, "expectedParticipationId", id + 16, "confirmReplacement", true),
                 Map.of("entryId", id + 17, "participationId", id + 16, "expectedParticipationId", id + 17, "confirmReplacement", true))));
@@ -138,6 +146,8 @@ class ShowResultApiIntegrationTest {
         assertThat(send("POST", "/api/shows/" + id + "/entries/import", "{\"entries\":[]}").body()).contains("SHOW_RESULT_CLOSED");
         assertThat(send("PATCH", "/api/shows/" + id + "/entries/" + (id + 18), "{\"artist\":\"Cosmetic\",\"title\":\"Song\",\"youtubeUrl\":\"https://www.youtube.com/watch?v=dQw4w9WgXcQ\"}").statusCode()).isEqualTo(200);
         assertThat(send("POST", "/api/shows/" + id + "/ballot/reopen", "").statusCode()).isEqualTo(200);
+        assertThat(service.statistics(id).relations()).isEqualTo(statisticsBefore.relations());
+        assertThat(service.statistics(id).profiles()).isEqualTo(statisticsBefore.profiles());
         assertThat(service.standings(id).rows().stream().map(ContestStandingsResponse.Row::totalPoints)).containsExactlyElementsOf(before.rows().stream().map(ContestStandingsResponse.Row::totalPoints).toList());
         // Reconfirming a personal state without any canonical assignment change stays allowed.
         assertThat(send("PUT", "/api/shows/" + id + "/entries/own-entry-resolution", "{\"resolution\":\"NO_OWN_ENTRY\"}").statusCode()).isEqualTo(204);
@@ -221,7 +231,8 @@ class ShowResultApiIntegrationTest {
         var reading = CompletableFuture.runAsync(() -> {
             await(start);
             for (int i = 0; i < 30; i++) {
-                var response = service.standings(id);
+                var statistics = service.statistics(id);
+                var response = statistics.standings();
                 boolean closed = !response.includedShowIds().isEmpty();
                 assertThat(response.shows().getFirst().status().equals("CLOSED")).isEqualTo(closed);
                 assertThat(response.rows()).allSatisfy(row -> {
@@ -230,6 +241,10 @@ class ShowResultApiIntegrationTest {
                     assertThat(!row.shows().getFirst().state().equals("NOT_COUNTED")).isEqualTo(closed);
                 });
                 assertThat(response.rows().stream().mapToInt(ContestStandingsResponse.Row::totalPoints).sum()).isEqualTo(closed ? 140 : 0);
+                assertThat(statistics.relations().stream().mapToInt(ContestStatisticsResponse.Relation::points).sum()).isEqualTo(closed ? 140 : 0);
+                assertThat(statistics.relations().stream().mapToInt(ContestStatisticsResponse.Relation::opportunities).sum()).isEqualTo(closed ? 18 : 0);
+                assertThat(statistics.entryAwards().stream().mapToInt(ContestStatisticsResponse.EntryAward::twentyFives).sum()).isEqualTo(closed ? 1 : 0);
+                assertThat(statistics.records().twentyFiveParticipantIds()).hasSize(closed ? 1 : 0);
             }
         });
         var changing = CompletableFuture.runAsync(() -> {
@@ -246,8 +261,73 @@ class ShowResultApiIntegrationTest {
 
     @Test
     void forwardsStandingsAndExistingEvaluationUrlsToTheBundledSpa() {
-        for (String path : List.of("/standings", "/shows/1/evaluation", "/shows/1/result", "/shows/1/published-ballots")) {
+        for (String path : List.of("/standings", "/statistics/participants", "/statistics/relationships", "/statistics/records", "/shows/1/evaluation", "/shows/1/result", "/shows/1/published-ballots")) {
             assertThat(send("GET", path, null).body()).contains("<html");
+        }
+    }
+
+    @Test
+    void s2T01T03T05StatisticsApiMatchesTheOracleAndRecomputesAfterCorrection() {
+        long id = fixture();
+        long second = id + 40, third = id + 50;
+        extraShow(id, second, 2); extraShow(id, third, 3);
+        replacePairBallots(id, id, 1, 6);
+        replacePairBallots(id, second, 2, null);
+        replacePairBallots(id, third, null, 3);
+        service.close(id); service.close(second); service.close(third);
+        var result = service.statistics(id);
+        var ab = ContestStatisticsTest.relation(result, id + 1, id + 2);
+        var ba = ContestStatisticsTest.relation(result, id + 2, id + 1);
+        assertThat(ab.points()).isEqualTo(45);
+        assertThat(ab.opportunities()).isEqualTo(3);
+        assertThat(ba.points()).isEqualTo(26);
+        assertThat(ba.opportunities()).isEqualTo(2);
+        var pair = result.pairs().stream().filter(p -> p.firstId() == id + 1 && p.secondId() == id + 2).findFirst().orElseThrow();
+        assertThat(pair.partnership()).isEqualTo(25);
+        assertThat(pair.difference()).isEqualTo(1);
+        assertThat(pair.strongerGiverId()).isEqualTo(id + 2);
+        var response = send("GET", "/api/contests/" + id + "/statistics", null);
+        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat(mapper.readValue(response.body(), ContestStatisticsResponse.class)).isEqualTo(result);
+        // Metadata and another edition of the same person cannot alter this contest's metrics.
+        jdbc.update("UPDATE participant SET display_name = 'Renamed synthetic', active = 0 WHERE id = ?", id + 1);
+        jdbc.update("UPDATE contest_participation SET country_code = 'AT', active = 0 WHERE id = ?", id + 1);
+        jdbc.update("INSERT INTO participant_alias(participant_id,alias) VALUES (?,'Old synthetic name')", id + 1);
+        jdbc.update("INSERT INTO contest_participation(contest_id,participant_id,country_code,active,created_at,updated_at) VALUES (1,?,'GB',1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", id + 1);
+        assertThat(service.statistics(id).relations()).isEqualTo(result.relations());
+        assertThat(service.statistics(id).profiles()).isEqualTo(result.profiles());
+        service.reopen(second);
+        assertThat(ContestStatisticsTest.relation(service.statistics(id), id + 1, id + 2).points()).isEqualTo(25);
+        replacePairBallots(id, second, 1, null);
+        service.close(second);
+        var corrected = service.statistics(id);
+        assertThat(ContestStatisticsTest.relation(corrected, id + 1, id + 2).points()).isEqualTo(50);
+        assertThat(corrected.standings().includedShowIds()).isEqualTo(result.standings().includedShowIds());
+        assertThat(corrected.relations()).isNotEqualTo(result.relations());
+    }
+
+    private void extraShow(long contest, long show, int number) {
+        jdbc.update("INSERT INTO motto_show(id,contest_id,show_number,name,entry_list_complete,created_at,updated_at) VALUES (?,?,?,'Oracle show',1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", show, contest, number);
+        for (int i = 1; i <= 19; i++) {
+            if (i < 19) jdbc.update("INSERT INTO contest_entry(id,motto_show_id,contest_id,artist,title,youtube_url,pool_position,contest_participation_id,created_at,updated_at) VALUES (?,?,?,'Oracle Artist',?,'https://www.youtube.com/watch?v=dQw4w9WgXcQ',?,?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", show * 100 + i, show, contest, "Oracle Song " + i, i, contest + i);
+            jdbc.update("INSERT INTO published_ballot(id,motto_show_id,contest_id,contest_participation_id,status,created_at,updated_at) VALUES (?,?,?,?,'NICHT_ABGESTIMMT',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", show * 100 + i, show, contest, contest + i);
+        }
+    }
+    private void replacePairBallots(long contest, long show, Integer abRank, Integer baRank) {
+        // Even an actual zero uses a complete valid 15-song ballot with synthetic fillers.
+        for (int giver = 1; giver <= 2; giver++) {
+            if (show != contest && show == contest + 40 && giver == 2) continue;
+            Integer forced = giver == 1 ? abRank : baRank;
+            int receiver = giver == 1 ? 2 : 1;
+            var positions = new java.util.ArrayList<Map<String, Object>>();
+            int filler = 3;
+            for (int rank = 1; rank <= 15; rank++) {
+                int song = forced != null && forced == rank ? receiver : filler++;
+                long entry = show == contest ? contest + song : show * 100 + song;
+                positions.add(Map.of("entryId", entry, "rank", rank));
+            }
+            var body = mapper.writeValueAsString(Map.of("ballots", List.of(Map.of("participationId", contest + giver, "replaceExisting", true, "positions", positions))));
+            assertThat(send("POST", "/api/shows/" + show + "/published-ballots/import", body).statusCode()).isEqualTo(200);
         }
     }
 

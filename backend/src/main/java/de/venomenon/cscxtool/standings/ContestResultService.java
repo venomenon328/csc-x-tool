@@ -20,6 +20,11 @@ public class ContestResultService {
     }
 
     @Transactional(readOnly = true)
+    public ContestStatisticsResponse statistics(long contestId) {
+        return ContestStatistics.calculate(repository.load(contestId), countries);
+    }
+
+    @Transactional(readOnly = true)
     public ShowResultClosureResponse closure(long showId) {
         return response(repository.load(repository.contestForShow(showId)), showId);
     }

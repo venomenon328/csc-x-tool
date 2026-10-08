@@ -25,6 +25,7 @@ import { ContestPage } from '../features/contests/ContestPage'
 import { HistoricalShowPage } from '../features/history/HistoricalShowPage'
 import { TipsGamePage } from '../features/tips/TipsGamePage'
 import { ContestStandingsPage } from '../features/standings/ContestStandingsPage'
+import { StatisticsPage } from '../features/statistics/StatisticsPage'
 import { EvaluationPage } from '../features/evaluation/EvaluationPage'
 import { ContestProvider, useContest } from '../features/contests/ContestContext'
 import { ErrorBoundary } from './ErrorBoundary'
@@ -38,6 +39,9 @@ const navigation = [
   { label: 'Übersicht', to: '/' },
   { label: 'Teilnehmer', to: '/participants' },
   { label: 'Gesamtwertung', to: '/standings' },
+  { label: 'Teilnehmerprofile', to: '/statistics/participants' },
+  { label: 'Punktebeziehungen', to: '/statistics/relationships' },
+  { label: 'Rekorde', to: '/statistics/records' },
   { label: 'Daten und Sicherungen', to: '/data' },
 ]
 
@@ -163,6 +167,9 @@ function AppShell() {
           <Route element={<ParticipantPage />} path="/participants" />
           <Route element={<ContestPage />} path="/contests" />
           <Route element={<ContestStandingsPage />} path="/standings" />
+          <Route element={<StatisticsPage view="participants" />} path="/statistics/participants" />
+          <Route element={<StatisticsPage view="relationships" />} path="/statistics/relationships" />
+          <Route element={<StatisticsPage view="records" />} path="/statistics/records" />
           <Route element={<DataManagementPage />} path="/data" />
           <Route element={<CandidatePage />} path="/shows/:showId/candidates" />
           <Route element={<EntryPage />} path="/shows/:showId/voting" />

@@ -372,6 +372,8 @@ Liquibase-Migration und vollständiger JSON-Export/Restore führen den neuen Abs
 
 S1-Konkretisierung vom 08.10.2026: Schema 17 speichert `result_closed_at`, JSON v11 führt es als verpflichtendes nullable Feld `resultClosedAt`. Frühere unterstützte Formate bleiben offen. Ein separater fairer Transaktionslock serialisiert Guard und Mutation vor JDBC-Verbindungsbezug; Lesetransaktionen liefern einen durchgängigen SQLite-Snapshot und bleiben durch den vorhandenen Datenlock gegen Restore geschützt. Beim Wechsel aktuell → historisch wird der Vollständigkeitsbeleg bereits abgeschlossener Shows in den historischen Listenmarker übertragen. Kanonische Zuordnungen werden bei jedem neuen Abschluss unabhängig davon geprüft. Technische Details und API: Architektur §23.
 
+S2-Konkretisierung vom 08.10.2026: Ein aggregierter lesender Statistikendpunkt enthält S1-Gesamtwertung, gerichtete Opportunities, gemeinsame Paarbasis, 25er, Serien und alle Drilldownbelege aus einer einzigen kanonischen Eingabeladung. Neue Statistikpersistenz, Schemaänderung und Exportversion sind nicht erforderlich. Die vier Auswertungsbereiche sind verbunden; paginierte Heatmapausschnitte und Vollansichten berücksichtigen 100 Teilnehmer. Aktualisierung ersetzt die gesamte Antwort samt offenen Details; gleiche eingeschlossene Show-IDs allein gelten nicht als unveränderter Datenstand. Paketnachweise und offene gemeinsame manuelle Abnahme: [S2-Matrix](participant-statistics-verification.md).
+
 ## Bewusst vertagte Entscheidungen
 
 ### O-001 – Vollständiger Import-Testblock

@@ -5,11 +5,13 @@ import { useContest } from '../contests/ContestContext'
 import { CountryFlag } from '../participants/CountryFlag'
 import { closureLabels, fetchContestStandings, type ContestStanding, type ContestStandings, type ShowCell } from './contestApi'
 import { StandingsChart } from './StandingsChart'
+import { StatisticsNavigation } from '../statistics/StatisticsNavigation'
 
 export function ContestStandingsPage() {
   const { selectedContestId, selectedContest } = useContest()
   return <Stack spacing={3}>
     <Box><Typography variant="overline" color="secondary">{selectedContest?.name}</Typography><Typography component="h1" variant="h4">Gesamtwertung</Typography></Box>
+    <StatisticsNavigation />
     {selectedContestId === null ? <Alert severity="info">Bitte eine CSC-Ausgabe auswählen.</Alert> : <ContestContent contestId={selectedContestId} key={selectedContestId} />}
   </Stack>
 }

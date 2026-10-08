@@ -1,8 +1,8 @@
 # Erweiterungsspezifikation – Gesamtwertung und Conteststatistiken
 
-**Version:** 1.1
+**Version:** 1.2
 **Stand:** 08.10.2026
-**Status:** fachlich freigegeben; S1 implementiert und technisch im Paket-PR geprüft, manuelle Gesamtabnahme nach vollständiger Roadmap #14 auf `main`; S2/S3 bleiben nachgelagert
+**Status:** fachlich freigegeben; S1 und S2 implementiert, paketbezogene technische Nachweise in den jeweiligen PRs; manuelle Gesamtabnahme nach vollständiger Roadmap #14 auf `main` ausstehend; S3a/S3b bleiben nachgelagert
 
 ## 1. Ziel, Geltung und Abgrenzung
 
@@ -12,7 +12,7 @@ Die [Produktspezifikation](specification.md), das [Stimmzettel- und historische 
 
 Unverändert ausgeschlossen bleiben die manuelle Pflege oder der Import offiziell berechneter Gesamtwertungstabellen als zusätzliche Wahrheit, die Rückrechnung vollständiger Stimmzettel aus isolierten Ergebnissen, genaue persönliche Ränge außerhalb der veröffentlichten Top 15, KI-/Genreanalysen, Telemetrie, Cloudübertragung, neue Anmeldung oder Mehrbenutzerbetrieb und die CSC-Ausschlussprüfung. Ein Teilnehmerprofil bedeutet die auswählbare Auswertung einer vorhandenen Contest-Teilnahme in der lokalen Einzelbenutzeranwendung.
 
-Der ursprüngliche Spezifikationsauftrag umfasste Repositorydokumentation und Entwicklungspakete. Der gesonderte Implementierungsauftrag vom 08.10.2026 liefert S1 (#177). Liefer-, Prüf- und Abnahmestände führen die Paket-Issues und PRs; die nachfolgenden S2-/S3-Funktionen sind weiterhin spezifiziert, nicht geliefert.
+Der ursprüngliche Spezifikationsauftrag umfasste Repositorydokumentation und Entwicklungspakete. Die gesonderten Implementierungsaufträge vom 08.10.2026 liefern S1 (#177) und S2 (#178, [PR #183](https://github.com/venomenon328/csc-x-tool/pull/183)). Liefer-, Prüf- und Abnahmestände führen die Paket-Issues und PRs; S3a/S3b sind weiterhin spezifiziert, nicht geliefert. Die [S2-Nachweismatrix](participant-statistics-verification.md) ordnet die gezielten Berechnungs-, SQLite- und UI-Fälle zu.
 
 ## 2. Gemeinsame Daten- und Berechnungsgrundlage
 
