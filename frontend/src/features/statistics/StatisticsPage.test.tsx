@@ -1,4 +1,4 @@
-import { act, render, screen, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -44,6 +44,11 @@ function renderPage(view: 'participants' | 'relationships' | 'records', initial 
   return render(<MemoryRouter initialEntries={[initial]}><StatisticsPage view={view} /></MemoryRouter>)
 }
 
+async function closeDialog(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Schließen' }))
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+}
+
 describe('S2-T06 statistics UI and shared evidence', () => {
   beforeEach(() => { state.contestId = 1; state.fetch.mockReset(); state.fetch.mockResolvedValue(fixture()) })
 
@@ -65,7 +70,7 @@ describe('S2-T06 statistics UI and shared evidence', () => {
     expect(within(dialog).getByRole('table', { name: 'Einzelshowbelege der Beziehung' })).toHaveTextContent('Außerhalb Top 15')
     expect(dialog).toHaveTextContent('Nicht abgestimmt')
     expect(within(dialog).getByRole('link', { name: 'Show 1 · Show 1' })).toHaveAttribute('href', '/shows/1/evaluation?view=standings')
-    await user.click(within(dialog).getByRole('button', { name: 'Schließen' }))
+    await closeDialog(user)
     await user.click(screen.getByRole('button', { name: 'Vollständige Beziehungsliste anzeigen' }))
     const full = screen.getByRole('table', { name: 'Alle gerichteten Beziehungen einschließlich bekannter Nullen' })
     expect(within(full).getAllByRole('row')).toHaveLength(9)
@@ -85,10 +90,10 @@ describe('S2-T06 statistics UI and shared evidence', () => {
     expect(screen.getByRole('dialog')).toHaveTextContent('Alle gleich langen maximalen Läufe')
     expect(screen.getByRole('dialog')).toHaveTextContent('Show 1 bis 2')
     expect(screen.getByRole('dialog')).toHaveTextContent('Show 4 bis 5')
-    await user.click(screen.getByRole('button', { name: 'Schließen' }))
+    await closeDialog(user)
     await user.click(within(screen.getByRole('table', { name: 'Profilbeiträge' })).getAllByRole('button', { name: 'Beitragsdetails' })[0])
     expect(screen.getByRole('dialog')).toHaveTextContent('Beitragsdetails · Artist 1 – Song 1')
-    await user.click(screen.getByRole('button', { name: 'Schließen' }))
+    await closeDialog(user)
     await user.click(screen.getByRole('combobox', { name: 'Teilnehmerprofil auswählen' }))
     await user.click(screen.getByRole('option', { name: 'Person 2 · Deutschland' }))
     expect(await screen.findByRole('heading', { name: 'Person 2 · Deutschland' })).toBeVisible()
@@ -102,13 +107,14 @@ describe('S2-T06 statistics UI and shared evidence', () => {
     for (const title of ['Punktepartnerschaft', 'Unerwiderte Punkteliebe', 'König der 25er', 'Dauerbrenner']) expect(await screen.findByRole('heading', { name: title, exact: true })).toBeVisible()
     await user.click(screen.getAllByRole('button', { name: 'Rekordbelege öffnen' })[0])
     expect(screen.getByRole('dialog')).toHaveTextContent('Gemeinsame beidseitige Basis: 2 Shows')
-    await user.click(screen.getByRole('button', { name: 'Schließen' }))
+    await closeDialog(user)
     await user.click(screen.getByRole('button', { name: '25er-Beitragsbelege öffnen' }))
     expect(screen.getByRole('dialog')).toHaveTextContent('1 erhaltene 25er / 3 wählbare Bewertungen')
     expect(within(screen.getByRole('dialog')).getByRole('table', { name: 'Beitragswertungen' })).toHaveTextContent('Rang 1')
-    await user.click(screen.getByRole('button', { name: 'Schließen' }))
+    await closeDialog(user)
     await user.click(screen.getAllByRole('button', { name: 'Serienbelege öffnen' })[0])
     expect(screen.getByRole('dialog')).toHaveTextContent('Gesamtwertungspunkte')
+    await closeDialog(user)
     expect(screen.getByRole('navigation', { name: 'Contestauswertung' })).toHaveTextContent('Gesamtwertung')
   })
 

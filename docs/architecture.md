@@ -4,7 +4,7 @@
 **Stand:** 30.08.2026
 **Status:** technische Baseline; die fachlichen Erweiterungen P10--P12 ergänzen und korrigieren ältere Modellskizzen in diesem Dokument.
 
-**Fortschreibung 07.10.2026:** Das historische Stimmzettel-/Teilnahmemodell aus [historical-contests-ballots-analysis.md](historical-contests-ballots-analysis.md) ist maßgeblich gegenüber älteren Baselineskizzen. Die freigegebene, noch nicht implementierte [Contestauswertung](contest-statistics.md) ergänzt den getrennten Show-Ergebnisabschluss und abgeleitete Statistiken; ihre Architektur ist in §23 zusammengefasst.
+**Fortschreibung 08.10.2026:** Das historische Stimmzettel-/Teilnahmemodell aus [historical-contests-ballots-analysis.md](historical-contests-ballots-analysis.md) ist maßgeblich gegenüber älteren Baselineskizzen. Die [Contestauswertung](contest-statistics.md) liefert mit S1/S2 den getrennten Show-Ergebnisabschluss, Gesamtwertung, Profile, Beziehungen und einfache Rekorde; ihre Architektur ist in §23 zusammengefasst. S3a/S3b bleiben nachgelagert; die gemeinsame manuelle Abnahme bleibt offen.
 
 ## 1. Architekturziele
 
@@ -807,7 +807,7 @@ Keine dieser Entscheidungen erfordert vor dem Entwicklungsbeginn zusätzliche fa
 
 ## 23. Contest-Gesamtwertung und nachgelagerte Statistiken
 
-Verbindliche fachliche Details und Paketgrenzen: [contest-statistics.md](contest-statistics.md), [Roadmap #14](https://github.com/venomenon328/csc-x-tool/issues/14). Architekturentscheidung: [A-023](decisions.md#a-023--abgeleitete-contestauswertung-mit-getrenntem-abschlusszustand). S1 (#177) implementiert Abschluss und Gesamtwertung; Teilnehmerprofile, Beziehungen und Rekorde bleiben Gegenstand der Folgepakete.
+Verbindliche fachliche Details und Paketgrenzen: [contest-statistics.md](contest-statistics.md), [Roadmap #14](https://github.com/venomenon328/csc-x-tool/issues/14). Architekturentscheidung: [A-023](decisions.md#a-023--abgeleitete-contestauswertung-mit-getrenntem-abschlusszustand). S1 (#177) implementiert Abschluss und Gesamtwertung; S2 (#178) ergänzt Profile, Beziehungen und die vier einfachen Rekordarten. Weitere Kennzahlen bleiben Gegenstand von S3a/S3b.
 
 ### Persistenz und Abschluss
 
@@ -829,7 +829,7 @@ Verbindliche fachliche Details und Paketgrenzen: [contest-statistics.md](contest
 
 ### Oberfläche und bestehende Exporte
 
-S1 liefert `/standings` mit Hauptnavigation „Gesamtwertung“, Showdetails und einem lokal gerenderten SVG für auswählbare Punkte-/Platzierungsverläufe. Zugängliche Verlaufstabellen ergänzen die Grafik. Offene oder fehlende Shownummern unterbrechen die Linie. Die Route ist auch im gebündelten JAR direkt erreichbar. Teilnehmerprofile, Heatmap und Rekorde bleiben nachgelagert. Die aktuelle Showauswertung und historische Songliste besitzen denselben bewussten Abschluss-/Wiederöffnungsdialog.
+S1 liefert `/standings` mit Hauptnavigation „Gesamtwertung“, Showdetails und einem lokal gerenderten SVG für auswählbare Punkte-/Platzierungsverläufe. Zugängliche Verlaufstabellen ergänzen die Grafik. Offene oder fehlende Shownummern unterbrechen die Linie. S2 ergänzt `/statistics/participants`, `/statistics/relationships` und `/statistics/records`; alle vier Auswertungsbereiche verlinken einander. Die Teilnehmerverwaltung bleibt unter `/participants`. Alle neuen Routen sind auch im gebündelten JAR direkt erreichbar. Die aktuelle Showauswertung und historische Songliste besitzen denselben bewussten Abschluss-/Wiederöffnungsdialog.
 
 Der vollständige JSON-Vertrag muss den Abschluss tragen. Der bestehende Analyseexport behält seinen separaten Quellen-/Auswahlvertrag; neue Statistikdateien und ein Filter auf ausschließlich abgeschlossene Shows sind dafür nicht beauftragt.
 
@@ -851,3 +851,22 @@ Beim Wechsel aktuell → historisch erhält nur eine bereits abgeschlossene Show
 `CompetitionRanks` ist der gemeinsame reine Rangkern für Zwischenstand und Gesamtwertung. Der Antwortvertrag unterscheidet Showzellen `SCORED_ENTRY` (auch 0), `NO_ENTRY` und `NOT_COUNTED`. Ohne abgeschlossene Show bleiben alle Contestränge `null`. Die erste gewertete Verlaufsstufe hat keine Rangveränderung; weitere vergleichen mit dem vorherigen gewerteten Schritt. `ContestStandingsPage` ist nach Contest-ID neu gemountet und verwirft verspätete Antworten. Tabelle, Details und Diagramm verwenden ausschließlich diese eine Antwort; das Frontend berechnet keine Punkte oder Ränge neu.
 
 JSON v11 erhält `resultClosedAt` je Show. v7–v10 besitzen explizite alte Showrecords, sodass strikte Creator-Feldprüfung für v11 bestehen bleibt. Unterstützte v1–v10 werden deterministisch offen übernommen. Der separate Analyseexport ändert weder Format noch Quellenfilter.
+
+### S2: Statistikantwort, Detailbasis und Oberfläche
+
+`GET /api/contests/{contestId}/statistics` lädt `ResultData` genau einmal innerhalb der bestehenden `@Transactional(readOnly = true)`-Transaktion und berechnet die eingebettete S1-Gesamtwertung sowie S2 aus derselben Eingabe. Transaktionsserialisierung und Restorelock bleiben wirksam. Es gibt keine persistierten Statistiken, keinen separaten Detailabruf, keine neue Schema-/Exportversion und keine neue Abhängigkeit.
+
+| Antwortfeld | Vertrag |
+| --- | --- |
+| `standings` | Bestehender S1-Vertrag einschließlich Contest-ID, aller Showstatus, `includedShowIds`, stabiler Personen-/Teilnahme-IDs, Showränge und Verlauf |
+| `entries` | Gemeinsame Beitragsmetadaten mit stabilen IDs, auch für noch nicht gewertete Profilbeiträge |
+| `relations` / `topRelations` | Alle gerichteten Beziehungen ohne Selbstbeziehung; Summe, bepunktete Shows, Opportunities, nullable Durchschnitt, erhaltene Rang-1-Stimmen und Einzelshowbelege; positive globale Top 5 einschließlich Grenzgleichständen als ID-Paare |
+| `pairs` | Jedes Paar mit beidseitiger Basis einmal; gemeinsame Show-IDs, beide Richtungssummen, Minimum, absolute Differenz und nullable ID des stärkeren Gebers |
+| `profiles` | Positive persönliche Top-5-Geber-/Empfänger-IDs einschließlich Grenzgleichständen; 25er, wählbare Basis/Quote, gewertete Einreichungen, Häufigkeiten und alle gleich langen maximalen Punkte-/Podiumsserien mit Show-IDs |
+| `entryAwards` / `records` | Beitragsbezogene 25er-Anzahl/Basis/Quote und alle punktgleichen Höchstwertträger je gelieferter Rekordkennzahl; ohne positives Ereignis leere Gewinnerlisten |
+
+Einzelshowbelege verwenden `POINTS` und `OUTSIDE_TOP_15` mit numerischen Punkten (echte Null nur im zweiten Fall). `NOT_COUNTED`, `NO_ENTRY`, `NOT_VOTED` und `UNRECORDED` tragen `null`, nie Nullpräferenzen; das Frontend zeigt den Ausschlussgrund. Die Heatmapdiagonale heißt eigene Einreichung / nicht wählbar. Paarbelege kennzeichnen explizit die gemeinsame Schnittmenge und ihre Abweichung von der gerichteten Gesamtbasis. Durchschnitt und Quote dienen der Anzeige; Toplisten/Rekorde vergleichen die ungerundeten ganzzahligen Hauptkennzahlen im Backend.
+
+Serien verwenden S1-Showränge bzw. Gesamtwertungspunkte, unterbrechen bei offener/fehlender Nummer oder fehlendem qualifizierendem Ergebnis und bewahren alle maximalen Läufe. Der Server liefert erste/letzte Show und sämtliche Einzelshowbelege. Häufigkeiten sind davon getrennt.
+
+Profil-/Contestwechsel remounten den jeweiligen Inhalt und verwerfen verspätete Antworten. Explizites Aktualisieren und Fensterfokus ersetzen den gesamten sichtbaren Snapshot und schließen offene Details, auch bei unveränderten `includedShowIds`. Profil-, Beziehungs-, Beitrags- und Seriendetails lesen ausschließlich die aktuelle Statistikantwort; keine zweite Frontend-Punkte-/Rangberechnung. Die Heatmap zeigt höchstens 10×10 Zellen je unabhängig wählbarem Zeilen-/Spaltenausschnitt; Suche und Paginierung erreichen auch Teilnehmer 100. Vollständige Listen paginieren nach 25 Beziehungen, ohne Grenzgleichstände aus der gelieferten Topliste zu entfernen. Zahlen, Zustände, volle Namen und Geber-/Empfängerlabels bleiben neben der Farbe erreichbar.

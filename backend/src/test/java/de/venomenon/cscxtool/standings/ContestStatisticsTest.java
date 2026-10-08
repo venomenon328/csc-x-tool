@@ -162,6 +162,32 @@ class ContestStatisticsTest {
         assertThat(empty.records()).isEqualTo(new ContestStatisticsResponse.Records(List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of()));
     }
 
+    @Test
+    void s2T01KeepsUnrecordedOpenShowsOutOfEveryNumericalDenominator() {
+        var fixture = new Fixture(21); fixture.show(1, false);
+        fixture.ballots.removeIf(b -> b.participationId() == 1);
+        var result = calculate(fixture.data());
+        assertThat(result.standings().shows().getFirst().status()).isEqualTo("IN_PROGRESS");
+        assertThat(relation(result, 1, 2).shows().getFirst().state()).isEqualTo("NOT_COUNTED");
+        assertThat(relation(result, 1, 2).opportunities()).isZero();
+        assertThat(relation(result, 1, 2).shows().getFirst().points()).isNull();
+    }
+
+    @Test
+    void s2T06SupportsOneHundredIdentitiesAndTwelveShowsWithSharedEntryEvidence() {
+        var fixture = new Fixture(100);
+        for (int show = 1; show <= 12; show++) { fixture.show(show, true); fixture.vote(show, 100, Map.of(1, 1)); }
+        var result = calculate(fixture.data());
+        assertThat(result.profiles()).hasSize(100);
+        assertThat(result.relations()).hasSize(9900);
+        assertThat(result.relations()).allSatisfy(r -> assertThat(r.shows()).hasSize(12));
+        assertThat(result.entryAwards()).hasSize(1188);
+        assertThat(result.relations().stream().mapToInt(ContestStatisticsResponse.Relation::points).sum()).isEqualTo(12 * 140);
+        assertThat(relation(result, 100, 1).twentyFives()).isEqualTo(12);
+        assertThat(relation(result, 100, 99).opportunities()).isEqualTo(12);
+        assertThat(relation(result, 100, 99).points()).isZero();
+    }
+
     private ContestStatisticsResponse calculate(ResultData data) {
         ResultClosureRules.validateClosed(data);
         return ContestStatistics.calculate(data, countries);

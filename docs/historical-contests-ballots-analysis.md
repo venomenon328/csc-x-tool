@@ -4,7 +4,7 @@
 **Stand:** 30.08.2026  
 **Status:** verbindliche fachliche Grundlage der Historik-Erweiterung; gezielte Fortschreibung am 07.10.2026
 
-Die freigegebene [Gesamtwertungs- und Statistikspezifikation](contest-statistics.md) ergänzt explizite Show-Ergebnisabschlüsse, abgeleitete Show-/Contestränge und Statistikansichten. Sie ersetzt die früheren pauschalen Ausschlüsse dieser Ableitungen in §§4 und 12.3. Die kanonischen Einreichungs-, Stimmzettel- und Legacy-Verträge dieses Dokuments bleiben erhalten; S1 liefert den Abschluss und die Gesamtwertung mit Verlauf, die weiteren Statistikansichten folgen in eigenen Paketen.
+Die freigegebene [Gesamtwertungs- und Statistikspezifikation](contest-statistics.md) ergänzt explizite Show-Ergebnisabschlüsse, abgeleitete Show-/Contestränge und Statistikansichten. Sie ersetzt die früheren pauschalen Ausschlüsse dieser Ableitungen in §§4 und 12.3. Die kanonischen Einreichungs-, Stimmzettel- und Legacy-Verträge dieses Dokuments bleiben erhalten; S1 liefert Abschluss/Gesamtwertung, S2 Profile, Beziehungen, Heatmap und einfache Rekorde. S3a/S3b und die gemeinsame manuelle Abnahme bleiben ausstehend.
 
 ## 1. Einordnung und Geltungsbereich
 
@@ -783,3 +783,5 @@ Es besteht kein weiterer fachlicher Klärungsbedarf für die Paketabgrenzung.
 ## 22. Nachgelagerte Gesamtwertung und Statistiken
 
 Die neuen Auswertungen sind in [contest-statistics.md](contest-statistics.md) und [Roadmap #14](https://github.com/venomenon328/csc-x-tool/issues/14) spezifiziert. Sie bilden eine eigene Lieferung nach den vorhandenen Historik-/Stimmzettelpaketen. Bereits abgeschlossene Kernpakete werden dadurch nicht rückwirkend erweitert oder wieder geöffnet. Der bestehende Analyseexport behält seinen unabhängigen Quellenumfang einschließlich ausdrücklich ausgewählter laufender Shows.
+
+S2 verwendet den kanonischen S1-Lesesnapshot für aktuelle wie historische Ausgaben. Namens-/Alias-/Länder-/Aktivänderungen ersetzen keine stabile Identität; eine veröffentlichte eigene Stimme zählt einmal, unabhängig vom persönlichen Snapshot. Native und vollständige JSON-Roundtrips erhalten reproduzierbare Statistiken ohne neue Statistikpersistenz. Konkrete Nachweise: [S2-Matrix](participant-statistics-verification.md).
