@@ -278,6 +278,6 @@ describe('App', () => {
       expect(await screen.findByRole('heading', { name: area, level: 1 })).toBeVisible()
       expect(screen.getByRole('navigation', { name: 'Contestauswertung' }).querySelectorAll('a')).toHaveLength(4)
     }
-    expect(fetchMock).toHaveBeenCalledWith('/api/contests/1/statistics', expect.anything())
+    expect(fetchMock).toHaveBeenCalledWith('/api/contests/1/statistics')
   })
 })
