@@ -42,7 +42,8 @@ function StatisticsContent({ contestId, view }: { contestId: number, view: 'part
   const selectedId = Number(query.get('participant'))
   const selected = data.standings.rows.find(r => r.participationId === selectedId) ?? null
   const profile = data.profiles.find(p => p.participationId === selected?.participationId)
-  const relations = all ? data.relations.filter(r => r.opportunities > 0) : data.relations.filter(r => data.topRelations.some(d => d.giverId === r.giverId && d.receiverId === r.receiverId))
+  const topKeys = new Set(data.topRelations.map(d => `${d.giverId}-${d.receiverId}`))
+  const relations = all ? data.relations.filter(r => r.opportunities > 0) : data.relations.filter(r => topKeys.has(`${r.giverId}-${r.receiverId}`))
   return <Stack spacing={3}>
     <Paper sx={{ p: 2 }}><Typography component="h2" variant="h6">Datenbasis: {data.standings.includedShowIds.length} von {data.standings.shows.length} Shows gewertet</Typography><Typography>{data.standings.shows.map(s => `Show ${s.showNumber}: ${closureLabels[s.status]}`).join(' · ')}</Typography><Typography color="text.secondary">Nur veröffentlichte Stimmzettel abgeschlossener Shows. Summen vergleichen Stimmzettelpunkte; fehlende Gelegenheiten sind keine Nullwerte.</Typography><Button onClick={refresh}>Statistiken aktualisieren</Button></Paper>
     {!data.standings.includedShowIds.length && <Alert severity="info">Noch keine gewertete Show. Es gibt keine Statistikrekordsieger.</Alert>}

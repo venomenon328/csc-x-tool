@@ -10,13 +10,17 @@ export function PersonLink({ data, id }: { data: Statistics, id: number }) {
 
 export function RelationList({ data, relations, title, open }: { data: Statistics, relations: Relation[], title: string, open: (direction: Direction) => void }) {
   const [page, setPage] = useState(0)
+  const indexed = useMemo(() => new Map(data.relations.map(r => [`${r.giverId}-${r.receiverId}`, r])), [data])
   return <Stack spacing={1}>
     <Typography component="h3" variant="h6">{title}</Typography>
     {!relations.length ? <Typography>Keine auswertbaren Beziehungen in dieser Liste.</Typography> : <>
-      <TableContainer component={Paper}><Table size="small" aria-label={title}><TableHead><TableRow><TableCell>Geber → Empfänger</TableCell><TableCell>Stimmzettelpunkte</TableCell><TableCell>Bepunktet / Gelegenheiten</TableCell><TableCell>Ø je Gelegenheit</TableCell><TableCell>25er</TableCell><TableCell>Belege</TableCell></TableRow></TableHead>
-        <TableBody>{relations.slice(page * 25, (page + 1) * 25).map(r => <TableRow key={`${r.giverId}-${r.receiverId}`}>
-          <TableCell><PersonLink data={data} id={r.giverId} /> → <PersonLink data={data} id={r.receiverId} /></TableCell><TableCell>{r.points}</TableCell><TableCell>{r.scoredShows} / {r.opportunities}</TableCell><TableCell>{decimal(r.average)}</TableCell><TableCell>{r.twentyFives}</TableCell><TableCell><Button onClick={() => open(r)}>Beziehung öffnen</Button></TableCell>
-        </TableRow>)}</TableBody></Table></TableContainer>
+      <TableContainer component={Paper}><Table size="small" aria-label={title}><TableHead><TableRow><TableCell>Geber → Empfänger</TableCell><TableCell>Stimmzettelpunkte</TableCell><TableCell>Bepunktet / Gelegenheiten</TableCell><TableCell>Ø je Gelegenheit</TableCell><TableCell>25er</TableCell><TableCell>Gegenrichtung / Gelegenheiten</TableCell><TableCell>Belege</TableCell></TableRow></TableHead>
+        <TableBody>{relations.slice(page * 25, (page + 1) * 25).map(r => {
+          const reverse = indexed.get(`${r.receiverId}-${r.giverId}`)
+          return <TableRow key={`${r.giverId}-${r.receiverId}`}>
+            <TableCell><PersonLink data={data} id={r.giverId} /> → <PersonLink data={data} id={r.receiverId} /></TableCell><TableCell>{r.points}</TableCell><TableCell>{r.scoredShows} / {r.opportunities}</TableCell><TableCell>{decimal(r.average)}</TableCell><TableCell>{r.twentyFives}</TableCell><TableCell>{reverse?.opportunities ? reverse.points : 'N/A'} / {reverse?.opportunities ?? 0}</TableCell><TableCell><Button onClick={() => open(r)}>Beziehung öffnen</Button></TableCell>
+          </TableRow>
+        })}</TableBody></Table></TableContainer>
       {relations.length > 25 && <Stack direction="row" spacing={1}><Button disabled={page === 0} onClick={() => setPage(p => p - 1)}>Vorherige Beziehungen</Button><Typography>Zeilen {page * 25 + 1}–{Math.min((page + 1) * 25, relations.length)} von {relations.length}</Typography><Button disabled={(page + 1) * 25 >= relations.length} onClick={() => setPage(p => p + 1)}>Weitere Beziehungen</Button></Stack>}
     </>}
   </Stack>
