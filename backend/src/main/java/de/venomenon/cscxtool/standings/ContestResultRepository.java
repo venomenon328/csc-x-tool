@@ -2,6 +2,8 @@ package de.venomenon.cscxtool.standings;
 
 import de.venomenon.cscxtool.contest.ContestNotFoundException;
 import de.venomenon.cscxtool.show.ShowNotFoundException;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -28,7 +30,7 @@ public class ContestResultRepository {
         var entries = jdbc.query("""
                 SELECT e.id, e.motto_show_id, e.contest_participation_id, e.artist, e.title FROM contest_entry e
                 JOIN motto_show s ON s.id = e.motto_show_id WHERE s.contest_id = ? ORDER BY e.pool_position, e.id
-                """, (r, n) -> new ResultData.Entry(r.getLong(1), r.getLong(2), (Long) r.getObject(3, Long.class), r.getString(4), r.getString(5)), contestId);
+                """, (r, n) -> new ResultData.Entry(r.getLong(1), r.getLong(2), nullableLong(r, 3), r.getString(4), r.getString(5)), contestId);
         var ballots = jdbc.query("""
                 SELECT b.id, b.motto_show_id, b.contest_participation_id, b.status FROM published_ballot b
                 JOIN motto_show s ON s.id = b.motto_show_id WHERE s.contest_id = ?
@@ -42,5 +44,10 @@ public class ContestResultRepository {
 
     void setClosed(long showId, String closedAt) {
         jdbc.update("UPDATE motto_show SET result_closed_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", closedAt, showId);
+    }
+
+    private static Long nullableLong(ResultSet result, int column) throws SQLException {
+        long value = result.getLong(column);
+        return result.wasNull() ? null : value;
     }
 }
