@@ -18,7 +18,7 @@ it('requires a conscious confirmation and explains reopening without changing pe
   expect(api.change).not.toHaveBeenCalled()
   await user.click(screen.getByRole('button', { name: 'Bewusst bestätigen' }))
   expect(await screen.findByText('Showergebnis · Abgeschlossen')).toBeVisible()
-  await user.click(screen.getByRole('button', { name: 'Show wieder öffnen' }))
+  await user.click(await screen.findByRole('button', { name: 'Show wieder öffnen' }))
   expect(screen.getByRole('dialog')).toHaveTextContent('entfällt sofort aus Gesamtwertung und Verlauf')
   expect(screen.getByRole('dialog')).toHaveTextContent('Persönliche Top-15-Snapshots')
   await user.click(screen.getByRole('button', { name: 'Bewusst bestätigen' }))

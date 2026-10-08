@@ -38,7 +38,7 @@ describe('contest standings', () => {
     expect(screen.getByRole('dialog')).toHaveTextContent('Showrang: 15')
     expect(screen.getByRole('dialog')).toHaveTextContent('Stimmzettelpunkte: 10')
     await user.click(screen.getByRole('button', { name: 'Schließen' }))
-    await user.click(screen.getByRole('combobox', { name: 'Teilnehmer für den Verlauf auswählen' }))
+    await user.click(await screen.findByRole('combobox', { name: 'Teilnehmer für den Verlauf auswählen' }))
     await user.click(screen.getByRole('option', { name: 'Participant 16 · Deutschland' }))
     const chart = screen.getByRole('img', { name: 'Gesamtwertungspunkte nach Showreihenfolge' })
     expect(chart.querySelectorAll('circle')).toHaveLength(2)

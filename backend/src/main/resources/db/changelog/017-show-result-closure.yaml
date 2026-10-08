@@ -3,9 +3,5 @@ databaseChangeLog:
       id: 017-show-result-closure
       author: codex
       changes:
-        - addColumn:
-            tableName: motto_show
-            columns:
-              - column:
-                  name: result_closed_at
-                  type: TEXT
+        - sql:
+            sql: ALTER TABLE motto_show ADD COLUMN result_closed_at TEXT
