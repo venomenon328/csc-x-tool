@@ -131,17 +131,22 @@ class ShowResultApiIntegrationTest {
         service.close(id);
         var before = service.standings(id);
         assertThat(send("PUT", "/api/shows/" + id + "/entries/" + (id + 18) + "/participant", "{\"participantId\":null}").body()).contains("SHOW_RESULT_CLOSED");
-        assertThat(send("POST", "/api/shows/" + id + "/entries/assignment-import", "{\"assignments\":[{\"entryId\":" + (id + 18) + ",\"participationId\":" + (id + 19) + ",\"expectedParticipationId\":" + (id + 18) + ",\"confirmReplacement\":true}]}").statusCode()).isEqualTo(409);
+        String swap = mapper.writeValueAsString(Map.of("assignments", List.of(
+                Map.of("entryId", id + 16, "participationId", id + 17, "expectedParticipationId", id + 16, "confirmReplacement", true),
+                Map.of("entryId", id + 17, "participationId", id + 16, "expectedParticipationId", id + 17, "confirmReplacement", true))));
+        assertThat(send("POST", "/api/shows/" + id + "/entries/assignment-import", swap).body()).contains("SHOW_RESULT_CLOSED");
         assertThat(send("POST", "/api/shows/" + id + "/entries/import", "{\"entries\":[]}").body()).contains("SHOW_RESULT_CLOSED");
         assertThat(send("PATCH", "/api/shows/" + id + "/entries/" + (id + 18), "{\"artist\":\"Cosmetic\",\"title\":\"Song\",\"youtubeUrl\":\"https://www.youtube.com/watch?v=dQw4w9WgXcQ\"}").statusCode()).isEqualTo(200);
         assertThat(send("POST", "/api/shows/" + id + "/ballot/reopen", "").statusCode()).isEqualTo(200);
         assertThat(service.standings(id).rows().stream().map(ContestStandingsResponse.Row::totalPoints)).containsExactlyElementsOf(before.rows().stream().map(ContestStandingsResponse.Row::totalPoints).toList());
-        assertThat(send("PUT", "/api/shows/" + id + "/entries/own-entry-resolution", "{\"resolution\":\"NO_OWN_ENTRY\"}").body()).contains("SHOW_RESULT_CLOSED");
+        // Reconfirming a personal state without any canonical assignment change stays allowed.
+        assertThat(send("PUT", "/api/shows/" + id + "/entries/own-entry-resolution", "{\"resolution\":\"NO_OWN_ENTRY\"}").statusCode()).isEqualTo(204);
         service.reopen(id);
         // Establish an actual own-entry assignment through the supported path.
         send("PUT", "/api/contests/" + id + "/own-participation", "{\"participationId\":" + (id + 18) + ",\"confirmChange\":true}");
         assertThat(send("PUT", "/api/shows/" + id + "/entries/own-entry-resolution", "{\"resolution\":\"OWN_ENTRY\",\"entryId\":" + (id + 18) + "}").statusCode()).isEqualTo(204);
         service.close(id);
+        assertThat(send("PUT", "/api/shows/" + id + "/entries/own-entry-resolution", "{\"resolution\":\"NO_OWN_ENTRY\"}").body()).contains("SHOW_RESULT_CLOSED");
         assertThat(send("PUT", "/api/contests/" + id + "/own-participation", "{\"participationId\":" + (id + 19) + ",\"confirmChange\":true}").body()).contains("SHOW_RESULT_CLOSED");
         assertThat(jdbc.queryForObject("SELECT own_participation_id FROM contest WHERE id = ?", Long.class, id)).isEqualTo(id + 18);
     }
@@ -188,8 +193,16 @@ class ShowResultApiIntegrationTest {
         old.put("formatVersion", 10);
         for (var show : old.path("data").path("mottoShows")) ((tools.jackson.databind.node.ObjectNode) show).remove("resultClosedAt");
         Path file = Files.createTempFile(ROOT, "v10-", ".json");
-        Files.write(file, mapper.writeValueAsBytes(old));
-        assertThat(exports.readAndValidate(file).data().mottoShows()).allSatisfy(s -> assertThat(s.resultClosedAt()).isNull());
+        for (int version = 7; version <= 10; version++) {
+            var legacy = old.deepCopy();
+            legacy.put("formatVersion", version);
+            var legacyData = (tools.jackson.databind.node.ObjectNode) legacy.path("data");
+            if (version < 10) legacyData.remove("participantBotbSelections");
+            if (version < 9) legacyData.remove("ownEntryResolutions");
+            if (version < 8) { legacyData.remove("tipsGames"); legacyData.remove("tipsGameAssignments"); }
+            Files.write(file, mapper.writeValueAsBytes(legacy));
+            assertThat(exports.readAndValidate(file).data().mottoShows()).allSatisfy(show -> assertThat(show.resultClosedAt()).isNull());
+        }
         old.put("formatVersion", 11);
         Files.write(file, mapper.writeValueAsBytes(old));
         assertThatThrownBy(() -> exports.readAndValidate(file)).isInstanceOf(BackupFileException.class);

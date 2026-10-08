@@ -11,6 +11,7 @@ Das Tool begleitet den praktischen Ablauf einer Mottoshow:
 5. nach Abschluss der Abstimmung Beiträge den Teilnehmern zuordnen
 6. veröffentlichte vollständige Stimmzettel erfassen und die erhaltenen Punkte daraus ableiten
 7. den Showzwischenstand und die eigene Einreichung auswerten
+8. das vollständige Showergebnis bewusst abschließen und die Contest-Gesamtwertung mit Verlauf ansehen
 
 ## Projektstatus
 
@@ -24,7 +25,7 @@ Am 07.10.2026 wurde die Erweiterung um explizite Show-Ergebnisabschlüsse, Conte
 
 Die Seite `/data` erzeugt manuelle Sicherungen, listet automatische und manuelle Artefakte, lädt sie herunter und führt Restore-Vorschau sowie eine separate Bestätigung aus. Backups sind einzelne `.cscbackup`-Container mit einem SQLite-Snapshot und prüfbarem Manifest; sie dürfen nicht manuell verändert werden. Bei jedem Restore entsteht unmittelbar davor eine zusätzliche, nicht rotierte Sicherheitskopie.
 
-Der vollständige JSON-Download verwendet den versionierten Contract `csc-x-tool-full-export` v3 und enthält alle fachlichen Daten einschließlich Einschätzung und Sicherheit, historischer Top-15-Snapshots und Ergebniszustände. JSON-v1 und JSON-v2 bleiben für Restore-Imports kompatibel. CSV-Downloads sind UTF-8 mit BOM, Semikolon und CRLF für Kandidaten, Wettbewerbsbeiträge, Teilnehmer und Ergebnisse. Der bestehende Top-15-Textdownload bleibt getrennt.
+Der vollständige JSON-Download verwendet den versionierten Contract `csc-x-tool-full-export` v11 und enthält alle fachlichen Daten einschließlich Einschätzung und Sicherheit, historischer Top-15-Snapshots und expliziter Show-Ergebnisabschlüsse. JSON-v1 bis v10 bleiben für Restore-Imports kompatibel und erhalten ohne Abschlussmarker einen offenen Ergebniszustand. CSV-Downloads sind UTF-8 mit BOM, Semikolon und CRLF für Kandidaten, Wettbewerbsbeiträge, Teilnehmer und Ergebnisse. Der bestehende Top-15-Textdownload bleibt getrennt.
 
 ## Festgelegte Grundrichtung
 

@@ -207,7 +207,6 @@ class ContestEntryService {
 
     @Transactional
     void updateOwnEntryResolution(long showId, UpdateOwnEntryResolutionRequest request) {
-        closureGuard.showOpen(showId);
         requireCurrentShow(showId);
         if (request == null || request.resolution() == null
                 || (request.resolution() != OwnEntryResolution.OWN_ENTRY && request.resolution() != OwnEntryResolution.NO_OWN_ENTRY)) {
@@ -236,6 +235,7 @@ class ContestEntryService {
                         "INVALID_OWN_ENTRY_RESOLUTION", "Die Bestätigung ohne eigene Einreichung darf keinen Beitrag enthalten."
                 );
             }
+            guardOwnAssignmentChanges(showId, state, null);
             clearResolvedOwnEntry(showId, state);
             repository.clearOwnEntryParticipationAssignments(showId, ownParticipationId);
             repository.updateOwnEntryResolution(showId, OwnEntryResolution.NO_OWN_ENTRY, ownParticipationId, null);
@@ -265,6 +265,7 @@ class ContestEntryService {
                     "Der Beitrag ist bereits gerankt. Bestätige bewusst, dass er atomar aus deiner Rangliste entfernt wird."
             );
         }
+        guardOwnAssignmentChanges(showId, state, target.id());
         clearResolvedOwnEntry(showId, state);
         repository.clearOwnEntryParticipationAssignments(showId, ownParticipationId);
         repository.assignOwnEntry(showId, target.id(), ownParticipationId);
@@ -685,6 +686,21 @@ class ContestEntryService {
         }
         if (state.resolvedParticipationId() != null) {
             repository.clearOwnEntryParticipationAssignments(showId, state.resolvedParticipationId());
+        }
+    }
+
+    private void guardOwnAssignmentChanges(long showId, ContestEntryRepository.OwnEntryState state, Long targetEntryId) {
+        Set<Long> clearedParticipations = new HashSet<>();
+        if (state.resolvedParticipationId() != null) clearedParticipations.add(state.resolvedParticipationId());
+        if (state.currentOwnParticipationId() != null) clearedParticipations.add(state.currentOwnParticipationId());
+        for (long participationId : clearedParticipations) {
+            repository.findEntryIdByParticipation(showId, participationId).ifPresent(entryId -> {
+                if (!java.util.Objects.equals(entryId, targetEntryId)) closureGuard.showOpen(showId);
+            });
+        }
+        if (targetEntryId != null && !java.util.Objects.equals(
+                repository.findActualParticipationId(targetEntryId, showId).orElse(null), state.currentOwnParticipationId())) {
+            closureGuard.showOpen(showId);
         }
     }
 

@@ -3,9 +3,10 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, expect, it, vi } from 'vitest'
 import { ResultClosurePanel } from './ResultClosurePanel'
+import type * as ContestApi from './contestApi'
 
 const api = vi.hoisted(() => ({ fetch: vi.fn(), change: vi.fn() }))
-vi.mock('./contestApi', async (original) => ({ ...await original<typeof import('./contestApi')>(), fetchResultClosure: api.fetch, changeResultClosure: api.change }))
+vi.mock('./contestApi', async (original) => ({ ...await original<typeof ContestApi>(), fetchResultClosure: api.fetch, changeResultClosure: api.change }))
 const ready = { showId: 1, contestId: 1, status: 'READY', closedAt: null, reasons: [] }
 beforeEach(() => { api.fetch.mockReset(); api.change.mockReset(); api.fetch.mockResolvedValue(ready) })
 

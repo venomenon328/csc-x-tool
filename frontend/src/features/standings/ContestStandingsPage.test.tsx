@@ -4,10 +4,11 @@ import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ContestStandingsPage } from './ContestStandingsPage'
 import type { ContestStandings } from './contestApi'
+import type * as ContestApi from './contestApi'
 
 const state = vi.hoisted(() => ({ contestId: 1, fetch: vi.fn() }))
 vi.mock('../contests/ContestContext', () => ({ useContest: () => ({ selectedContestId: state.contestId, selectedContest: { name: `CSC ${state.contestId}` } }) }))
-vi.mock('./contestApi', async (original) => ({ ...await original<typeof import('./contestApi')>(), fetchContestStandings: state.fetch }))
+vi.mock('./contestApi', async (original) => ({ ...await original<typeof ContestApi>(), fetchContestStandings: state.fetch }))
 
 function fixture(contestId = 1): ContestStandings {
   return {

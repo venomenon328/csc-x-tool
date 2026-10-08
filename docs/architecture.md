@@ -661,7 +661,7 @@ Vorgesehene Struktur:
 - Serverzugriffe auf die Datenbank werden während des Austauschs gesperrt
 - nach erfolgreicher Wiederherstellung wird die Datenbank erneut geöffnet und geprüft
 
-Der vollständige JSON-Export ist ein versionierter Fachvertrag (aktuell Version 11). Er enthält die normalisierte BOTB-Auswahlliste einschließlich stabiler IDs, Teilnehmerreferenzen, Ausgabe, Interpret, optionalem Bekannt-seit-Datum und Zeitstempeln. Ein Restore validiert die Gesamtdaten vor dem Staging vollständig; BOTB-Auswahlen werden erst nach ihren Teilnehmeridentitäten wiederhergestellt. Ältere unterstützte Formate werden mit einer leeren BOTB-Liste hochgestuft.
+Der vollständige JSON-Export ist ein versionierter Fachvertrag (aktuell Version 11). Er enthält die normalisierte BOTB-Auswahlliste einschließlich stabiler IDs, Teilnehmerreferenzen, Ausgabe, Interpret, optionalem Bekannt-seit-Datum und Zeitstempeln. Ein Restore validiert die Gesamtdaten vor dem Staging vollständig; BOTB-Auswahlen werden erst nach ihren Teilnehmeridentitäten wiederhergestellt. Unterstützte Formate vor v10 werden mit einer leeren BOTB-Liste hochgestuft; v10 bewahrt die vorhandenen BOTB-Auswahlen.
 
 ## 16. Launcher und Prozesslebenszyklus
 
