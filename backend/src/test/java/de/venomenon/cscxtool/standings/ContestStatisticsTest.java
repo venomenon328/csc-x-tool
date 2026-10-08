@@ -50,7 +50,7 @@ class ContestStatisticsTest {
         assertThat(result.pairs()).noneMatch(p -> p.firstId() == 1 && p.secondId() == 21);
         assertThat(result.relations()).allSatisfy(r -> {
             assertThat(r.points()).isEqualTo(r.shows().stream().filter(e -> e.points() != null).mapToInt(ContestStatisticsResponse.Evaluation::points).sum());
-            assertThat(r.opportunities()).isEqualTo(r.shows().stream().filter(e -> e.points() != null).count());
+            assertThat(r.opportunities()).isEqualTo((int) r.shows().stream().filter(e -> e.points() != null).count());
         });
     }
 

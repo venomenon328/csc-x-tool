@@ -104,7 +104,7 @@ describe('S2-T06 statistics UI and shared evidence', () => {
   it('opens all four record kinds and their show, contribution or run evidence', async () => {
     const user = userEvent.setup()
     renderPage('records')
-    for (const title of ['Punktepartnerschaft', 'Unerwiderte Punkteliebe', 'König der 25er', 'Dauerbrenner']) expect(await screen.findByRole('heading', { name: title, exact: true })).toBeVisible()
+    for (const title of ['Punktepartnerschaft', 'Unerwiderte Punkteliebe', 'König der 25er', 'Dauerbrenner']) expect(await screen.findByRole('heading', { name: title })).toBeVisible()
     await user.click(screen.getAllByRole('button', { name: 'Rekordbelege öffnen' })[0])
     expect(screen.getByRole('dialog')).toHaveTextContent('Gemeinsame beidseitige Basis: 2 Shows')
     await closeDialog(user)

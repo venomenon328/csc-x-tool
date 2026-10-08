@@ -272,9 +272,9 @@ describe('App', () => {
     })
     render(<App />)
     const mainNavigation = screen.getByRole('list', { name: 'Hauptnavigation' })
-    expect(within(mainNavigation).getByRole('link', { name: 'Teilnehmer', exact: true })).toHaveAttribute('href', '/participants')
+    expect(within(mainNavigation).getByRole('link', { name: 'Teilnehmer' })).toHaveAttribute('href', '/participants')
     for (const area of ['Teilnehmerprofile', 'Punktebeziehungen', 'Rekorde', 'Gesamtwertung']) {
-      await user.click(within(mainNavigation).getByRole('link', { name: area, exact: true }))
+      await user.click(within(mainNavigation).getByRole('link', { name: area }))
       expect(await screen.findByRole('heading', { name: area, level: 1 })).toBeVisible()
       expect(screen.getByRole('navigation', { name: 'Contestauswertung' }).querySelectorAll('a')).toHaveLength(4)
     }
