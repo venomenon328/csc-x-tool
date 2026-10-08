@@ -5,6 +5,7 @@ import { StandingsChart } from '../standings/StandingsChart'
 import { decimal, evaluationLabels, percent, type Direction, type Profile, type Statistics } from './api'
 import { PersonLink, RelationList } from './RelationshipViews'
 import { nameOf } from './labels'
+import { EntryDistribution } from './PreferenceViews'
 
 export type Evidence = { kind: 'entry', id: number } | { kind: 'points' | 'podium', id: number }
 type Actions = { openRelation: (direction: Direction) => void, openEvidence: (evidence: Evidence) => void }
@@ -81,6 +82,7 @@ export function EvidenceDetail({ data, evidence, close, openRelation }: { data: 
   return <Dialog open={evidence !== null} onClose={close} fullWidth maxWidth="md"><DialogTitle>{entry ? `Beitragsdetails · ${entry.artist} – ${entry.title}` : `Serienbelege · ${profile ? nameOf(data, profile.participationId) : ''}`}</DialogTitle><DialogContent><Stack spacing={2}>
     {entry && <><Typography>Show {data.standings.shows.find(s => s.showId === entry.showId)?.showNumber} · {entry.participationId !== null && nameOf(data, entry.participationId)}</Typography><Typography>{award ? `${award.twentyFives} erhaltene 25er / ${award.opportunities} wählbare Bewertungen · Quote ${percent(award.rate)}` : 'Show nicht gewertet; keine Rekordbasis.'}</Typography><Typography>Showrang: {data.standings.rows.find(r => r.participationId === entry.participationId)?.shows.find(c => c.showId === entry.showId)?.showRank ?? 'N/A'}</Typography>
       <Button component={RouterLink} to={`/shows/${entry.showId}/evaluation?view=standings`}>Showauswertung öffnen</Button>
+      <EntryDistribution data={data} id={entry.id} />
       <TableContainer><Table size="small" aria-label="Beitragswertungen"><TableHead><TableRow><TableCell>Geber</TableCell><TableCell>Punkte / Rang / Zustand</TableCell><TableCell>Beleg</TableCell></TableRow></TableHead><TableBody>{data.standings.rows.map(giver => {
         const evaluation = data.relations.find(r => r.giverId === giver.participationId && r.receiverId === entry.participationId)?.shows.find(e => e.showId === entry.showId)
         return <TableRow key={giver.participationId}><TableCell><PersonLink data={data} id={giver.participationId} /></TableCell><TableCell>{giver.participationId === entry.participationId ? 'Eigene Einreichung · nicht wählbar' : `${evaluation?.points ?? 'N/A'} · ${evaluation ? evaluationLabels[evaluation.state] : 'Keine Gelegenheit'}${evaluation?.ballotRank != null ? ` · Rang ${evaluation.ballotRank}` : ''}`}</TableCell><TableCell>{giver.participationId !== entry.participationId && entry.participationId !== null && <Button onClick={() => { close(); openRelation({ giverId: giver.participationId, receiverId: entry.participationId! }) }}>Beziehung öffnen</Button>}</TableCell></TableRow>

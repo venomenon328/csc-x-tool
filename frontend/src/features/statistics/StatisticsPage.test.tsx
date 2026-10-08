@@ -1,10 +1,11 @@
-import { act, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { StatisticsPage } from './StatisticsPage'
 import { Heatmap } from './RelationshipViews'
-import type { Statistics, Relation } from './api'
+import type { Statistics, Relation, Metric } from './api'
+import { PreferenceRecords } from './PreferenceViews'
 import type * as statisticsApi from './api'
 
 const state = vi.hoisted(() => ({ contestId: 1, fetch: vi.fn() }))
@@ -29,6 +30,7 @@ function fixture(contestId = 1, size = 8): Statistics {
   }
   relations.sort((a, b) => b.points - a.points)
   return {
+    preferences: { showBases: [], pairs: [], parallelOrder: [], entries: [], audienceOrder: [], polarizationOrder: [], exclusiveOrder: [], participants: rows.map(r => ({ participationId: r.participationId, consensus: missing('Keine berechenbare Show'), comparedShows: 0, shows: [], exclusivePoints: 0, exclusiveEntryIds: [], exclusiveTwentyFiveEntryIds: [] })), records: { twins: [], parallels: [], audienceEntryIds: [], polarizationEntryIds: [], exclusiveParticipantIds: [], consensusParticipantIds: [] } },
     standings: { contestId, includedShowIds: [1, 2, 3, 4, 5], shows: [1, 2, 3, 4, 5].map(showId => ({ showId, showNumber: showId, name: `Show ${showId}`, status: 'CLOSED', closedAt: '2026-10-08T00:00:00Z' })), rows },
     entries: rows.flatMap(r => r.shows.map(c => ({ id: c.entryId, showId: c.showId, participationId: r.participationId, artist: c.artist, title: c.title }))), relations,
     topRelations: relations.filter(r => r.points > 0).map(r => ({ giverId: r.giverId, receiverId: r.receiverId })),
@@ -39,6 +41,60 @@ function fixture(contestId = 1, size = 8): Statistics {
     entryAwards: [{ entryId: 102, twentyFives: 1, opportunities: 3, rate: 1 / 3 }],
     records: { partnerships: [{ giverId: 1, receiverId: 2 }], unrequited: [{ giverId: 1, receiverId: 2 }], twentyFiveParticipantIds: [2], twentyFiveEntryIds: [102], pointRunParticipantIds: [1, 2], podiumRunParticipantIds: [1], top15ParticipantIds: [1], podiumParticipantIds: [1] },
   }
+}
+
+function metric(n: number, d = 1): Metric { return { numerator: String(n), denominator: String(d), value: n / d, reason: null } }
+function missing(reason: string): Metric { return { numerator: null, denominator: null, value: null, reason } }
+
+/** Synthetic complete 15-position / 140-point ballots, shared once per show. */
+function preferenceFixture(size = 40, showCount = 2): Statistics {
+  const d = fixture(1, size)
+  const keys = [0,1,2,3,4,5,6,7,8,9,10,11,13,16,20,25]
+  const points = [25,20,16,13,11,10,9,8,7,6,5,4,3,2,1]
+  d.standings.shows = Array.from({ length: showCount }, (_, i) => ({ showId: i + 1, showNumber: i + 1, name: `Show ${i + 1}`, status: 'CLOSED', closedAt: '2026-10-08T00:00:00Z' }))
+  d.standings.includedShowIds = d.standings.shows.map(s => s.showId)
+  d.entries = d.standings.shows.flatMap(s => d.standings.rows.map(r => ({ id: s.showId * 1000 + r.participationId, showId: s.showId, participationId: r.participationId, artist: `Artist ${r.participationId}`, title: `Song ${r.participationId}` })))
+  d.preferences.showBases = d.standings.shows.map(s => ({ showId: s.showId, ballots: [1,2].map(id => ({ ballotId: s.showId * 1000 + id, participationId: id, positions: points.map((p, i) => ({ entryId: s.showId * 1000 + i + 3, rank: i + 1, points: p })) })) }))
+  const pairs = []
+  for (let a = 1; a <= size; a++) for (let b = a + 1; b <= size; b++) pairs.push({ firstId: a, secondId: b, similarity: a === 1 && b === 2 ? metric(1) : missing('Keine berechenbare gemeinsame Show'), comparedShows: a === 1 && b === 2 ? showCount : 0,
+    shows: d.standings.shows.map(s => ({ showId: s.showId, similarity: a === 1 && b === 2 ? metric(1) : missing('Keine gemeinsame vollständige Abgabe'), comparisonEntries: size - 2, excludedEntryIds: [s.showId * 1000 + a, s.showId * 1000 + b] })),
+  })
+  d.preferences.pairs = pairs
+  d.preferences.parallelOrder = pairs.map(p => ({ giverId: p.firstId, receiverId: p.secondId }))
+  d.preferences.entries = d.entries.map(e => {
+    const p = points[e.participationId! - 3] ?? 0
+    const n = e.participationId! <= 2 ? 1 : 2
+    return { entryId: e.id, evaluations: n, positiveEvaluations: p > 0 ? n : 0, sumPoints: n * p, twentyFives: p === 25 ? n : 0, audienceRate: metric(p > 0 ? 1 : 0), variance: metric(0), standardDeviation: 0, polarizationEligible: n >= 2, histogram: keys.map(k => ({ points: k, count: k === p ? n : 0 })), exclusiveGiverId: null, exclusivePoints: 0 }
+  })
+  d.preferences.audienceOrder = [...d.preferences.entries].sort((a,b) => b.audienceRate.value! - a.audienceRate.value!).map(e => e.entryId)
+  d.preferences.polarizationOrder = d.preferences.entries.filter(e => e.polarizationEligible).map(e => e.entryId)
+  d.preferences.participants = d.standings.rows.map(r => ({ participationId: r.participationId, consensus: r.participationId <= 2 ? metric(1) : missing('Kein vollständiger eigener Stimmzettel'), comparedShows: r.participationId <= 2 ? showCount : 0, shows: d.standings.shows.map(s => ({ showId: s.showId, similarity: r.participationId <= 2 ? metric(1) : missing('Kein vollständiger eigener Stimmzettel'), otherBallots: r.participationId <= 2 ? 1 : 2, comparisonEntries: size - 1, excludedEntryId: s.showId * 1000 + r.participationId, ownPointSum: r.participationId <= 2 ? 140 : 0, fieldPointSum: r.participationId <= 2 ? 140 : 280 })), exclusivePoints: 0, exclusiveEntryIds: [], exclusiveTwentyFiveEntryIds: [] }))
+  d.preferences.records = { twins: [{ giverId: 1, receiverId: 2 }], parallels: [{ giverId: 1, receiverId: 2 }], audienceEntryIds: d.preferences.entries.filter(e => e.positiveEvaluations > 0).map(e => e.entryId), polarizationEntryIds: d.preferences.polarizationOrder, exclusiveParticipantIds: [], consensusParticipantIds: [1,2] }
+  // S1 and S2 use the same entries and two complete votes; no stale IDs from the legacy UI fixture.
+  d.entryAwards = d.preferences.entries.map(e => ({ entryId: e.entryId, twentyFives: e.twentyFives, opportunities: e.evaluations, rate: e.twentyFives / e.evaluations }))
+  for (const r of d.standings.rows) {
+    const rank = r.participationId >= 3 && r.participationId <= 17 ? r.participationId - 2 : 16
+    const p = points[rank - 1] ?? 0
+    r.rank = rank; r.totalPoints = p * showCount
+    r.shows = d.standings.shows.map(s => ({ showId: s.showId, state: 'SCORED_ENTRY', entryId: s.showId * 1000 + r.participationId, artist: `Artist ${r.participationId}`, title: `Song ${r.participationId}`, ballotPoints: p * 2, showRank: rank, contestPoints: p }))
+    r.history = d.standings.shows.map(s => ({ showId: s.showId, showNumber: s.showNumber, included: true, totalPoints: p * s.showNumber, rank, rankChange: null }))
+  }
+  d.relations = d.relations.map(r => {
+    const p = r.giverId <= 2 ? points[r.receiverId - 3] ?? 0 : null
+    return { ...r, points: (p ?? 0) * showCount, scoredShows: p ? showCount : 0, opportunities: p === null ? 0 : showCount, average: p, twentyFives: p === 25 ? showCount : 0,
+      shows: d.standings.shows.map(s => ({ showId: s.showId, entryId: s.showId * 1000 + r.receiverId, state: p === null ? 'NOT_VOTED' : p === 0 ? 'OUTSIDE_TOP_15' : 'POINTS', points: p, ballotRank: p ? r.receiverId - 2 : null })),
+    }
+  }).sort((a,b) => b.points - a.points)
+  d.topRelations = d.relations.filter(r => r.receiverId <= 7 && r.points > 0).map(r => ({ giverId: r.giverId, receiverId: r.receiverId }))
+  d.pairs = [{ firstId: 1, secondId: 2, firstToSecond: 0, secondToFirst: 0, partnership: 0, difference: 0, strongerGiverId: null, commonShowIds: d.standings.includedShowIds }]
+  d.profiles = d.profiles.map(p => {
+    const own = d.preferences.entries.filter(e => d.entries.find(v => v.id === e.entryId)?.participationId === p.participationId)
+    const row = d.standings.rows.find(r => r.participationId === p.participationId)!
+    const run = { length: showCount, firstShowId: 1, lastShowId: showCount, showIds: d.standings.includedShowIds }
+    return { ...p, topGiverIds: row.rank! <= 15 ? [1,2] : [], topReceiverIds: p.participationId <= 2 ? [3,4,5,6,7] : [], twentyFives: p.participationId === 3 ? 2 * showCount : 0, opportunities: own.reduce((sum,e) => sum + e.evaluations,0), twentyFiveRate: p.participationId === 3 ? 1 : 0, countedEntries: showCount, top15Count: row.rank! <= 15 ? showCount : 0, podiumCount: row.rank! <= 3 ? showCount : 0, wins: row.rank === 1 ? showCount : 0, pointRuns: row.rank! <= 15 ? [run] : [], podiumRuns: row.rank! <= 3 ? [run] : [] }
+  })
+  d.records = { partnerships: [], unrequited: [], twentyFiveParticipantIds: [3], twentyFiveEntryIds: d.entryAwards.filter(a => a.twentyFives > 0).map(a => a.entryId), pointRunParticipantIds: Array.from({ length: 15 },(_,i) => i + 3), podiumRunParticipantIds: [3,4,5], top15ParticipantIds: Array.from({ length: 15 },(_,i) => i + 3), podiumParticipantIds: [3,4,5] }
+  return d
 }
 
 function renderPage(view: 'participants' | 'relationships' | 'records', initial = `/statistics/${view}`) {
@@ -190,5 +246,132 @@ describe('S2-T06 statistics UI and shared evidence', () => {
     expect(await screen.findByText(/Noch keine gewertete Show/)).toBeVisible()
     expect(screen.queryByRole('button', { name: 'Rekordbelege öffnen' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '25er-Beitragsbelege öffnen' })).not.toBeInTheDocument()
+  })
+})
+
+describe('S3a-T07 preference views, shared drilldown and freshness', () => {
+  beforeEach(() => { state.contestId = 1; state.fetch.mockReset(); state.fetch.mockResolvedValue(preferenceFixture()) })
+
+  it('opens all six kinds, excluded own songs, complete pair evidence, histogram and consensus ballots', async () => {
+    const user = userEvent.setup()
+    renderPage('records')
+    for (const title of ['Geschmackszwillinge', 'Musikalische Paralleluniversen', 'Publikumsliebling', 'Kult oder Skip', 'Allein auf weiter Flur', 'Konsensbeauftragter']) expect(await screen.findByRole('heading', { name: title })).toBeVisible()
+    await user.click(screen.getAllByRole('button', { name: 'Favoritenvergleich öffnen' })[0])
+    let dialog = screen.getByRole('dialog')
+    expect(dialog).toHaveTextContent('100 % · Basis: 2 Shows')
+    expect(dialog).toHaveTextContent('Ausgeschlossene eigene Einreichungen: Artist 1 – Song 1; Artist 2 – Song 2')
+    await user.click(within(dialog).getByRole('button', { name: 'Vergleich Show 1 öffnen' }))
+    expect(within(dialog).getByRole('table', { name: 'Drittbeitragsvergleich' }).querySelectorAll('tbody tr')).toHaveLength(38)
+    expect(dialog).toHaveTextContent('25 / Rang 1')
+    expect(dialog).toHaveTextContent('0 · außerhalb Top 15')
+    await closeDialog(user)
+    await user.click(screen.getAllByRole('button', { name: 'Verteilung und Beitragsbelege öffnen' })[0])
+    dialog = screen.getByRole('dialog')
+    const histogram = within(dialog).getByRole('table', { name: 'Histogramm der Stimmzettelpunkte' })
+    expect(histogram.querySelectorAll('tbody tr')).toHaveLength(16)
+    expect(dialog).toHaveTextContent('2 / 2 · Basis: 2 Bewertungen · Summe 50 Stimmzettelpunkte')
+    expect(dialog).toHaveTextContent('Varianz 0')
+    expect(dialog).toHaveTextContent('Für Polarisierungsrekord geeignet')
+    await closeDialog(user)
+    await user.click(screen.getAllByRole('button', { name: 'Konsensbelege öffnen' })[0])
+    dialog = screen.getByRole('dialog')
+    expect(dialog).toHaveTextContent('Eigener Stimmzettel und eigene Einreichung entfallen')
+    expect(dialog).toHaveTextContent('Eigene Punktsumme 140, übrige Feldsumme 140')
+    await user.click(within(dialog).getByRole('button', { name: 'Stimmzettelbelege Show 1 öffnen' }))
+    expect(within(dialog).queryAllByRole('table')).toHaveLength(0)
+    await user.click(within(dialog).getByRole('button', { name: 'Stimmzettel von Person 1 öffnen' }))
+    expect(within(dialog).getByRole('table', { name: 'Stimmzettel 1001' })).toHaveTextContent('25 / Rang 1')
+    expect(dialog).toHaveTextContent('Eigener Stimmzettel · aus Feld entfernt')
+    await closeDialog(user)
+  })
+
+  it('shows exclusive points, separately reachable exclusive 25s and single evaluation exclusion', async () => {
+    const d = preferenceFixture()
+    const person = d.preferences.participants[0]
+    person.exclusivePoints = 38; person.exclusiveEntryIds = [2005,2006]; person.exclusiveTwentyFiveEntryIds = [2005]
+    d.preferences.records.exclusiveParticipantIds = [1]
+    d.preferences.exclusiveOrder = [1]
+    for (const [id, points] of [[2005,25],[2006,13]]) {
+      const e = d.preferences.entries.find(e => e.entryId === id)!
+      e.exclusiveGiverId = 1; e.exclusivePoints = points
+    }
+    state.fetch.mockResolvedValue(d)
+    const user = userEvent.setup()
+    renderPage('records')
+    await user.click(await screen.findByRole('button', { name: 'Exklusive Punkte und 25er öffnen' }))
+    let dialog = screen.getByRole('dialog')
+    expect(dialog).toHaveTextContent('38 exklusive Stimmzettelpunkte · 2 Beiträge · 1 exklusive 25er')
+    expect(within(dialog).getAllByRole('button', { name: 'Exklusivbeitragsbelege öffnen' })).toHaveLength(2)
+    await user.click(within(dialog).getByRole('button', { name: 'Nur exklusive 25er anzeigen' }))
+    expect(within(dialog).getAllByRole('button', { name: 'Exklusivbeitragsbelege öffnen' })).toHaveLength(1)
+    expect(dialog).toHaveTextContent('25 eigene Stimmzettelpunkte · Basis: 2 bekannte wählbare Bewertungen')
+    await closeDialog(user)
+    await user.click(screen.getByRole('button', { name: 'Vollständige Präferenzlisten anzeigen' }))
+    await user.click(screen.getAllByRole('button', { name: 'Verteilung und Beitragsbelege öffnen' })[0])
+    await closeDialog(user)
+    // Open a one-evaluation own contribution directly through the personal profile.
+    state.fetch.mockResolvedValue(d)
+    const profile = renderPage('participants', '/statistics/participants?participant=1')
+    await user.click((await screen.findAllByRole('button', { name: 'Beitragsdetails' }))[0])
+    dialog = screen.getByRole('dialog')
+    expect(dialog).toHaveTextContent('Basis: 1 Bewertungen')
+    expect(dialog).toHaveTextContent('Kein Polarisierungsrekord: weniger als zwei Bewertungen')
+    profile.unmount()
+  })
+
+  it('makes measured zero and N/A distinct and keeps all lists reachable with 100 names and 12 shows', async () => {
+    const d = preferenceFixture(100,12)
+    d.standings.rows[99].displayName = 'Very long synthetic preference participant 100'
+    d.preferences.pairs[0].similarity = metric(0)
+    d.preferences.records.twins = [{ giverId: 1,receiverId: 2 }]
+    const open = vi.fn()
+    render(<MemoryRouter><PreferenceRecords data={d} openPreference={open} openEntry={vi.fn()} /></MemoryRouter>)
+    const user = userEvent.setup()
+    expect(screen.getAllByText('0 % · Basis: 12 Shows')).toHaveLength(2)
+    await user.click(screen.getByRole('button', { name: 'Vollständige Präferenzlisten anzeigen' }))
+    expect(screen.getAllByText('Einträge 1–25 von 4950')).toHaveLength(2)
+    await user.click(screen.getByRole('button', { name: 'Weitere Geschmackszwillinge' }))
+    expect(screen.getByText('Einträge 26–50 von 4950')).toBeVisible()
+    expect(screen.getAllByText(/N\/A · Keine berechenbare gemeinsame Show/).length).toBeGreaterThan(0)
+    await user.click(screen.getByRole('button', { name: 'Weitere Konsensbeauftragter' }))
+    await user.click(screen.getByRole('button', { name: 'Weitere Konsensbeauftragter' }))
+    await user.click(screen.getByRole('button', { name: 'Weitere Konsensbeauftragter' }))
+    expect(screen.getByRole('link', { name: 'Very long synthetic preference participant 100' })).toBeVisible()
+    expect(screen.getByText('Einträge 76–100 von 100')).toBeVisible()
+  })
+
+  it('replaces new open details on focus and explicit refresh with unchanged show IDs', async () => {
+    const user = userEvent.setup()
+    renderPage('records')
+    await user.click((await screen.findAllByRole('button', { name: 'Favoritenvergleich öffnen' }))[0])
+    const changed = preferenceFixture()
+    changed.preferences.pairs[0].similarity = metric(1,2)
+    state.fetch.mockResolvedValue(changed)
+    await act(async () => { window.dispatchEvent(new Event('focus')) })
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    await user.click((await screen.findAllByRole('button', { name: 'Favoritenvergleich öffnen' }))[0])
+    expect(screen.getByRole('dialog')).toHaveTextContent('50 % · Basis: 2 Shows')
+    await closeDialog(user)
+    const refreshButton = screen.getByRole('button', { name: 'Statistiken aktualisieren' })
+    await user.click(screen.getAllByRole('button', { name: 'Konsensbelege öffnen' })[0])
+    fireEvent.click(refreshButton)
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+
+  it('clears pair details on contest change and new details on profile change', async () => {
+    const user = userEvent.setup()
+    let navigateTo!: ReturnType<typeof useNavigate>
+    function RoutedProfile() { navigateTo = useNavigate(); return <StatisticsPage view="participants" /> }
+    const view = render(<MemoryRouter initialEntries={['/statistics/participants?participant=1']}><RoutedProfile /></MemoryRouter>)
+    await user.click((await screen.findAllByRole('button', { name: 'Konsensbelege öffnen' }))[0])
+    await act(async () => { await navigateTo('/statistics/participants?participant=2') })
+    expect(await screen.findByRole('heading', { name: 'Person 2 · Deutschland' })).toBeVisible()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    await user.click(screen.getAllByRole('button', { name: 'Favoritenvergleich öffnen' })[0])
+    const other = preferenceFixture(); other.standings.contestId = 2
+    state.fetch.mockResolvedValue(other); state.contestId = 2
+    view.rerender(<MemoryRouter initialEntries={['/statistics/participants?participant=2']}><RoutedProfile /></MemoryRouter>)
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(screen.getByText('CSC 2')).toBeVisible()
   })
 })

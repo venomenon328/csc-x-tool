@@ -807,7 +807,7 @@ Keine dieser Entscheidungen erfordert vor dem Entwicklungsbeginn zusätzliche fa
 
 ## 23. Contest-Gesamtwertung und nachgelagerte Statistiken
 
-Verbindliche fachliche Details und Paketgrenzen: [contest-statistics.md](contest-statistics.md), [Roadmap #14](https://github.com/venomenon328/csc-x-tool/issues/14). Architekturentscheidung: [A-023](decisions.md#a-023--abgeleitete-contestauswertung-mit-getrenntem-abschlusszustand). S1 (#177) implementiert Abschluss und Gesamtwertung; S2 (#178) ergänzt Profile, Beziehungen und die vier einfachen Rekordarten. Weitere Kennzahlen bleiben Gegenstand von S3a/S3b.
+Verbindliche fachliche Details und Paketgrenzen: [contest-statistics.md](contest-statistics.md), [Roadmap #14](https://github.com/venomenon328/csc-x-tool/issues/14). Architekturentscheidung: [A-023](decisions.md#a-023--abgeleitete-contestauswertung-mit-getrenntem-abschlusszustand). S1 (#177) implementiert Abschluss und Gesamtwertung; S2 (#178) ergänzt Profile, Beziehungen und die vier einfachen Rekordarten; S3a (#179) ergänzt die sechs deskriptiven Präferenzstatistiken. S3b bleibt ein eigener Auftrag.
 
 ### Persistenz und Abschluss
 
@@ -870,3 +870,21 @@ Einzelshowbelege verwenden `POINTS` und `OUTSIDE_TOP_15` mit numerischen Punkten
 Serien verwenden S1-Showränge bzw. Gesamtwertungspunkte, unterbrechen bei offener/fehlender Nummer oder fehlendem qualifizierendem Ergebnis und bewahren alle maximalen Läufe. Der Server liefert erste/letzte Show und sämtliche Einzelshowbelege. Häufigkeiten sind davon getrennt.
 
 Profil-/Contestwechsel remounten den jeweiligen Inhalt und verwerfen verspätete Antworten. Explizites Aktualisieren und Fensterfokus ersetzen den gesamten sichtbaren Snapshot und schließen offene Details, auch bei unveränderten `includedShowIds`. Profil-, Beziehungs-, Beitrags- und Seriendetails lesen ausschließlich die aktuelle Statistikantwort; keine zweite Frontend-Punkte-/Rangberechnung. Die Heatmap zeigt höchstens 10×10 Zellen je unabhängig wählbarem Zeilen-/Spaltenausschnitt; Suche und Paginierung erreichen auch Teilnehmer 100. Vollständige Listen paginieren nach 25 Beziehungen, ohne Grenzgleichstände aus der gelieferten Topliste zu entfernen. Zahlen, Zustände, volle Namen und Geber-/Empfängerlabels bleiben neben der Farbe erreichbar.
+
+### S3a: Exakte Präferenzstatistik und gemeinsame Stimmzettelbelege
+
+Die vorhandene Antwort erhält `preferences`, berechnet durch `PreferenceStatistics` aus derselben einmal geladenen `ResultData` innerhalb derselben Lesetransaktion. Keine zusätzliche Persistenz, Migration, Abhängigkeit oder Änderung an Schema 17, JSON v11 und Analyseexport.
+
+| Feld unter `preferences` | Vertrag |
+| --- | --- |
+| `showBases` | Abgeschlossene Shows mit vollständigen gültigen Stimmzetteln, stabiler Stimmzettel-/Teilnahme-ID und Rang-/Punktpositionen. Jeder Stimmzettel steht genau einmal hier, unabhängig von der Paarzahl. Beitragsmetadaten und S2-Bewertungszustände werden weiter gemeinsam referenziert. |
+| `pairs` / `parallelOrder` | Alle ungeordneten Teilnehmerpaare einmal, unabhängig von S2-Opportunities oder eigenen Einreichungen; absteigende bzw. aufsteigende exakte Ähnlichkeitsfolge, N/A zuletzt. Showbelege nennen Ausschlussgrund, Vergleichsbeitragszahl und ausgeschlossene eigene Einreichungen. |
+| `entries` / `audienceOrder` / `polarizationOrder` | Gemeinsame bekannte wählbare Population je eingeschlossenem Beitrag: Basis, positive Wertungen, Punktesumme, 25er, Publikum, Varianz, Standardabweichung, exaktes Histogramm, Eignung für Polarisierung und exklusiver Geber. Publikum/Varianz werden exakt sortiert; Polarisierung nur bei Basis mindestens 2. |
+| `participants` / `exclusiveOrder` | Konsens absteigend mit Showquotienten, Fremdstimmzettelzahl, Vergleichsbeiträgen, ausgeschlossener Einreichung und beiden Normierungssummen. Außerdem exklusive Punkte, Beitrags-IDs und separat exklusive 25er; vollständige Exklusivfolge nach positiver Punktesumme. |
+| `records` | Sämtliche mathematischen Höchst-/Tiefstwertgleichstände für alle sechs Kennzahlen. Berechenbare Null ist rekordfähig; Exklusivität braucht ein positives Ereignis. |
+
+`Metric` trägt gekürzten `numerator` und `denominator` als Dezimalstrings, `value` ausschließlich für die Darstellung und einen nullable N/A-Grund. `ExactRatio` vergleicht und mittelt mit `BigInteger`; kein Epsilon, Double-Tiebreak oder Anzeigenrundung. Nicht berechenbare Werte tragen null in allen drei Zahlenfeldern. Paarquotienten verwenden rohe Stimmzettelpunkte. Konsens entfernt erst eigenen Stimmzettel und eigene Einreichung, bildet dann Feldsummen und normiert beide Verteilungen. Bekannte Null erhöht weder Überlappungszähler noch -nenner.
+
+`PreferenceViews` ergänzt Profile, Rekorde und den bestehenden Beitragsdialog. Vollständige Listen paginieren nach 25 Einträgen; alle Gewinner bleiben über dieselbe Pagination erreichbar, unabhängig von Gleichstandsgröße. Paarbelege öffnen eine Show und zeigen sämtliche Drittbeiträge. Konsensbelege öffnen eine Show und jeweils einen gemeinsamen vollständigen Stimmzettel; dadurch werden nicht sämtliche 100×100 Bewertungszellen gleichzeitig gerendert. Ausschlüsse, Normierungssummen, wählbare Nullen und vollständige Eingaben bleiben nachvollziehbar. Histogrammklassen und Häufigkeiten sind als beschriftete Tabelle lesbar. Die vorhandene Aktualisierungs-/Auswahlabwehr schließt auch sämtliche neuen Details.
+
+Gezielte Nachweise und offene gemeinsame Windows-/Vivaldi-Abnahme: [S3a-Matrix](preference-statistics-verification.md).
