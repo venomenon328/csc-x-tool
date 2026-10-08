@@ -524,3 +524,100 @@ describe('S3b-T07 boundaries, hypothetical comparison and selection freshness', 
     expect(state.impact).toHaveBeenCalledTimes(1)
   })
 })
+
+function r1FrequencyFixture(shows = 2, size = 30) {
+  const data = s3bFixture(size, shows)
+  data.nearMisses.frequencies = [18, 19].map(participationId => {
+    const entryIds = data.nearMisses.cases.filter(c => c.participationId === participationId).map(c => c.entryId)
+    return { participationId, count: entryIds.length, entryIds }
+  })
+  data.nearMisses.frequencyWinnerIds = [18, 19]
+  return data
+}
+
+describe('S3b-R1/B-01 frequency record drilldown', () => {
+  beforeEach(() => {
+    state.contestId = 1
+    state.fetch.mockReset()
+    state.impact.mockReset()
+    state.fetch.mockResolvedValue(r1FrequencyFixture())
+  })
+
+  it('opens only the selected global record holders complete show evidence and contribution details', async () => {
+    const user = userEvent.setup()
+    renderPage('records')
+    await user.click(await screen.findByRole('button', { name: 'Showbelege von Person 18 anzeigen' }))
+    let evidence = screen.getByRole('region', { name: 'Showbelege von Person 18' })
+    expect(evidence).toHaveTextContent('2 knappe Nichtqualifikationen')
+    expect(evidence).toHaveTextContent('Show 1 · Artist 18 – Song 18')
+    expect(evidence).toHaveTextContent('Show 2 · Artist 18 – Song 18')
+    expect(evidence).toHaveTextContent('Showrang 16 · 0 Stimmzettelpunkte · 0 Gesamtwertungspunkte · Abstand +2')
+    expect(evidence).not.toHaveTextContent('Artist 19')
+    expect(within(evidence).getAllByRole('button', { name: 'Grenzfall und Beitragsdetails' })).toHaveLength(2)
+    await user.click(within(evidence).getAllByRole('button', { name: 'Grenzfall und Beitragsdetails' })[0])
+    expect(screen.getByRole('dialog')).toHaveTextContent('Erste Nichtpunktgruppe: Rang 16')
+    await closeDialog(user)
+    await user.click(screen.getByRole('button', { name: 'Showbelege von Person 19 anzeigen' }))
+    expect(screen.queryByRole('region', { name: 'Showbelege von Person 18' })).not.toBeInTheDocument()
+    evidence = screen.getByRole('region', { name: 'Showbelege von Person 19' })
+    expect(evidence).toHaveTextContent('Show 1 · Artist 19 – Song 19')
+    expect(evidence).not.toHaveTextContent('Artist 18')
+    await user.click(screen.getByRole('button', { name: 'Showbelege von Person 19 schließen' }))
+    expect(screen.queryByRole('region', { name: 'Showbelege von Person 19' })).not.toBeInTheDocument()
+  })
+
+  it('paginates 27 targeted show cases and keeps global full-list toggles independent', async () => {
+    const user = userEvent.setup()
+    state.fetch.mockResolvedValue(r1FrequencyFixture(27, 20))
+    renderPage('records')
+    await user.click(await screen.findByRole('button', { name: 'Showbelege von Person 18 anzeigen' }))
+    let evidence = screen.getByRole('region', { name: 'Showbelege von Person 18' })
+    expect(within(evidence).getByText('1–25 von 27')).toBeVisible()
+    expect(within(evidence).getAllByRole('button', { name: 'Grenzfall und Beitragsdetails' })).toHaveLength(25)
+    await user.click(within(evidence).getByRole('button', { name: 'Weitere Show-, Rang- und Abstandsbelege' }))
+    expect(within(evidence).getByText('26–27 von 27')).toBeVisible()
+    expect(evidence).toHaveTextContent('Show 27 · Artist 18 – Song 18')
+    await user.click(screen.getByRole('button', { name: 'Alle Grenzfälle anzeigen' }))
+    expect(screen.queryByRole('region', { name: 'Showbelege von Person 18' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Showbelege von Person 19 anzeigen' }))
+    evidence = screen.getByRole('region', { name: 'Showbelege von Person 19' })
+    expect(within(evidence).getByText('1–25 von 27')).toBeVisible()
+    expect(evidence).not.toHaveTextContent('Artist 18')
+    await user.click(within(evidence).getByRole('button', { name: 'Ausgewählte Showbelege schließen' }))
+    expect(screen.queryByRole('region', { name: 'Showbelege von Person 19' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Showbelege von Person 18 anzeigen' }))
+    await user.click(screen.getByRole('button', { name: 'Grenzfallrekorde anzeigen' }))
+    expect(screen.queryByRole('region', { name: 'Showbelege von Person 18' })).not.toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Showbelege von Person 19 anzeigen' })).toBeVisible()
+  })
+
+  it('keeps personal cases directly accessible without a dead button, across profile changes and refresh', async () => {
+    const user = userEvent.setup()
+    let navigateTo!: ReturnType<typeof useNavigate>
+    function RoutedProfile() { navigateTo = useNavigate(); return <StatisticsPage view="participants" /> }
+    render(<MemoryRouter initialEntries={['/statistics/participants?participant=18']}><RoutedProfile /></MemoryRouter>)
+    expect(await screen.findByRole('heading', { name: 'Persönliche Grenzfälle' })).toBeVisible()
+    expect(screen.queryByRole('button', { name: /Showbelege von .* anzeigen/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Alle Showbelege anzeigen' })).not.toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'Grenzfall und Beitragsdetails' })).toHaveLength(2)
+    await user.click(screen.getAllByRole('button', { name: 'Grenzfall und Beitragsdetails' })[0])
+    expect(screen.getByRole('dialog')).toHaveTextContent('Artist 18 – Song 18')
+    await closeDialog(user)
+    await act(async () => { await navigateTo('/statistics/participants?participant=19') })
+    expect(await screen.findByRole('heading', { name: 'Person 19 · Deutschland' })).toBeVisible()
+    expect(screen.getAllByRole('button', { name: 'Grenzfall und Beitragsdetails' })).toHaveLength(2)
+    await user.click(screen.getByRole('button', { name: 'Statistiken aktualisieren' }))
+    expect(await screen.findByRole('heading', { name: 'Persönliche Grenzfälle' })).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'Alle Showbelege anzeigen' })).not.toBeInTheDocument()
+  })
+
+  it('does not invent evidence actions for an empty statistics basis', async () => {
+    const data = r1FrequencyFixture()
+    data.nearMisses = { cases: [], frequencies: [], frequencyWinnerIds: [], smallestGapEntryIds: [] }
+    state.fetch.mockResolvedValue(data)
+    renderPage('records')
+    expect(await screen.findByRole('heading', { name: 'Häufigste knappe Nichtqualifikationen' })).toBeVisible()
+    expect(screen.queryByRole('button', { name: /Showbelege von .* anzeigen/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: /Showbelege von/ })).not.toBeInTheDocument()
+  })
+})
