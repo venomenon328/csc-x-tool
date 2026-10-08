@@ -162,7 +162,10 @@ class ContestStatisticsTest {
         assertThat(empty.records()).isEqualTo(new ContestStatisticsResponse.Records(List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of()));
     }
 
-    private ContestStatisticsResponse calculate(ResultData data) { return ContestStatistics.calculate(data, countries); }
+    private ContestStatisticsResponse calculate(ResultData data) {
+        ResultClosureRules.validateClosed(data);
+        return ContestStatistics.calculate(data, countries);
+    }
     static ContestStatisticsResponse.Relation relation(ContestStatisticsResponse result, long a, long b) {
         return result.relations().stream().filter(r -> r.giverId() == a && r.receiverId() == b).findFirst().orElseThrow();
     }

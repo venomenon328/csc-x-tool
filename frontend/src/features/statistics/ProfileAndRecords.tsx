@@ -3,7 +3,8 @@ import { useState } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import { StandingsChart } from '../standings/StandingsChart'
 import { decimal, evaluationLabels, percent, type Direction, type Profile, type Statistics } from './api'
-import { nameOf, PersonLink, RelationList } from './RelationshipViews'
+import { PersonLink, RelationList } from './RelationshipViews'
+import { nameOf } from './labels'
 
 export type Evidence = { kind: 'entry', id: number } | { kind: 'points' | 'podium', id: number }
 type Actions = { openRelation: (direction: Direction) => void, openEvidence: (evidence: Evidence) => void }

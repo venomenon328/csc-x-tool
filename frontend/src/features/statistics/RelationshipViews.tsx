@@ -2,9 +2,8 @@ import { Autocomplete, Box, Button, Dialog, DialogActions, DialogContent, Dialog
 import { useMemo, useState } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import { decimal, evaluationLabels, type Direction, type Relation, type Statistics } from './api'
+import { nameOf, profilePath } from './labels'
 
-export const nameOf = (data: Statistics, id: number) => data.standings.rows.find(r => r.participationId === id)?.displayName ?? String(id)
-export const profilePath = (id: number) => `/statistics/participants?participant=${id}`
 export function PersonLink({ data, id }: { data: Statistics, id: number }) {
   return <Button component={RouterLink} to={profilePath(id)} sx={{ textTransform: 'none', overflowWrap: 'anywhere' }}>{nameOf(data, id)}</Button>
 }

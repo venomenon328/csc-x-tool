@@ -138,6 +138,7 @@ class ShowResultApiIntegrationTest {
         var before = service.standings(id);
         var statisticsBefore = service.statistics(id);
         assertThat(send("PUT", "/api/shows/" + id + "/entries/" + (id + 18) + "/participant", "{\"participantId\":null}").body()).contains("SHOW_RESULT_CLOSED");
+        assertThat(statisticsBefore.relations().stream().mapToInt(ContestStatisticsResponse.Relation::points).sum()).isEqualTo(140);
         String swap = mapper.writeValueAsString(Map.of("assignments", List.of(
                 Map.of("entryId", id + 16, "participationId", id + 17, "expectedParticipationId", id + 16, "confirmReplacement", true),
                 Map.of("entryId", id + 17, "participationId", id + 16, "expectedParticipationId", id + 17, "confirmReplacement", true))));
