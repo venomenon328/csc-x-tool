@@ -25,6 +25,11 @@ public class ContestResultService {
     }
 
     @Transactional(readOnly = true)
+    public BallotImpactResponse impact(long contestId, long showId, long ballotId) {
+        return BallotImpact.calculate(repository.load(contestId), countries, showId, ballotId);
+    }
+
+    @Transactional(readOnly = true)
     public ShowResultClosureResponse closure(long showId) {
         return response(repository.load(repository.contestForShow(showId)), showId);
     }

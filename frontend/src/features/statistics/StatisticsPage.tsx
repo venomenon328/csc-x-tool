@@ -8,6 +8,7 @@ import { StatisticsNavigation } from './StatisticsNavigation'
 import { Heatmap, RelationList, RelationshipDetail } from './RelationshipViews'
 import { EvidenceDetail, ProfileView, StatisticsRecords, type Evidence } from './ProfileAndRecords'
 import { PreferenceDetail, PreferenceProfile, PreferenceRecords, type PreferenceEvidence } from './PreferenceViews'
+import { BallotImpactView, NearMissView } from './ResultImpactViews'
 
 export function StatisticsPage({ view }: { view: 'participants' | 'relationships' | 'records' }) {
   const { selectedContestId, selectedContest } = useContest()
@@ -26,8 +27,9 @@ function StatisticsContent({ contestId, view }: { contestId: number, view: 'part
   const [evidence, setEvidence] = useState<Evidence | null>(null)
   const [preference, setPreference] = useState<PreferenceEvidence | null>(null)
   const [all, setAll] = useState(false)
+  const [impact, setImpact] = useState<{ showId: number, ballotId: number } | null>(null)
   const [query, setQuery] = useSearchParams()
-  const refresh = useCallback(() => { setData(null); setDirection(null); setEvidence(null); setPreference(null); setError(null); setRevision(n => n + 1) }, [])
+  const refresh = useCallback(() => { setData(null); setDirection(null); setEvidence(null); setPreference(null); setImpact(null); setError(null); setRevision(n => n + 1) }, [])
   useEffect(() => {
     let cancelled = false
     void fetchStatistics(contestId).then(loaded => {
@@ -47,13 +49,15 @@ function StatisticsContent({ contestId, view }: { contestId: number, view: 'part
   const topKeys = new Set(data.topRelations.map(d => `${d.giverId}-${d.receiverId}`))
   const relations = all ? data.relations.filter(r => r.opportunities > 0) : data.relations.filter(r => topKeys.has(`${r.giverId}-${r.receiverId}`))
   return <Stack spacing={3}>
-    <Paper sx={{ p: 2 }}><Typography component="h2" variant="h6">Datenbasis: {data.standings.includedShowIds.length} von {data.standings.shows.length} Shows gewertet</Typography><Typography>{data.standings.shows.map(s => `Show ${s.showNumber}: ${closureLabels[s.status]}`).join(' · ')}</Typography><Typography color="text.secondary">Nur veröffentlichte Stimmzettel abgeschlossener Shows. Summen vergleichen Stimmzettelpunkte; fehlende Gelegenheiten sind keine Nullwerte.</Typography><Button onClick={refresh}>Statistiken aktualisieren</Button></Paper>
+    {!impact && <Paper sx={{ p: 2 }}><Typography component="h2" variant="h6">Datenbasis: {data.standings.includedShowIds.length} von {data.standings.shows.length} Shows gewertet</Typography><Typography>{data.standings.shows.map(s => `Show ${s.showNumber}: ${closureLabels[s.status]}`).join(' · ')}</Typography><Typography color="text.secondary">Nur veröffentlichte Stimmzettel abgeschlossener Shows. Summen vergleichen Stimmzettelpunkte; fehlende Gelegenheiten sind keine Nullwerte.</Typography><Button onClick={refresh}>Statistiken aktualisieren</Button></Paper>}
+    {impact && <Button onClick={refresh}>Statistiken aktualisieren</Button>}
     {!data.standings.includedShowIds.length && <Alert severity="info">Noch keine gewertete Show. Es gibt keine Statistikrekordsieger.</Alert>}
     {view === 'participants' && <><Autocomplete options={data.standings.rows} value={selected} getOptionKey={r => r.participationId} getOptionLabel={r => `${r.displayName} · ${r.countryName}`} isOptionEqualToValue={(a, b) => a.participationId === b.participationId} onChange={(_, person) => { setDirection(null); setEvidence(null); setPreference(null); setQuery(person ? { participant: String(person.participationId) } : {}) }} renderInput={params => <TextField {...params} label="Teilnehmerprofil auswählen" />} />{profile ? <><ProfileView key={profile.participationId} data={data} profile={profile} openRelation={setDirection} openEvidence={setEvidence} /><PreferenceProfile data={data} id={profile.participationId} openPreference={setPreference} openEntry={id => setEvidence({ kind: 'entry', id })} /></> : <Typography>Wähle eine Contest-Teilnahme für ihr Profil.</Typography>}</>}
     {view === 'relationships' && <><RelationList key={`${revision}-${all}`} data={data} relations={relations} title={all ? 'Alle gerichteten Beziehungen einschließlich bekannter Nullen' : 'Globale Top-Beziehungen mit Grenzgleichständen'} open={setDirection} /><Button onClick={() => setAll(v => !v)}>{all ? 'Top-Beziehungen anzeigen' : 'Vollständige Beziehungsliste anzeigen'}</Button><Heatmap key={revision} data={data} open={setDirection} /></>}
-    {view === 'records' && <><StatisticsRecords data={data} openRelation={setDirection} openEvidence={setEvidence} /><PreferenceRecords data={data} openPreference={setPreference} openEntry={id => setEvidence({ kind: 'entry', id })} /></>}
+    {view === 'participants' && profile && <NearMissView key={profile.participationId} data={data} participantId={profile.participationId} openEntry={id => setEvidence({ kind: 'entry', id })} />}
+    {view === 'records' && <><BallotImpactView data={data} active={impact} select={value => { setDirection(null); setEvidence(null); setPreference(null); setImpact(value) }} leave={refresh} />{!impact && <><NearMissView data={data} openEntry={id => setEvidence({ kind: 'entry', id })} /><StatisticsRecords data={data} openRelation={setDirection} openEvidence={setEvidence} /><PreferenceRecords data={data} openPreference={setPreference} openEntry={id => setEvidence({ kind: 'entry', id })} /></>}</>}
     <RelationshipDetail data={data} direction={direction} close={() => setDirection(null)} />
-    <EvidenceDetail data={data} evidence={evidence} close={() => setEvidence(null)} openRelation={setDirection} />
+    <EvidenceDetail data={data} evidence={evidence} close={() => setEvidence(null)} openRelation={setDirection} openEntry={id => setEvidence({ kind: 'entry', id })} />
     {preference && <PreferenceDetail data={data} evidence={preference} close={() => setPreference(null)} openEntry={id => setEvidence({ kind: 'entry', id })} />}
   </Stack>
 }

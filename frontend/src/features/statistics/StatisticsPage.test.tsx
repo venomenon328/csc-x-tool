@@ -4,13 +4,13 @@ import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { StatisticsPage } from './StatisticsPage'
 import { Heatmap } from './RelationshipViews'
-import type { Statistics, Relation, Metric } from './api'
+import type { Statistics, Relation, Metric, BallotImpact } from './api'
 import { PreferenceRecords } from './PreferenceViews'
 import type * as statisticsApi from './api'
 
-const state = vi.hoisted(() => ({ contestId: 1, fetch: vi.fn() }))
+const state = vi.hoisted(() => ({ contestId: 1, fetch: vi.fn(), impact: vi.fn() }))
 vi.mock('../contests/ContestContext', () => ({ useContest: () => ({ selectedContestId: state.contestId, selectedContest: { name: `CSC ${state.contestId}` } }) }))
-vi.mock('./api', async original => ({ ...await original<typeof statisticsApi>(), fetchStatistics: state.fetch }))
+vi.mock('./api', async original => ({ ...await original<typeof statisticsApi>(), fetchStatistics: state.fetch, fetchBallotImpact: state.impact }))
 
 function fixture(contestId = 1, size = 8): Statistics {
   const rows = Array.from({ length: size }, (_, i) => ({
@@ -30,6 +30,7 @@ function fixture(contestId = 1, size = 8): Statistics {
   }
   relations.sort((a, b) => b.points - a.points)
   return {
+    nearMisses: { cases: [], frequencies: [], frequencyWinnerIds: [], smallestGapEntryIds: [] },
     preferences: { showBases: [], pairs: [], parallelOrder: [], entries: [], audienceOrder: [], polarizationOrder: [], exclusiveOrder: [], participants: rows.map(r => ({ participationId: r.participationId, consensus: missing('Keine berechenbare Show'), comparedShows: 0, shows: [], exclusivePoints: 0, exclusiveEntryIds: [], exclusiveTwentyFiveEntryIds: [] })), records: { twins: [], parallels: [], audienceEntryIds: [], polarizationEntryIds: [], exclusiveParticipantIds: [], consensusParticipantIds: [] } },
     standings: { contestId, includedShowIds: [1, 2, 3, 4, 5], shows: [1, 2, 3, 4, 5].map(showId => ({ showId, showNumber: showId, name: `Show ${showId}`, status: 'CLOSED', closedAt: '2026-10-08T00:00:00Z' })), rows },
     entries: rows.flatMap(r => r.shows.map(c => ({ id: c.entryId, showId: c.showId, participationId: r.participationId, artist: c.artist, title: c.title }))), relations,
@@ -373,5 +374,153 @@ describe('S3a-T07 preference views, shared drilldown and freshness', () => {
     view.rerender(<MemoryRouter initialEntries={['/statistics/participants?participant=2']}><RoutedProfile /></MemoryRouter>)
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     expect(screen.getByText('CSC 2')).toBeVisible()
+  })
+})
+
+function s3bFixture(size = 30, shows = 2) {
+  const d = preferenceFixture(size, shows)
+  d.nearMisses.cases = d.entries.filter(e => e.participationId! < 3 || e.participationId! > 17).map(e => ({ entryId: e.id, participationId: e.participationId!, showId: e.showId, ballotPoints: 0, showRank: 16, contestPoints: 0, gap: 2, lastPointGroup: [{ entryId: e.showId * 1000 + 17, participationId: 17, ballotPoints: 2, showRank: 15, contestPoints: 1 }] }))
+  d.nearMisses.frequencies = d.standings.rows.filter(r => r.rank === 16).map(r => ({ participationId: r.participationId, count: shows, entryIds: d.nearMisses.cases.filter(c => c.participationId === r.participationId).map(c => c.entryId) }))
+  d.nearMisses.frequencyWinnerIds = d.nearMisses.frequencies.map(f => f.participationId)
+  d.nearMisses.smallestGapEntryIds = d.nearMisses.cases.map(c => c.entryId)
+  return d
+}
+function impactFixture(d: Statistics, showId = 1, ballotId = 1001, single = false): BallotImpact {
+  const removed = d.preferences.showBases.find(s => s.showId === showId)!.ballots.find(b => b.ballotId === ballotId)!
+  const comparisons = d.standings.rows.map(r => {
+    const c = r.shows.find(v => v.showId === showId)!
+    const points = removed.positions.find(p => p.entryId === c.entryId)?.points ?? 0
+    const actual = { ballotPoints: c.ballotPoints!, showRank: c.showRank!, contestPoints: c.contestPoints!, contestTotal: r.totalPoints }
+    const hypothetical = single ? null : { ...actual, ballotPoints: actual.ballotPoints - points }
+    return { entryId: c.entryId!, participationId: r.participationId, artist: c.artist!, title: c.title!, actual, hypothetical, delta: hypothetical ? { ballotPoints: -points, showRank: 0, contestPoints: 0, contestTotal: 0 } : null, boundaryChange: hypothetical ? 'UNCHANGED' : 'NOT_EVALUABLE' }
+  })
+  return { standings: d.standings, showId, removedBallot: removed, validBallots: single ? 1 : 2, remainingBallots: single ? 0 : 1, state: single ? 'NO_REMAINING_BALLOT' : 'EVALUABLE', comparisons, actualWinnerEntryIds: [showId * 1000 + 3], hypotheticalWinnerEntryIds: single ? [] : [showId * 1000 + 3] }
+}
+async function chooseImpact(user: ReturnType<typeof userEvent.setup>, show = 1, person = 1) {
+  await user.click(await screen.findByRole('combobox', { name: 'Show für Gegenrechnung' }))
+  await user.click(screen.getByRole('option', { name: `Show ${show} · Show ${show}` }))
+  await user.click(screen.getByRole('combobox', { name: 'Stimme hypothetisch entfernen' }))
+  await user.click(screen.getByRole('option', { name: `Person ${person}` }))
+}
+
+describe('S3b-T07 boundaries, hypothetical comparison and selection freshness', () => {
+  beforeEach(() => {
+    state.contestId = 1; state.fetch.mockReset(); state.impact.mockReset()
+    const data = s3bFixture()
+    state.fetch.mockResolvedValue(data)
+    state.impact.mockImplementation((_contest: number, show: number, vote: number) => Promise.resolve(impactFixture(data, show, vote)))
+  })
+
+  it('reaches personal and global cases, all record ties and both boundary groups', async () => {
+    const user = userEvent.setup()
+    const view = renderPage('records')
+    expect(await screen.findByRole('heading', { name: 'Knapp daneben ist auch vorbei' })).toBeVisible()
+    expect(screen.getByText('1–25 von 30')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Weitere Kleinster positiver Abstand' }))
+    await user.click(screen.getAllByRole('button', { name: 'Grenzfall und Beitragsdetails' })[0])
+    expect(screen.getByRole('dialog')).toHaveTextContent('Erste Nichtpunktgruppe: Rang 16')
+    expect(screen.getByRole('dialog')).toHaveTextContent('Positiver Abstand: +2 Stimmzettelpunkte')
+    expect(screen.getByRole('dialog')).toHaveTextContent('Letzte punktberechtigte Ranggruppe')
+    expect(screen.getByRole('dialog')).toHaveTextContent('2 Stimmzettelpunkte · 1 Gesamtwertungspunkte')
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Grenzbeitrag öffnen' }))
+    expect(screen.getByRole('dialog')).toHaveTextContent('Artist 17')
+    await closeDialog(user)
+    view.unmount()
+    renderPage('participants', '/statistics/participants?participant=30')
+    expect(await screen.findByRole('heading', { name: 'Persönliche Grenzfälle' })).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'Persönliche Häufigkeit' }).parentElement).toHaveTextContent('2 Fälle')
+    expect(screen.getAllByRole('button', { name: 'Grenzfall und Beitragsdetails' })).toHaveLength(2)
+  })
+
+  it('shows signs, indirect boundary effects and a self-contained current original', async () => {
+    const user = userEvent.setup()
+    const response = impactFixture(s3bFixture())
+    // T03/T04 API oracle for a shifted A/B ballot; selected-voter entry remains in comparisons.
+    const c = response.comparisons.find(v => v.participationId === 18)!
+    c.actual = { ballotPoints: 1, showRank: 16, contestPoints: 0, contestTotal: 1 }
+    c.hypothetical = { ballotPoints: 1, showRank: 15, contestPoints: 1, contestTotal: 2 }
+    c.delta = { ballotPoints: 0, showRank: 1, contestPoints: 1, contestTotal: 1 }; c.boundaryChange = 'ENTERED'
+    state.impact.mockResolvedValue(response)
+    renderPage('records')
+    await chooseImpact(user)
+    const table = await screen.findByRole('table', { name: 'Echtes und hypothetisches Ergebnis' })
+    expect(screen.getByText(/Hypothetischer Vergleich/)).toBeVisible()
+    expect(screen.queryByRole('heading', { name: 'Knapp daneben ist auch vorbei' })).not.toBeInTheDocument()
+    const row = within(table).getByText('Person 18 · Artist 18 – Song 18').closest('tr')!
+    expect(row).toHaveTextContent('1 → 1 (0)'); expect(row).toHaveTextContent('16 → 15 (+1)')
+    expect(row).toHaveTextContent('0 → 1 (+1)'); expect(row).toHaveTextContent('1 → 2 (+1)'); expect(row).toHaveTextContent('Eintritt in Punkte')
+    expect(table).toHaveTextContent('50 → 25 (-25)')
+    expect(screen.getByRole('table', { name: 'Entfernte Stimme' }).querySelectorAll('tbody tr')).toHaveLength(15)
+    await user.click(screen.getByRole('button', { name: 'Zur echten Ansicht zurückkehren' }))
+    expect(await screen.findByRole('heading', { name: 'Knapp daneben ist auch vorbei' })).toBeVisible()
+    expect(screen.queryByRole('table', { name: 'Echtes und hypothetisches Ergebnis' })).not.toBeInTheDocument()
+    expect(state.fetch).toHaveBeenCalledTimes(2)
+  })
+
+  it('renders no alternative numbers or winners after removal of the single vote', async () => {
+    const user = userEvent.setup()
+    state.impact.mockResolvedValue(impactFixture(s3bFixture(), 1, 1001, true))
+    renderPage('records'); await chooseImpact(user)
+    expect(await screen.findByText(/Keine wertbare Gegenrechnung ohne diesen Stimmzettel/)).toBeVisible()
+    expect(screen.getByRole('table', { name: 'Echtes und hypothetisches Ergebnis' })).toHaveTextContent('50 → N/A')
+    expect(screen.queryByText(/Hypothetische Siegergruppe:/)).not.toBeInTheDocument()
+  })
+
+  it('discards late successes and errors for A to B and show changes', async () => {
+    const user = userEvent.setup()
+    let old!: (v: BallotImpact) => void
+    let failed!: (e: Error) => void
+    state.impact.mockImplementationOnce(() => new Promise<BallotImpact>(r => { old = r }))
+    state.impact.mockImplementationOnce(() => new Promise<BallotImpact>((_, reject) => { failed = reject }))
+    renderPage('records'); await chooseImpact(user)
+    await user.click(screen.getByRole('combobox', { name: 'Stimme hypothetisch entfernen' }))
+    await user.click(screen.getByRole('option', { name: 'Person 2' }))
+    await act(async () => { old(impactFixture(s3bFixture())) })
+    expect(screen.queryByRole('table', { name: 'Echtes und hypothetisches Ergebnis' })).not.toBeInTheDocument()
+    await chooseImpact(user, 2, 1)
+    expect(await screen.findByRole('table', { name: 'Echtes und hypothetisches Ergebnis' })).toBeVisible()
+    await act(async () => { failed(new Error('Stale failure')) })
+    expect(screen.queryByText('Stale failure')).not.toBeInTheDocument()
+    expect(state.impact).toHaveBeenLastCalledWith(1, 2, 2001)
+  })
+
+  it('invalidates comparisons on focus, explicit refresh, contest and profile navigation', async () => {
+    const user = userEvent.setup()
+    let old!: (v: BallotImpact) => void
+    state.impact.mockImplementationOnce(() => new Promise<BallotImpact>(r => { old = r }))
+    const view = renderPage('records'); await chooseImpact(user)
+    await act(async () => { window.dispatchEvent(new Event('focus')) })
+    await screen.findByRole('combobox', { name: 'Show für Gegenrechnung' })
+    await act(async () => { old(impactFixture(s3bFixture())) })
+    expect(screen.queryByRole('table', { name: 'Echtes und hypothetisches Ergebnis' })).not.toBeInTheDocument()
+    await chooseImpact(user); await screen.findByRole('table', { name: 'Echtes und hypothetisches Ergebnis' })
+    await user.click(screen.getByRole('button', { name: 'Statistiken aktualisieren' }))
+    await screen.findByRole('combobox', { name: 'Show für Gegenrechnung' })
+    expect(screen.queryByRole('table', { name: 'Echtes und hypothetisches Ergebnis' })).not.toBeInTheDocument()
+    await chooseImpact(user); await screen.findByRole('table', { name: 'Echtes und hypothetisches Ergebnis' })
+    state.contestId = 2; const next = s3bFixture(); next.standings.contestId = 2; state.fetch.mockResolvedValue(next)
+    view.rerender(<MemoryRouter><StatisticsPage view="records" /></MemoryRouter>)
+    await screen.findByRole('combobox', { name: 'Show für Gegenrechnung' })
+    expect(screen.queryByRole('table', { name: 'Echtes und hypothetisches Ergebnis' })).not.toBeInTheDocument()
+    view.rerender(<MemoryRouter><StatisticsPage view="participants" /></MemoryRouter>)
+    expect(await screen.findByRole('combobox', { name: 'Teilnehmerprofil auswählen' })).toBeVisible()
+    expect(screen.queryByRole('combobox', { name: 'Stimme hypothetisch entfernen' })).not.toBeInTheDocument()
+  })
+
+  it('paginates 100 long names and twelve shows without requesting unselected simulations', async () => {
+    const user = userEvent.setup()
+    const data = s3bFixture(100, 12)
+    data.standings.rows[99].displayName = 'Very long synthetic participant name 100 with explicit identity'
+    state.fetch.mockResolvedValue(data); state.impact.mockResolvedValue(impactFixture(data))
+    renderPage('records'); await screen.findByRole('heading', { name: 'Kleinster positiver Abstand' })
+    expect(state.impact).not.toHaveBeenCalled()
+    await chooseImpact(user)
+    await screen.findByRole('table', { name: 'Echtes und hypothetisches Ergebnis' })
+    await user.click(screen.getByRole('button', { name: 'Alle Beiträge anzeigen' }))
+    const table = screen.getByRole('table', { name: 'Echtes und hypothetisches Ergebnis' })
+    expect(table.querySelectorAll('tbody tr')).toHaveLength(25)
+    for (let i = 0; i < 3; i++) await user.click(screen.getByRole('button', { name: 'Weitere Vergleichsbeiträge' }))
+    expect(table).toHaveTextContent('Very long synthetic participant name 100 with explicit identity')
+    expect(state.impact).toHaveBeenCalledTimes(1)
   })
 })

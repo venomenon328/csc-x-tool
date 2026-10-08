@@ -1,8 +1,8 @@
 # Erweiterungsspezifikation – Gesamtwertung und Conteststatistiken
 
-**Version:** 1.3
+**Version:** 1.4
 **Stand:** 08.10.2026
-**Status:** fachlich freigegeben; S1, S2 und S3a implementiert, paketbezogene technische Nachweise in den jeweiligen PRs; manuelle Gesamtabnahme nach vollständiger Roadmap #14 auf `main` ausstehend; S3b bleibt nachgelagert
+**Status:** fachlich freigegeben; S1, S2, S3a und S3b implementiert, paketbezogene technische Nachweise in den jeweiligen PRs; manuelle Gesamtabnahme nach vollständiger Roadmap #14 auf `main` ausstehend
 
 ## 1. Ziel, Geltung und Abgrenzung
 
@@ -12,7 +12,7 @@ Die [Produktspezifikation](specification.md), das [Stimmzettel- und historische 
 
 Unverändert ausgeschlossen bleiben die manuelle Pflege oder der Import offiziell berechneter Gesamtwertungstabellen als zusätzliche Wahrheit, die Rückrechnung vollständiger Stimmzettel aus isolierten Ergebnissen, genaue persönliche Ränge außerhalb der veröffentlichten Top 15, KI-/Genreanalysen, Telemetrie, Cloudübertragung, neue Anmeldung oder Mehrbenutzerbetrieb und die CSC-Ausschlussprüfung. Ein Teilnehmerprofil bedeutet die auswählbare Auswertung einer vorhandenen Contest-Teilnahme in der lokalen Einzelbenutzeranwendung.
 
-Der ursprüngliche Spezifikationsauftrag umfasste Repositorydokumentation und Entwicklungspakete. Die gesonderten Implementierungsaufträge vom 08.10.2026 liefern S1 (#177), S2 (#178, [PR #183](https://github.com/venomenon328/csc-x-tool/pull/183)) und S3a (#179). Liefer-, Prüf- und Abnahmestände führen die Paket-Issues und PRs; S3b ist weiterhin spezifiziert, nicht geliefert. Die [S2-Nachweismatrix](participant-statistics-verification.md) und [S3a-Nachweismatrix](preference-statistics-verification.md) ordnen die gezielten Berechnungs-, SQLite- und UI-Fälle zu.
+Der ursprüngliche Spezifikationsauftrag umfasste Repositorydokumentation und Entwicklungspakete. Die gesonderten Implementierungsaufträge vom 08.10.2026 liefern S1 (#177), S2 (#178, [PR #183](https://github.com/venomenon328/csc-x-tool/pull/183)) S3a (#179) und S3b (#180). Liefer-, Prüf- und Abnahmestände führen die Paket-Issues und PRs; S3b liefert knappe Nichtqualifikationen und die rein lesende Stimmzettel-Gegenrechnung. Die [S3b-Nachweismatrix](result-impact-statistics-verification.md) führt Fach-, SQLite- und UI-Nachweise sowie die offene manuelle Abnahme. Die [S2-Nachweismatrix](participant-statistics-verification.md) und [S3a-Nachweismatrix](preference-statistics-verification.md) ordnen die gezielten Berechnungs-, SQLite- und UI-Fälle zu.
 
 ## 2. Gemeinsame Daten- und Berechnungsgrundlage
 

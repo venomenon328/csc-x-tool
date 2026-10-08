@@ -6,6 +6,7 @@ import { decimal, evaluationLabels, percent, type Direction, type Profile, type 
 import { PersonLink, RelationList } from './RelationshipViews'
 import { nameOf } from './labels'
 import { EntryDistribution } from './PreferenceViews'
+import { NearMissDetail } from './ResultImpactViews'
 
 export type Evidence = { kind: 'entry', id: number } | { kind: 'points' | 'podium', id: number }
 type Actions = { openRelation: (direction: Direction) => void, openEvidence: (evidence: Evidence) => void }
@@ -73,7 +74,7 @@ export function StatisticsRecords({ data, openRelation, openEvidence }: { data: 
   </Stack>
 }
 
-export function EvidenceDetail({ data, evidence, close, openRelation }: { data: Statistics, evidence: Evidence | null, close: () => void, openRelation: Actions['openRelation'] }) {
+export function EvidenceDetail({ data, evidence, close, openRelation, openEntry }: { data: Statistics, evidence: Evidence | null, close: () => void, openRelation: Actions['openRelation'], openEntry: (id: number) => void }) {
   const entry = evidence?.kind === 'entry' ? data.entries.find(e => e.id === evidence.id) : null
   const profile = evidence && evidence.kind !== 'entry' ? data.profiles.find(p => p.participationId === evidence.id) : null
   const row = profile && data.standings.rows.find(r => r.participationId === profile.participationId)
@@ -82,6 +83,7 @@ export function EvidenceDetail({ data, evidence, close, openRelation }: { data: 
   return <Dialog open={evidence !== null} onClose={close} fullWidth maxWidth="md"><DialogTitle>{entry ? `Beitragsdetails · ${entry.artist} – ${entry.title}` : `Serienbelege · ${profile ? nameOf(data, profile.participationId) : ''}`}</DialogTitle><DialogContent><Stack spacing={2}>
     {entry && <><Typography>Show {data.standings.shows.find(s => s.showId === entry.showId)?.showNumber} · {entry.participationId !== null && nameOf(data, entry.participationId)}</Typography><Typography>{award ? `${award.twentyFives} erhaltene 25er / ${award.opportunities} wählbare Bewertungen · Quote ${percent(award.rate)}` : 'Show nicht gewertet; keine Rekordbasis.'}</Typography><Typography>Showrang: {data.standings.rows.find(r => r.participationId === entry.participationId)?.shows.find(c => c.showId === entry.showId)?.showRank ?? 'N/A'}</Typography>
       <Button component={RouterLink} to={`/shows/${entry.showId}/evaluation?view=standings`}>Showauswertung öffnen</Button>
+      <NearMissDetail key={entry.id} data={data} entryId={entry.id} openEntry={openEntry} />
       <EntryDistribution data={data} id={entry.id} />
       <TableContainer><Table size="small" aria-label="Beitragswertungen"><TableHead><TableRow><TableCell>Geber</TableCell><TableCell>Punkte / Rang / Zustand</TableCell><TableCell>Beleg</TableCell></TableRow></TableHead><TableBody>{data.standings.rows.map(giver => {
         const evaluation = data.relations.find(r => r.giverId === giver.participationId && r.receiverId === entry.participationId)?.shows.find(e => e.showId === entry.showId)

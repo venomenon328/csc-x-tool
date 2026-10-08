@@ -376,6 +376,7 @@ S2-Konkretisierung vom 08.10.2026: Ein aggregierter lesender Statistikendpunkt e
 
 S3a-Konkretisierung vom 08.10.2026: Die sechs Präferenzstatistiken ergänzen denselben Antwortsnapshot. Exakte gekürzte BigInteger-Brüche bestimmen Quotienten, Showmittel, Listen und Rekordgleichstände. Paarvergleich und Konsens besitzen ihre getrennten Vergleichspopulationen; Beitragskennzahlen teilen eine wählbare Bewertungspopulation. Gemeinsame Stimmzettelbelege werden je Show einmal referenziert. Keine neue Persistenz oder Exportversion; technische Nachweise und spätere gemeinsame Abnahme: [S3a-Matrix](preference-statistics-verification.md).
 
+S3b-Konkretisierung vom 08.10.2026: Der gemeinsame reine Showkern trägt echte und hypothetische Rang-/Punkteableitung des vollständigen Felds. Ein eigener lesender Abruf validiert genau eine gültige Stimme einer abgeschlossenen Show und liefert Original, Hypothese und Basis aus einem Snapshot. Die letzte Stimme erzeugt ausschließlich N/A für die Alternative. Tatsächliche Rekorde/Verlauf und sämtliche Persistenz bleiben unverändert. Grenzgruppenrekorde bewahren alle Mitglieder und alle positiven Häufigkeits-/Abstandsgleichstände. Keine neue Schema-/Exportversion; Nachweise und offene gemeinsame Abnahme: [S3b-Matrix](result-impact-statistics-verification.md).
 ## Bewusst vertagte Entscheidungen
 
 ### O-001 – Vollständiger Import-Testblock

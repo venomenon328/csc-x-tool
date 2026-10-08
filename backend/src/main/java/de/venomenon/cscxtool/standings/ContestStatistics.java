@@ -102,7 +102,8 @@ final class ContestStatistics {
                 winners(profiles, Profile::podiumCount).stream().map(Profile::participationId).toList());
         return new ContestStatisticsResponse(standings, data.entries(), relations,
                 top(relations).stream().map(r -> new Direction(r.giverId(), r.receiverId())).toList(),
-                List.copyOf(pairs), List.copyOf(profiles), List.copyOf(awards), records, PreferenceStatistics.calculate(data));
+                List.copyOf(pairs), List.copyOf(profiles), List.copyOf(awards), records, PreferenceStatistics.calculate(data),
+                NearMissStatistics.calculate(standings));
     }
 
     private static Double rate(int count, int basis) { return basis == 0 ? null : (double) count / basis; }

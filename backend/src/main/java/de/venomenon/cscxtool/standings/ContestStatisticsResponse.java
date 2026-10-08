@@ -5,7 +5,8 @@ import java.util.List;
 /** One snapshot, including all drilldown evidence. IDs always refer to contest participations. */
 public record ContestStatisticsResponse(ContestStandingsResponse standings, List<ResultData.Entry> entries,
         List<Relation> relations, List<Direction> topRelations, List<Pair> pairs,
-        List<Profile> profiles, List<EntryAward> entryAwards, Records records, PreferenceStatisticsResponse preferences) {
+        List<Profile> profiles, List<EntryAward> entryAwards, Records records, PreferenceStatisticsResponse preferences,
+        NearMissStatistics nearMisses) {
     public record Direction(long giverId, long receiverId) { }
     public record Evaluation(long showId, Long entryId, String state, Integer ballotRank, Integer points) { }
     public record Relation(long giverId, long receiverId, int points, int scoredShows, int opportunities,
