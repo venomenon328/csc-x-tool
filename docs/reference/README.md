@@ -45,11 +45,13 @@ Die interne Punktzuordnung der eindeutigen Top 15:
 | 14 | 2 |
 | 15 | 1 |
 
-Diese Zuordnung unterstützt spätere Auswertungen und die Validierung eingehender Punktwerte.
+Diese Zuordnung unterstützt die eigene Top 15, abgeleitete Stimmzettelpunkte und gemäß [contest-statistics.md](../contest-statistics.md) dieselbe zweite Punktevergabe aus der Showplatzierung für die Contest-Gesamtwertung.
+
+Für die am 07.10.2026 freigegebene Erweiterung wird zusätzlich die Gleichstandsregel aus den hinterlegten Punkteregeln (am 07.10.2026 geprüft) verwendet: Zwei gemeinsame erste Plätze erhalten je 25 Punkte; danach folgt Platz 3 mit 16 Punkten. Daraus folgen geteilte Wettbewerbsränge mit übersprungenen Folgeplätzen und volle Rangpunkte für alle Mitglieder einer punktberechtigten Platzgruppe. Die Nutzerfreigabe übernimmt geteilte Ränge auch für die Contest-Gesamtsumme.
 
 ### Wird nicht verwendet für
 
-Die im Dokument beschriebene Gleichstandslogik der Gesamtauswertung. Die eigene ausgehende Bewertung ist immer eindeutig und enthält keine Gleichstände. Das Tool berechnet keine vollständigen Mottoshow-Ergebnisse.
+Zusätzliche, nicht belegte Tiebreaks oder manuell importierte offizielle Endtabellen. Persönliche ausgehende Bewertungen und veröffentlichte Einzelstimmzettel bleiben eindeutig und enthalten keine Gleichstände. Die berechneten Show-/Contestergebnisse aus #14 ändern diesen Stimmzettelvertrag nicht.
 
 ## Workflow und Strategie
 

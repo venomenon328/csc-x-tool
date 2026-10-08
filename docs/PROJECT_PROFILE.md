@@ -10,6 +10,7 @@ Bei Produktänderungen die betroffenen vollständigen Abschnitte der [Produktspe
 | --- | --- |
 | Voting-Arbeitsplatz, Scrollverhalten und Top-15-Sichtbarkeit | [Arbeitsplatz-Spezifikation](voting-workspace.md) vollständig; freigegebene Ablösung der Scrollfestlegung aus #58 und des ungefähren Höhenziels aus PR #65 |
 | Historische Wettbewerbe, Stimmzettel und Analyseexport | [Erweiterungsspezifikation](historical-contests-ballots-analysis.md) |
+| Showabschluss, Contest-Gesamtwertung, Teilnehmerstatistiken und Rekorde | [Gesamtwertungs- und Statistikspezifikation](contest-statistics.md) vollständig; gezielte Erweiterung der bisherigen Ergebnisabgrenzung, Roadmap #14 |
 | Externe Profile, Bewertungen und Tippspiel | [Analyseprotokoll](external-ai-analysis.md) und [Analyse-Einstieg](ai-workflows/README.md) mit dem passenden konkreten Ablauf |
 | Herkunft fachlicher Referenzen | [Quellenabgrenzung](reference/README.md) |
 | Launcher, Installer oder Release | [Paketierung](../launcher/packaging/README.md) und [Release-Checkliste](release-checklist-0.1.0.md) |

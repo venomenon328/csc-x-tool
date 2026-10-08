@@ -1,8 +1,10 @@
 # Entscheidungsprotokoll
 
-**Stand:** 29.09.2026
+**Stand:** 07.10.2026
 
 Dieses Dokument hält die bisher verbindlich getroffenen Produkt- und Architekturentscheidungen fest. Es ersetzt keine ausführliche Anforderung aus der [Produktspezifikation](specification.md), sondern erklärt die maßgeblichen Grenzziehungen.
+
+Frühe Baselineentscheidungen zu genau einer Ausgabe, Teilnehmerland und manueller Ergebnispflege sind im Geltungsbereich der [Historik-Erweiterung](historical-contests-ballots-analysis.md) abgelöst. D-027 bis D-030 und A-023 dokumentieren die am 07.10.2026 freigegebene Statistik-Erweiterung; ihr Lieferstand steht in #14.
 
 ## Verbindliche Produktentscheidungen
 
@@ -144,11 +146,15 @@ Damit kann ein vollständiger Ergebnisstand zuverlässig von einer nur teilweise
 
 ### D-019 – Berechnete und offizielle Gesamtpunktzahl
 
+Historische Entscheidung, durch P12 abgelöst. Die neue abgeleitete Gesamtwertung aus D-028/A-023 reaktiviert keine zusätzliche manuelle offizielle Punktpflege.
+
 Die Summe der Einzelwertungen wird berechnet.
 
 Eine offizielle Gesamtpunktzahl kann zusätzlich gespeichert werden. Eine Abweichung wird angezeigt, aber nicht automatisch aufgelöst.
 
 ### D-020 – Endplatzierung mit Gleichstandskennzeichen
+
+Historische Entscheidung, durch P12 abgelöst. Für neu berechnete Show- und Contestränge gilt D-028; ein manuell gespeichertes Gleichstandskennzeichen wird nicht wieder eingeführt.
 
 Die Endplatzierung wird als Zahl gespeichert und kann zusätzlich als geteilt gekennzeichnet werden.
 
@@ -187,6 +193,28 @@ Am 29.09.2026 ist für #174 die [Arbeitsplatz-Spezifikation](voting-workspace.md
 Verbindliche Referenz des einzigen Nutzers: Windows, Bildschirmauflösung 2560 × 1440, Vivaldi maximiert und 100 % Browserzoom. Wenn die Rangliste rechts nach oben gescrollt ist, müssen die Plätze 1 bis 15 offen wie gesperrt vollständig gleichzeitig sichtbar sein, unabhängig von der linken Scrollposition. Die tatsächliche Windows-Skalierung und der CSS-Inhaltsviewport werden beim Nachweis protokolliert, nicht aus der Bildschirmauflösung erfunden. Kleinere Fenster/mehr Zoom bleiben bedienbar, ohne dort 15 sichtbare Zeilen zu garantieren.
 
 Damit werden ausschließlich #58 „Zielbild / Scrollverhalten“ und das ungefähre Höhenziel aus PR #65 abgelöst. Hauptlisten-/Rankingsemantik und alle Datenverträge bleiben bestehen. Die Entscheidung ist eine Spezifikations-, keine Implementierungs- oder Mergefreigabe; den Lieferstand führt #174.
+
+### D-027 – Bewusster Show-Ergebnisabschluss
+
+Aktuelle und historische Shows zählen erst nach einem expliziten Ergebnisabschluss in die Contest-Gesamtwertung und die neuen Statistiken. Abschlussbereitschaft verlangt die vollständige Songliste und Zuordnung, keinen unerfassten Stimmzettelstatus im maßgeblichen Contest-Teilnehmerfeld und mindestens einen gültigen veröffentlichten Stimmzettel. `NICHT_ABGESTIMMT` ist ein geklärter Zustand.
+
+Der persönliche Top-15-Abschluss bleibt unabhängig. Wertungsrelevante Änderungen erfordern vorherige Wiederöffnung der betroffenen Shows; diese werden bis zum erneuten Abschluss aus den Contestauswertungen entfernt. Rein kosmetische Änderungen verändern die Wertung nicht. Bestehende historische Daten bleiben nach Migration offen, auch wenn ihre Erfassung bereits vollständig ist.
+
+### D-028 – Zwei Punkteebenen und echte geteilte Ränge
+
+Stimmzettelpunkte werden aus eindeutigen Rängen mit der zentralen Folge 25/20/16/13/11/10/9/8/7/6/5/4/3/2/1 abgeleitet. Ihre Summe ergibt die Showrangfolge. Für jeden Showrang bis einschließlich 15 werden dieselben Rangpunkte als Gesamtwertungspunkte vergeben und über abgeschlossene Shows summiert.
+
+Punktgleichheit verwendet Wettbewerbsränge mit übersprungenen Folgeplätzen: 1/1/3, nicht 1/1/2. Alle Beiträge einer geteilten Ranggruppe erhalten die vollen Punkte ihres Rangs; eine Zeilengrenze von 15 ist unzulässig. Die Quelle Punkteregeln belegt zweimal 25 Punkte für zwei gemeinsame Sieger und anschließend 16 Punkte für Platz 3. Geteilte Contestränge folgen derselben Rangsemantik. Siege und Rohpunktsummen dienen nicht als Tiebreak; ohne gewertete Show existiert kein Sieger.
+
+### D-029 – Gemeinsame Datenbasis für Personen- und Conteststatistiken
+
+Neue Statistiken verwenden dieselben explizit abgeschlossenen Shows der ausgewählten Ausgabe wie die Gesamtwertung. Eine gerichtete Punktebeziehung aggregiert veröffentlichte Stimmzettelpunkte zwischen stabilen Teilnehmeridentitäten. Eigene Snapshots, Tippspielvermutungen und Legacy-Einzelwerte werden nicht hinzugemischt.
+
+Summen werden um bekannte Bewertungsgelegenheiten, bepunktete Shows, Durchschnitt und 25er ergänzt. Null, keine Bewertung und nicht wählbar bleiben unterscheidbar. Persönliche und globale Toplisten schließen Gleichstände an der Top-5-Grenze ein; nicht berechenbare Werte sind keine Nullrekorde. Gegenseitigkeit und Favoritenähnlichkeit sind getrennte Kennzahlen. Der vollständige Kennzahlenvertrag steht in [contest-statistics.md](contest-statistics.md).
+
+### D-030 – Contest-Auswertung in vier Ansichten
+
+Die freigegebene Oberfläche umfasst Gesamtwertung (Showspalten und Verlauf), Teilnehmerprofile, Punktebeziehungen (gerichtete Heatmap mit Detailauflösung) und Rekorde. Es bleibt eine lokale Einzelbenutzeranwendung; Teilnehmerauswahl bedeutet keine Anmeldung für Contestteilnehmer. Die zwölf benannten Zusatzstatistiken werden in den Paketen von #14 umgesetzt. Vorläufige Conteststatistiken mit offenen Shows, neue Statistikexporte und Genre-/KI-Auswertungen sind keine Nebenanforderungen dieser Freigabe.
 
 ## Verbindliche Architekturentscheidungen
 
@@ -334,6 +362,14 @@ Für den freigegebenen Voting-Arbeitsplatz aus D-026 wird die verfügbare Browse
 
 Die Änderung bleibt frontendseitig und auf die Voting-Route einschließlich ihres bestehenden Zuordnungsmodus begrenzt. Kein Datenmodell-, API-, Bibliotheks- oder Exportwechsel. Vollständiger Vertrag und reales Vivaldi-Abnahmeziel: [voting-workspace.md](voting-workspace.md). Dies dokumentiert die beschlossene Zielarchitektur, nicht deren bereits erfolgte Umsetzung.
 
+### A-023 – Abgeleitete Contestauswertung mit getrenntem Abschlusszustand
+
+Die Erweiterung speichert einen eigenständigen Show-Ergebnisabschluss einschließlich Abschlusszeitpunkt, keine manuell pflegbaren Show-/Contestsummen oder Statistikranglisten. Persönliche `ballot_closed_at`-/Snapshot-Felder behalten ihre bisherige Bedeutung. Die zentrale `CscPoints`-Abbildung und eine gemeinsame Rangberechnung tragen echte und hypothetische Auswertungen; keine zweite Punkteabbildung im Frontend.
+
+Abschlussprüfung und Änderungen müssen transaktional gegen alle betroffenen wertungsrelevanten Schreibpfade abgesichert werden, einschließlich Contest-Teilnehmerfeld und indirekter Zuordnungsänderungen. Die vorhandenen historischen Import-/Stimmzettelsperren werden nicht gelockert. Auswertungen bleiben auf eine Ausgabe und den aktuell eingeschlossenen Showstand begrenzt.
+
+Liquibase-Migration und vollständiger JSON-Export/Restore führen den neuen Abschluss verlustfrei und rückwärtskompatibel. Alte Daten ohne Abschlussmarker bleiben offen. Der bestehende Analyseexport behält seine eigene Auswahlsemantik für aktuelle und historische Quellen; Statistikfilter werden ihm nicht untergeschoben. Eine Stimmzettel-Simulation ist rein lesend und verändert weder Stimmzettelstatus noch Abschluss oder persistierte Punkte.
+
 ## Bewusst vertagte Entscheidungen
 
 ### O-001 – Vollständiger Import-Testblock
@@ -346,9 +382,9 @@ Vor der finalen Parserimplementierung soll noch ein vollständiger realer Beitra
 
 Das endgültige CSC-Format bleibt bis zu einem realen oder gewünschten Einreichungsformat offen. Bis dahin gilt die in A-017 dokumentierte neutrale 15-Zeilen-Ausgabe.
 
-### O-003 – Statistiken und Diagramme
+### O-003 – Statistiken und Diagramme (spezifiziert am 07.10.2026)
 
-Werden anhand realer Daten separat priorisiert. Das initiale Datenmodell soll die spätere Auswertung ermöglichen, ohne bereits eine Berichtssammlung vorzutäuschen.
+Für den freigegebenen Umfang durch D-027 bis D-030, A-023 und [contest-statistics.md](contest-statistics.md) konkretisiert. [Roadmap #14](https://github.com/venomenon328/csc-x-tool/issues/14) führt drei Ausbaustufen mit separat prüfbaren Paketen. Die frühere pauschale Vertagung ist insoweit abgelöst; Implementierung und Abnahme sind noch ausstehend.
 
 ### O-004 – Drag-and-drop-Bibliothek (erledigt in P2)
 

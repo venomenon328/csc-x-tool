@@ -2,7 +2,9 @@
 
 **Version:** 0.1  
 **Stand:** 27.08.2026  
-**Status:** operative Roadmap bis zur ersten lokal nutzbaren Version 0.1.0
+**Status:** historische Roadmap bis zur ersten lokal nutzbaren Version 0.1.0
+
+**Fortschreibung 07.10.2026:** Die aktuelle Statistik-Erweiterung ist separat in [contest-statistics.md](contest-statistics.md) und [Roadmap #14](https://github.com/venomenon328/csc-x-tool/issues/14) spezifiziert. Die früheren Bootstrap-/Legacy-Ergebnisbeschreibungen dieses Plans sind keine aktuellen Implementierungsaufträge; aktuelle Phasen und Befugnisse regeln [WORKFLOW.md](dev-rules/WORKFLOW.md) und [PROJECT_PROFILE.md](PROJECT_PROFILE.md).
 
 ## 1. Zweck dieses Dokuments
 
@@ -543,7 +545,7 @@ Beide Eingaben verfeinern P4 beziehungsweise P5, blockieren aber weder P0 noch P
 
 ### Statistiken
 
-[Issue #14](https://github.com/venomenon328/csc-x-tool/issues/14) bleibt bewusst außerhalb von 0.1.0. Priorisiert wird erst nach mehreren realen Showergebnissen.
+[Issue #14](https://github.com/venomenon328/csc-x-tool/issues/14) ist seit 07.10.2026 die freigegebene, noch nicht implementierte Roadmap für Gesamtwertung und Statistiken. Sie erweitert den historischen 0.1.0-Umfang separat. Drei Ausbaustufen: S1 Showabschluss/Gesamtwertung/Verlauf; S2 Teilnehmerprofile/Punktebeziehungen/Heatmap und einfache Rekorde; S3a Präferenz-/Beitragsstatistiken sowie S3b knappe Ergebnisse/Stimmzettel-Simulation als getrennte Pakete. Vollständige Verträge, Reihenfolge und Akzeptanz: [contest-statistics.md](contest-statistics.md).
 
 ## 20. Unmittelbar nächster Arbeitsauftrag
 

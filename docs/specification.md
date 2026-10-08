@@ -2,7 +2,9 @@
 
 **Version:** 0.2  
 **Stand:** 27.08.2026  
-**Status:** gemeinsam erarbeitete fachliche Baseline für die weitere Entwicklung
+**Status:** ursprüngliche fachliche Baseline mit ausdrücklich fortgeschriebenen Erweiterungen
+
+**Fortschreibung 07.10.2026:** Für mehrere Ausgaben, vollständige veröffentlichte Stimmzettel und die Ablösung der manuellen Ergebnisfelder gilt die [Historik-Erweiterung](historical-contests-ballots-analysis.md). Die freigegebene [Gesamtwertungs- und Statistikspezifikation](contest-statistics.md) ergänzt einen expliziten Show-Ergebnisabschluss, abgeleitete Show-/Contestränge und Statistiken. Die entsprechenden Ausschlüsse der initialen Baseline sind für diese Erweiterung abgelöst. Lieferstand und Paketabnahme führt [Roadmap #14](https://github.com/venomenon328/csc-x-tool/issues/14); die Spezifikation ist noch keine Implementierung.
 
 ## 1. Zweck des Produkts
 
@@ -73,7 +75,7 @@ Der Kernablauf lautet:
 Die vorhandenen CSC-Dokumente dienen nur dort als fachliche Grundlage, wo ihre Inhalte für das Tool relevant sind:
 
 - **Mottoshows** liefert Nummer und Bezeichnung der zwölf vorgesehenen Runden. Die Anwendung bildet die Regeln der Mottos nicht ab und validiert sie nicht.
-- **Punkteregeln** liefert die interne Zuordnung der Ränge 1 bis 15 zu 25, 20, 16, 13, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2 und 1 Punkt.
+- **Punkteregeln** liefert die interne Zuordnung der Ränge 1 bis 15 zu 25, 20, 16, 13, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2 und 1 Punkt. Für die Erweiterung #14 gilt zusätzlich die dort belegte Platzteilung mit übersprungenen Folgerängen: zweimal Platz 1 erhält zweimal 25 Punkte, anschließend folgt Platz 3 mit 16 Punkten. Persönliche Stimmzettel bleiben eindeutig.
 - **Workflow und Strategie** liefert die Rahmenannahmen, dass ungefähr 30 anonyme Beiträge je Mottoshow gehört und anschließend 15 Favoriten eindeutig gereiht werden. Die dort beschriebene Recherche- und Kandidatenbewertung bleibt außerhalb der Anwendung.
 - **Ausschlussliste** wird nicht importiert und nicht automatisch geprüft. Ein eingetragener Kandidat gilt für das Tool als bereits außerhalb der Anwendung geprüfter und gültiger Kandidat.
 
@@ -175,6 +177,10 @@ Angezeigt werden mindestens:
 ### SHOW-005 – Keine Fristen
 
 Einreichungs- und Abstimmungsfristen werden nicht gepflegt.
+
+### SHOW-006 – Expliziter Ergebnisabschluss einer Show
+
+Die Erweiterung #14 ergänzt neben dem persönlichen Abstimmungsabschluss einen eigenen Ergebnisabschluss für aktuelle und historische Shows. Abschlussbereitschaft wird aus vollständiger Songzuordnung, geklärten Stimmzettelstatus und mindestens einem gültigen Stimmzettel abgeleitet; erst die bewusste Aktion nimmt die Show in Gesamtwertung und Conteststatistiken auf. Wertungsrelevante Korrekturen erfordern vorherige Wiederöffnung. Die Show fällt dann bis zum erneuten Abschluss aus diesen Auswertungen. Bestehende persönliche Snapshots und ihre Freigaberegeln bleiben davon unabhängig. Vollständiger Vertrag: [contest-statistics.md](contest-statistics.md).
 
 ## 8. Kandidatenverwaltung
 
@@ -613,6 +619,8 @@ Identische Zuordnungen sind idempotent. Ein Ersatz erfordert eine ausdrückliche
 
 ## 13. Ergebnis der eigenen Einreichung
 
+**Historische Baseline, durch P12 abgelöst:** Die nachstehenden manuellen Ergebnisfelder beschreiben den ursprünglichen Stand. Maßgeblich für die aktive eigene Ergebnisansicht sind die veröffentlichten Stimmzettel und [§12 der Historik-Erweiterung](historical-contests-ballots-analysis.md#12-abgeleitete-ergebnisansichten). Der neue Showabschluss und die berechneten Platzierungen aus [#14](contest-statistics.md) führen diese manuellen Felder nicht wieder ein.
+
 ### 13.1 Ergebniseintrag je Teilnehmer
 
 Für jeden aktiven Teilnehmer wird pro Mottoshow ein Ergebniseintrag geführt.
@@ -868,6 +876,8 @@ Importe, Abschlüsse, Wiederöffnungen und Exporte führen bei gleicher Eingabe 
 
 ## 19. Fachliche Validierungen im Überblick
 
+Die ergebnisbezogenen Legacy-Regeln dieser ursprünglichen Übersicht sind durch die Historik-Erweiterung abgelöst; die zusätzlichen Abschluss-/Wertungsregeln stehen vollständig in [contest-statistics.md](contest-statistics.md).
+
 - Interpret, Titel und YouTube-Link sind bei Kandidaten und Wettbewerbsbeiträgen Pflichtfelder.
 - Eine Mottoshow besitzt höchstens eine eigene Einreichung.
 - Ein Kandidat gehört genau einer Mottoshow; Kopieren erzeugt einen unabhängigen Kandidaten.
@@ -882,6 +892,8 @@ Importe, Abschlüsse, Wiederöffnungen und Exporte führen bei gleicher Eingabe 
 - Ein aus der Zwischenablage importierter Wettbewerbsbeitrag gilt erst dann als vollständig, wenn Interpret, Titel und YouTube-Link erkannt oder in der Vorschau manuell ergänzt wurden.
 
 ## 20. Durchgängiges Akzeptanzszenario
+
+Historisches Baseline-Szenario. Die Schritte zur isolierten manuellen Ergebnispflege sind durch das Stimmzettelmodell abgelöst. Für #14 gilt zusätzlich die Abnahme der [Gesamtwertungs- und Statistikspezifikation](contest-statistics.md); ein vorhandener persönlicher Top-15-Abschluss ersetzt keinen Show-Ergebnisabschluss.
 
 Eine erste fachlich vollständige Version gilt als benutzbar, wenn folgender Ablauf ohne externe Datenbank- oder Kommandozeilenarbeit möglich ist:
 
@@ -920,10 +932,12 @@ Folgende konkrete Eingaben beziehungsweise Testdaten werden erst benötigt, bevo
 2. **Reales oder gewünschtes Ausgabeformat einer abgegebenen Top 15**  
    Grundlage für die endgültige Textvorlage und Zwischenablageausgabe.
 
-3. **Gewünschte Statistiken und Diagramme**  
-   Werden nach Vorliegen erster realer Daten separat priorisiert und spezifiziert.
+3. **Gewünschte Statistiken und Diagramme – spezifiziert am 07.10.2026**
+   Umfang, Formeln, Entwicklungspakete und Abnahme stehen in [contest-statistics.md](contest-statistics.md) und [Roadmap #14](https://github.com/venomenon328/csc-x-tool/issues/14). Eine spätere vorläufige Contestansicht mit offenen Shows bleibt außerhalb dieser Freigabe.
 
 ## 22. Mögliche spätere Erweiterungen
+
+Die nachstehende ursprüngliche Ideensammlung ist für Gesamtwertung, Punktebeziehungen und die ausdrücklich ausgewählten Rekorde durch [§23](#23-contest-gesamtwertung-und-statistiken) konkretisiert. Zusätzliche Exporte und darüber hinausgehende Berichte sind nicht automatisch freigegeben.
 
 Nicht Bestandteil der ersten Version, aber durch das Datenmodell sinnvoll vorbereitbar:
 
@@ -937,6 +951,19 @@ Nicht Bestandteil der ersten Version, aber durch das Datenmodell sinnvoll vorber
 - zusätzliche Exporte oder grafische Berichte
 
 Diese Erweiterungen dürfen den initialen Workflow nicht verkomplizieren.
+
+## 23. Contest-Gesamtwertung und Statistiken
+
+Am 07.10.2026 freigegeben, noch nicht implementiert: [verbindliche Detailspezifikation](contest-statistics.md), [Roadmap #14](https://github.com/venomenon328/csc-x-tool/issues/14).
+
+- Stimmzettelpunkte bestimmen den Showrang; Showränge bis einschließlich 15 erzeugen nach demselben Schlüssel Gesamtwertungspunkte.
+- Punktgleiche Beiträge bzw. Teilnehmer teilen den Rang; Folgeränge werden übersprungen. Alle Mitglieder einer punktberechtigten Ranggruppe erhalten die vollen Rangpunkte, auch über die 15. Tabellenzeile hinaus. Auch die Contestsumme kennt geteilte Plätze ohne zusätzlichen Tiebreak.
+- Gesamtwertung und Statistiken verwenden ausschließlich explizit abgeschlossene Shows der gewählten Ausgabe. Laufende Showzwischenstände bleiben separat nutzbar.
+- Die Oberfläche bietet Gesamtwertung mit Showspalten und Verlauf, Teilnehmerprofile, gerichtete Punktebeziehungen mit Heatmap sowie Rekorde.
+- Top-Punktegeber und Top-Empfänger jedes Teilnehmers sowie contestweite Höchstwerte enthalten mindestens die Top 5 einschließlich aller Gleichstände am letzten angezeigten Rang, soweit auswertbare Beziehungen vorhanden sind.
+- Geber-/Empfängerstatistiken verwenden Stimmzettelpunkte; fehlende Bewertung, eigene Einreichung und echte Nullpunkte bleiben fachlich getrennt.
+- Die zwölf freigegebenen Zusatzstatistiken und ihre exakten Berechnungsgrundlagen sind in der Detailspezifikation festgelegt. Namen und Länder sind Anzeigeinformationen; stabile Teilnehmeridentitäten bestimmen die Zuordnung.
+- Es entstehen keine manuell gepflegten Gesamtpunktzahlen, keine zusätzliche eigene Stimme aus einem Snapshot, keine integrierte KI und keine Mehrbenutzerfunktion.
 
 ## Anhang A – Initiale Mottoshows
 
