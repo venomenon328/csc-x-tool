@@ -11,6 +11,8 @@ class ContestResultController {
     ContestResultController(ContestResultService service) { this.service = service; }
     @GetMapping("/api/contests/{contestId}/standings")
     ContestStandingsResponse standings(@PathVariable long contestId) { return service.standings(contestId); }
+    @GetMapping("/api/contests/{contestId}/statistics")
+    ContestStatisticsResponse statistics(@PathVariable long contestId) { return service.statistics(contestId); }
     @GetMapping("/api/shows/{showId}/result-closure")
     ShowResultClosureResponse closure(@PathVariable long showId) { return service.closure(showId); }
     @PostMapping("/api/shows/{showId}/result-closure/close")

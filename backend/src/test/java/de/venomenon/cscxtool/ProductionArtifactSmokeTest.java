@@ -85,6 +85,10 @@ class ProductionArtifactSmokeTest {
     void forwardsEachPlannedSpaRouteButNeverAnApiPath() throws Exception {
         String[] spaRoutes = {
                 "/participants",
+                "/standings",
+                "/statistics/participants",
+                "/statistics/relationships",
+                "/statistics/records",
                 "/data",
                 "/shows/bootstrap/candidates",
                 "/shows/bootstrap/voting",

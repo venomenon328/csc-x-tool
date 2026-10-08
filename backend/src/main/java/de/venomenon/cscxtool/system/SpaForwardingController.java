@@ -13,6 +13,9 @@ class SpaForwardingController {
     @GetMapping({
             "/participants",
             "/standings",
+            "/statistics/participants",
+            "/statistics/relationships",
+            "/statistics/records",
             "/data",
             "/shows/{showId}/candidates",
             "/shows/{showId}/voting",
