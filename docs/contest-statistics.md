@@ -1,8 +1,8 @@
 # Erweiterungsspezifikation – Gesamtwertung und Conteststatistiken
 
-**Version:** 1.0
-**Stand:** 07.10.2026
-**Status:** fachlich freigegeben; Implementierung noch nicht beauftragt oder geliefert
+**Version:** 1.1
+**Stand:** 08.10.2026
+**Status:** fachlich freigegeben; S1 implementiert, technische und manuelle Abnahme im Paket-PR; S2/S3 bleiben nachgelagert
 
 ## 1. Ziel, Geltung und Abgrenzung
 
@@ -12,7 +12,7 @@ Die [Produktspezifikation](specification.md), das [Stimmzettel- und historische 
 
 Unverändert ausgeschlossen bleiben die manuelle Pflege oder der Import offiziell berechneter Gesamtwertungstabellen als zusätzliche Wahrheit, die Rückrechnung vollständiger Stimmzettel aus isolierten Ergebnissen, genaue persönliche Ränge außerhalb der veröffentlichten Top 15, KI-/Genreanalysen, Telemetrie, Cloudübertragung, neue Anmeldung oder Mehrbenutzerbetrieb und die CSC-Ausschlussprüfung. Ein Teilnehmerprofil bedeutet die auswählbare Auswertung einer vorhandenen Contest-Teilnahme in der lokalen Einzelbenutzeranwendung.
 
-Der Auftrag umfasst Spezifikation, Repositorydokumentation und Entwicklungspakete. Er erlaubt noch keine Produktimplementierung. Liefer- und Abnahmestände führen die Paket-Issues; diese Datei behauptet keine bereits vorhandene Umsetzung.
+Der ursprüngliche Spezifikationsauftrag umfasste Repositorydokumentation und Entwicklungspakete. Der gesonderte Implementierungsauftrag vom 08.10.2026 liefert S1 (#177). Liefer-, Prüf- und Abnahmestände führen die Paket-Issues und PRs; die nachfolgenden S2-/S3-Funktionen sind weiterhin spezifiziert, nicht geliefert.
 
 ## 2. Gemeinsame Daten- und Berechnungsgrundlage
 
@@ -72,7 +72,7 @@ Serverantworten leiten ihren Auswertungsstand aus einem konsistenten SQLite-Lese
 | **Abschlussbereit** | Offen; alle Abschlussvoraussetzungen erfüllt | Nein |
 | **Abgeschlossen** | Bewusster erfolgreicher Abschluss | Ja |
 
-„Abschlussbereit“ ist abgeleitet, kein zusätzlich manuell zu pflegender Status. Ein persistenter, optionaler Abschlusszeitpunkt, beispielsweise `result_closed_at`, unterscheidet offen und abgeschlossen. Der konkrete technische Name bleibt der Umsetzung überlassen. Er ist fachlich und technisch unabhängig vom bestehenden `ballot_closed_at` und von historischen Legacy-Ergebnisabschlüssen.
+„Abschlussbereit“ ist abgeleitet, kein zusätzlich manuell zu pflegender Status. Ein persistenter, optionaler Abschlusszeitpunkt, `result_closed_at`, unterscheidet offen und abgeschlossen. Er ist fachlich und technisch unabhängig vom bestehenden `ballot_closed_at` und von historischen Legacy-Ergebnisabschlüssen.
 
 Der Server erlaubt den Showabschluss nur, wenn gleichzeitig:
 
@@ -102,7 +102,7 @@ Der Server schützt abgeschlossene Ergebnisse auch dann, wenn ein anderer Dialog
 | Beitrag hinzufügen, entfernen, in eine andere Show verschieben oder Einreichenden ändern; bestätigte Vollständigkeit zurücknehmen | Betroffene Ergebnisse müssen offen sein; sonst verständlicher Konflikt ohne Teiländerung; zusätzliche bestehende Songlisten-/Stimmzettelsperren bleiben bestehen |
 | Contest-Teilnahme hinzufügen/entfernen oder referenzielle Zuordnung ändern | Alle abgeschlossenen Shows berücksichtigen, deren erwartetes Teilnehmerfeld, Zuordnungen oder Stimmzettel dadurch geändert würden; keine stille Erweiterung, Entwertung oder automatische Wiederöffnung |
 | Eigene Contest-Teilnahme wechseln | Reiner Wechsel der Anzeigeidentität darf Ergebnisse nicht ändern. Ein bestehender Pfad, der dabei Beitragszuordnungen entfernt oder verändert, muss zuvor sämtliche betroffenen Showabschlüsse respektieren |
-| Wechsel der aktuellen CSC-Ausgabe (`contest.is_current`) ohne Änderung der Showzugehörigkeit | Bereits gültig abgeschlossene Ergebnisse bleiben gültig und eingeschlossen. Der Vollständigkeitsbeleg darf nicht allein durch den Wechsel von aktueller zu historischer Readiness verloren gehen. Er ist beim Übergang zu erhalten und bei späteren zulässigen relevanten Korrekturen neu zu prüfen; ein dauerhaft wahrer Marker darf keine fehlende Zuordnung verdecken. Die technische Ausgestaltung wird in S1 festgelegt; bestehende Regeln für offene aktuelle/historische Listen bleiben erhalten. |
+| Wechsel der aktuellen CSC-Ausgabe (`contest.is_current`) ohne Änderung der Showzugehörigkeit | Bereits gültig abgeschlossene Ergebnisse bleiben gültig und eingeschlossen. Der Vollständigkeitsbeleg darf nicht allein durch den Wechsel von aktueller zu historischer Readiness verloren gehen. Er ist beim Übergang zu erhalten und bei späteren zulässigen relevanten Korrekturen neu zu prüfen; ein dauerhaft wahrer Marker darf keine fehlende Zuordnung verdecken. S1 überträgt beim Wechsel aktuell → historisch für abgeschlossene Shows den Vollständigkeitsbeleg in `entry_list_complete`; beim Wechsel zur aktuellen Ausgabe wird dieser historische Marker zurückgesetzt. Abschlussprüfungen validieren unabhängig davon immer die kanonischen Zuordnungen; bestehende Regeln für offene aktuelle/historische Listen bleiben erhalten. |
 | Fachliche Showreihenfolge oder Contestzugehörigkeit ändern, soweit ein vorhandener Pfad dies erlaubt | Betroffene abgeschlossene Auswertungsgrundlagen und Verläufe dürfen nicht stillschweigend verändert werden; erforderliche Wiederöffnung ausdrücklich verlangen |
 | Anzeigename, Alias, Land, rein administrativer Aktivstatus, Showbezeichnung oder Songmetadaten korrigieren | Keine zusätzliche Sperre allein wegen dieses Abschlusses, sofern IDs, Wählbarkeit, Zuordnung, Teilnehmerfeld und Ergebnis unverändert bleiben; bestehende unabhängige Regeln gelten weiter |
 | Kommentar, persönliche Einschätzung, Hörzustand oder eigene Arbeitsrangliste ändern | Keine neue Ergebnissperre, soweit die Änderung keine kanonische veröffentlichte Wertung oder Zuordnung verändert; bestehender persönlicher Ballotvertrag bleibt maßgeblich |
@@ -283,7 +283,7 @@ Es entsteht keine manuell gepflegte Summen-, Platzierungs- oder Rekordtabelle. G
 
 Neue Schemafelder werden über Liquibase eingeführt. **Vorhandene Shows starten ohne neuen expliziten Ergebnisabschluss**, auch wenn Songliste und Stimmzettel vollständig sind, ein alter Legacy-Ergebnisabschluss existiert oder die Ausgabe historisch ist. Die Migration darf vorhandene Daten weder als Zustimmung zum Abschluss interpretieren noch eine eigene Stimme erzeugen. Die Oberfläche kann solche Shows unmittelbar als abschlussbereit zeigen.
 
-Der vollständige JSON-Export/Restore führt den neuen Abschlusszustand verlustfrei mit. Dafür wird bei S1 die gegenüber dem dann aktuellen Vertrag nächste verfügbare Formatversion festgelegt; beim Spezifikationsstand ist Version 10 aktuell. Alle bisher unterstützten älteren Formate bleiben importierbar und ergänzen fehlende Ergebnisabschlussinformationen deterministisch als offen. Ein neuer Export mit abgeschlossener Show muss deren vollständige Eingaben enthalten und vor Übernahme alle Abschlussinvarianten erfüllen. Ungültige oder widersprüchliche Abschluss-/Referenzdaten blockieren die Übernahme vor einer Teiländerung.
+Der vollständige JSON-Export/Restore führt den neuen Abschlusszustand verlustfrei mit. S1 verwendet dafür JSON-Version 11 und Schema-Generation 17. Der neue nullable Showwert `resultClosedAt` ist im vollständigen v11-Datensatz ausdrücklich erforderlich. Die alten Showformen der Versionen 7–10 werden separat gelesen und mit offenem Ergebniszustand hochgestuft; Versionen 1–6 durchlaufen weiterhin ihre bestehenden Upgrades. Alle bisher unterstützten älteren Formate bleiben importierbar und ergänzen fehlende Ergebnisabschlussinformationen deterministisch als offen. Ein neuer Export mit abgeschlossener Show muss deren vollständige Eingaben enthalten und vor Übernahme alle Abschlussinvarianten erfüllen. Ungültige oder widersprüchliche Abschluss-/Referenzdaten blockieren die Übernahme vor einer Teiländerung.
 
 Native Backups bleiben über Vorwärtsmigrationen kompatibel. Alte native Backups erhalten beim Upgrade offene Ergebniszustände; neue Backups bewahren ihre gültigen Abschlüsse. Der bestehende geprüfte Staging-Restore, Sicherheitsbackup, zentrale Datenlock und konsistente JSON-Lesesnapshot bleiben verbindlich. Restore und Reimport müssen anschließend dieselben Zahlen und Gleichstände liefern wie der exportierte gültige Datenstand.
 

@@ -18,7 +18,7 @@ Die Entwicklungsinhalte bis 0.1.0 sind umgesetzt: Die Anwendung verwaltet die zw
 
 Die Grundlage für mehrere CSC-Ausgaben, historische Songlisten, veröffentlichte Einzelwertungen, Analyseexporte und Tippspiel ist implementiert. Den Abschluss der zugehörigen Roadmap und ihrer realen Abnahmen führt [#66](https://github.com/venomenon328/csc-x-tool/issues/66).
 
-Am 07.10.2026 wurde die Erweiterung um explizite Show-Ergebnisabschlüsse, Contest-Gesamtwertung, Teilnehmerprofile, Punktebeziehungen und Rekorde freigegeben. Sie ist [verbindlich spezifiziert](docs/contest-statistics.md), aber noch nicht implementiert; Entwicklungspakete und Lieferstand stehen in [Roadmap #14](https://github.com/venomenon328/csc-x-tool/issues/14).
+Am 07.10.2026 wurde die Erweiterung um explizite Show-Ergebnisabschlüsse, Contest-Gesamtwertung, Teilnehmerprofile, Punktebeziehungen und Rekorde freigegeben. S1 liefert Showabschluss/Wiederöffnung und die Contest-Gesamtwertung mit Showdetails und auswählbarem Verlauf unter `/standings`. Die weiteren Ansichten bleiben [verbindlich spezifiziert](docs/contest-statistics.md); Entwicklungspakete und Lieferstand stehen in [Roadmap #14](https://github.com/venomenon328/csc-x-tool/issues/14).
 
 ## Sicherungen und Exporte
 
@@ -63,7 +63,7 @@ Der vollständige JSON-Download verwendet den versionierten Contract `csc-x-tool
 
 ## Bewusste Abgrenzung
 
-Das Tool recherchiert keine Kandidaten, prüft keine Mottoregeln und gleicht Songs nicht gegen die CSC-Ausschlussliste ab. Diese Arbeit findet vor dem Eintragen außerhalb der Anwendung statt. Veröffentlichte Stimmzettel bleiben die kanonische Bewertungsquelle; die geplante Gesamtwertung ergänzt keine manuelle offizielle Ergebnistabelle und keine integrierte KI-Prognose.
+Das Tool recherchiert keine Kandidaten, prüft keine Mottoregeln und gleicht Songs nicht gegen die CSC-Ausschlussliste ab. Diese Arbeit findet vor dem Eintragen außerhalb der Anwendung statt. Veröffentlichte Stimmzettel bleiben die kanonische Bewertungsquelle; die Gesamtwertung ergänzt keine manuelle offizielle Ergebnistabelle und keine integrierte KI-Prognose.
 
 ## Toolchain
 

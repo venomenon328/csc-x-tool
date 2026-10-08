@@ -36,6 +36,7 @@ class MottoShowService {
         return repository.findById(showId).orElseThrow(() -> new ShowNotFoundException(showId));
     }
 
+    @Transactional
     MottoShow rename(long showId, String name) {
         String normalizedName = name.trim();
         if (!repository.rename(showId, normalizedName)) {

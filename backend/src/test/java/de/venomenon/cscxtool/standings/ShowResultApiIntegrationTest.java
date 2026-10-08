@@ -196,6 +196,42 @@ class ShowResultApiIntegrationTest {
     }
 
     @Test
+    void returnsOneConsistentContestSnapshotWhileClosuresAndNativeRestoresOverlap() throws Exception {
+        long id = fixture();
+        service.close(id);
+        var closedBackup = backups.create(BackupReason.MANUAL);
+        service.reopen(id);
+        var openBackup = backups.create(BackupReason.MANUAL);
+        String closedToken = restores.previewKnownBackup(closedBackup.id()).token();
+        String openToken = restores.previewKnownBackup(openBackup.id()).token();
+        CountDownLatch start = new CountDownLatch(1);
+        var reading = CompletableFuture.runAsync(() -> {
+            await(start);
+            for (int i = 0; i < 30; i++) {
+                var response = service.standings(id);
+                boolean closed = !response.includedShowIds().isEmpty();
+                assertThat(response.shows().getFirst().status().equals("CLOSED")).isEqualTo(closed);
+                assertThat(response.rows()).allSatisfy(row -> {
+                    assertThat(row.rank() != null).isEqualTo(closed);
+                    assertThat(row.history().getFirst().included()).isEqualTo(closed);
+                    assertThat(!row.shows().getFirst().state().equals("NOT_COUNTED")).isEqualTo(closed);
+                });
+                assertThat(response.rows().stream().mapToInt(ContestStandingsResponse.Row::totalPoints).sum()).isEqualTo(closed ? 140 : 0);
+            }
+        });
+        var changing = CompletableFuture.runAsync(() -> {
+            await(start);
+            restores.restore(closedToken);
+            service.reopen(id);
+            service.close(id);
+            restores.restore(openToken);
+        });
+        start.countDown();
+        CompletableFuture.allOf(reading, changing).get(30, TimeUnit.SECONDS);
+        assertThat(service.standings(id).includedShowIds()).isEmpty();
+    }
+
+    @Test
     void forwardsStandingsAndExistingEvaluationUrlsToTheBundledSpa() {
         for (String path : List.of("/standings", "/shows/1/evaluation", "/shows/1/result", "/shows/1/published-ballots")) {
             assertThat(send("GET", path, null).body()).contains("<html");

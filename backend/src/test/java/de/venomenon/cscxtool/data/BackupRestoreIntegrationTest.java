@@ -120,6 +120,21 @@ class BackupRestoreIntegrationTest {
 
         assertThat(jdbc.queryForObject("SELECT title FROM candidate WHERE motto_show_id = 1", String.class)).isEqualTo("Historischer Stand");
         assertThat(SchemaSupport.schemaVersion(dataSource)).isEqualTo(SchemaSupport.CURRENT_SCHEMA_VERSION);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM motto_show WHERE result_closed_at IS NOT NULL", Integer.class)).isZero();
+    }
+
+    @Test
+    void migratesImmediatePredecessorNativeBackupsWithoutInventingResultClosures() throws Exception {
+        DataSource previous = SqliteDataSourceFactory.create(temporaryDirectory.resolve("schema16.db"));
+        migrate(previous, "classpath:/db/changelog/s1-predecessor-master.yaml");
+        JdbcTemplate old = new JdbcTemplate(previous);
+        old.update("UPDATE motto_show SET name = 'Vor S1' WHERE id = 1");
+        BackupSummary saved = new BackupService(storage, previous, new SqliteOnlineBackupAdapter(), new ObjectMapper()).create(BackupReason.MANUAL);
+        RestorePreview preview = restores.previewKnownBackup(saved.id());
+        assertThat(preview.schemaVersion()).isEqualTo(16);
+        restores.restore(preview.token());
+        assertThat(jdbc.queryForObject("SELECT name FROM motto_show WHERE id = 1", String.class)).isEqualTo("Vor S1");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM motto_show WHERE result_closed_at IS NOT NULL", Integer.class)).isZero();
     }
 
     @Test

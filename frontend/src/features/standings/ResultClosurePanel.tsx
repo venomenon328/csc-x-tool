@@ -1,9 +1,11 @@
 import { Alert, Button, Dialog, DialogActions, DialogContent, DialogTitle, Paper, Stack, Typography } from '@mui/material'
 import { useEffect, useState } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
+import { useContest } from '../contests/ContestContext'
 import { changeResultClosure, closureLabels, fetchResultClosure, type ResultClosure } from './contestApi'
 
 export function ResultClosurePanel({ showId, revision = 0 }: { showId: number, revision?: number }) {
+  const { selectContest } = useContest()
   // Keyed state also hides a previous show's result before its replacement request finishes.
   const [result, setResult] = useState<ResultClosure | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -23,7 +25,7 @@ export function ResultClosurePanel({ showId, revision = 0 }: { showId: number, r
     if (confirm === null) return
     setSaving(true)
     try { setResult(await changeResultClosure(showId, confirm)); setError(null); setConfirm(null) }
-    catch (caught) { setError(caught instanceof Error ? caught.message : 'Der Ergebnisabschluss konnte nicht geändert werden.'); setConfirm(null); setRefresh((n) => n + 1) }
+    catch (caught) { setError(caught instanceof Error ? caught.message : 'Der Ergebnisabschluss konnte nicht geändert werden.'); setConfirm(null) }
     finally { setSaving(false) }
   }
   return <Paper component="section" sx={{ p: 2 }}>
@@ -38,7 +40,7 @@ export function ResultClosurePanel({ showId, revision = 0 }: { showId: number, r
           {current?.closedAt ? 'Show wieder öffnen' : 'Showergebnis abschließen'}
         </Button>
         <Button disabled={saving} onClick={() => setRefresh((n) => n + 1)}>Status aktualisieren</Button>
-        <Button component={RouterLink} to="/standings">Zur Gesamtwertung</Button>
+        <Button component={RouterLink} to="/standings" onClick={() => { if (current) selectContest(current.contestId) }}>Zur Gesamtwertung</Button>
       </Stack>
     </Stack>
     <Dialog open={confirm !== null} onClose={() => !saving && setConfirm(null)}>

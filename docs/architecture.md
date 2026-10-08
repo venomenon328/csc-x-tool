@@ -661,7 +661,7 @@ Vorgesehene Struktur:
 - Serverzugriffe auf die Datenbank werden während des Austauschs gesperrt
 - nach erfolgreicher Wiederherstellung wird die Datenbank erneut geöffnet und geprüft
 
-Der vollständige JSON-Export ist ein versionierter Fachvertrag (aktuell Version 10). Er enthält die normalisierte BOTB-Auswahlliste einschließlich stabiler IDs, Teilnehmerreferenzen, Ausgabe, Interpret, optionalem Bekannt-seit-Datum und Zeitstempeln. Ein Restore validiert die Gesamtdaten vor dem Staging vollständig; BOTB-Auswahlen werden erst nach ihren Teilnehmeridentitäten wiederhergestellt. Ältere unterstützte Formate werden mit einer leeren BOTB-Liste hochgestuft.
+Der vollständige JSON-Export ist ein versionierter Fachvertrag (aktuell Version 11). Er enthält die normalisierte BOTB-Auswahlliste einschließlich stabiler IDs, Teilnehmerreferenzen, Ausgabe, Interpret, optionalem Bekannt-seit-Datum und Zeitstempeln. Ein Restore validiert die Gesamtdaten vor dem Staging vollständig; BOTB-Auswahlen werden erst nach ihren Teilnehmeridentitäten wiederhergestellt. Ältere unterstützte Formate werden mit einer leeren BOTB-Liste hochgestuft.
 
 ## 16. Launcher und Prozesslebenszyklus
 
@@ -805,13 +805,13 @@ Folgende Details werden beim jeweiligen Bootstrap-Issue entschieden und in Code 
 
 Keine dieser Entscheidungen erfordert vor dem Entwicklungsbeginn zusätzliche fachliche Klärung.
 
-## 23. Geplante Contest-Gesamtwertung und Statistiken
+## 23. Contest-Gesamtwertung und nachgelagerte Statistiken
 
-Verbindliche fachliche Details und Paketgrenzen: [contest-statistics.md](contest-statistics.md), [Roadmap #14](https://github.com/venomenon328/csc-x-tool/issues/14). Architekturentscheidung: [A-023](decisions.md#a-023--abgeleitete-contestauswertung-mit-getrenntem-abschlusszustand). Diese Beschreibung ist keine Behauptung einer vorhandenen Implementierung.
+Verbindliche fachliche Details und Paketgrenzen: [contest-statistics.md](contest-statistics.md), [Roadmap #14](https://github.com/venomenon328/csc-x-tool/issues/14). Architekturentscheidung: [A-023](decisions.md#a-023--abgeleitete-contestauswertung-mit-getrenntem-abschlusszustand). S1 (#177) implementiert Abschluss und Gesamtwertung; Teilnehmerprofile, Beziehungen und Rekorde bleiben Gegenstand der Folgepakete.
 
 ### Persistenz und Abschluss
 
-- Separater Ergebnisabschluss je `motto_show` einschließlich Abschlusszeitpunkt, beispielsweise `result_closed_at`; der konkrete technische Name wird bei der Umsetzung konsistent festgelegt.
+- Schema 17 ergänzt den nullable UTC-Zeitpunkt `motto_show.result_closed_at`. Migration und alte native Sicherungen setzen keinen vorhandenen Bestand automatisch auf abgeschlossen.
 - `ballot_closed_at`, persönliche Snapshots und `entry_list_complete` behalten ihre bestehenden Aufgaben.
 - Abschluss und erneuter Abschluss validieren serverseitig den vollständigen aktuellen Showzustand in einer Transaktion. Alle Contest-Teilnahmen werden entsprechend dem kanonischen Published-Ballot-Teilnehmerfeld berücksichtigt, unabhängig vom Aktivflag.
 - Wertungsrelevante Stimmzettel-, Beitrags-, Zuordnungs- oder Teilnehmerfeldänderungen prüfen sämtliche betroffenen Showabschlüsse. Wiederöffnung ist ein bewusster eigener Command; normale Änderungen dürfen keinen Abschluss still entfernen oder entwerten.
@@ -829,6 +829,25 @@ Verbindliche fachliche Details und Paketgrenzen: [contest-statistics.md](contest
 
 ### Oberfläche und bestehende Exporte
 
-Vier contestbezogene Ansichten: Gesamtwertung, Teilnehmerprofile, Punktebeziehungen und Rekorde. Details verlinken zu bestehenden Show-/Stimmzettelauswertungen. Routen und DTO-Namen werden bei der Vorbereitung im vorhandenen Router-/API-Stil festgelegt. Tabellen, Heatmap und Verlauf erhalten zugängliche Beschriftungen und eine lesbare Darstellung bei schmalerem Fenster.
+S1 liefert `/standings` mit Hauptnavigation „Gesamtwertung“, Showdetails und einem lokal gerenderten SVG für auswählbare Punkte-/Platzierungsverläufe. Zugängliche Verlaufstabellen ergänzen die Grafik. Offene oder fehlende Shownummern unterbrechen die Linie. Die Route ist auch im gebündelten JAR direkt erreichbar. Teilnehmerprofile, Heatmap und Rekorde bleiben nachgelagert. Die aktuelle Showauswertung und historische Songliste besitzen denselben bewussten Abschluss-/Wiederöffnungsdialog.
 
 Der vollständige JSON-Vertrag muss den Abschluss tragen. Der bestehende Analyseexport behält seinen separaten Quellen-/Auswahlvertrag; neue Statistikdateien und ein Filter auf ausschließlich abgeschlossene Shows sind dafür nicht beauftragt.
+
+### S1: Transaktionen, Vollständigkeitsbeleg und API
+
+`SerializedTransactionManager` serialisiert Anwendungstransaktionen mit einem fairen, separaten Prozesslock **vor** dem Verbindungsbezug und damit vor dem ersten SQLite-Snapshot. `ResultClosureGuard` und sämtliche wertungsrelevanten Mutationen laufen in derselben Transaktion; der kombinierte Teilnehmer-/Teilnahme-Anlegepfad prüft vor der ersten Anlage. Kosmetische Teilnehmer-, Länder-, Aktivflag- und aktuelle Songmetadatenänderungen bleiben möglich. Historische Songlistensperren gelten unabhängig weiter. Der JDBC-Verbindungslock aus A-018 schützt weiterhin den gesamten Transaktionsumfang gegen Restore. Es gibt keinen Read→Write-Lock-Upgrade. Der vollständige Export behält seinen unabhängigen konsistenten Lesesnapshot.
+
+Beim Wechsel aktuell → historisch erhält nur eine bereits abgeschlossene Show `entry_list_complete = true`. Damit bleibt ihr ausdrücklich geprüfter vollständiger Bestand unter historischer Readiness gültig. Beim Aktivieren einer Ausgabe wird ihr historischer Listenmarker entfernt; aktuelle Shows verwenden wieder die bestehende dynamische Readiness. Nach Ergebniswiederöffnung sind historische Listenänderungen weiterhin erst nach Entfernung ihrer Stimmzettel und bewusster Listenwiederöffnung möglich. Der erneute Ergebnisabschluss prüft stets jede tatsächliche Zuordnung zusätzlich zum Listenmarker. Auch indirekte Zuordnungsentfernung beim Wechsel der eigenen Teilnahme prüft alle betroffenen Abschlüsse vor der Mutation.
+
+`ResultClosureRules` prüft die kanonischen, unmaskierten Eingaben einschließlich inaktiver Teilnahmen. Live-Abschluss, JSON-Validierung und native Stagingvalidierung verwenden denselben fachlichen Kern. Native Sicherungen werden nach Vorwärtsmigration vor der Vorschau auf widersprüchliche Abschlüsse geprüft. Fehler erzeugen keine Teilübernahme; PRE_RESTORE und Recovery bleiben unverändert.
+
+| API | Antwort / Wirkung |
+| --- | --- |
+| `GET /api/shows/{showId}/result-closure` | Show-/Contest-ID, `IN_PROGRESS` / `READY` / `CLOSED`, Abschlusszeitpunkt und konkrete fehlende Voraussetzungen |
+| `POST /api/shows/{showId}/result-closure/close` | Erneute atomare Prüfung und bewusster Abschluss; wiederholter Abschluss ist idempotent |
+| `POST /api/shows/{showId}/result-closure/reopen` | Entfernt nur den Ergebnisabschluss, niemals persönliche Snapshots |
+| `GET /api/contests/{contestId}/standings` | Ein durchgehender SQLite-Lesesnapshot für alle Shows/Status, `includedShowIds`, vollständiges Teilnehmerfeld, Gesamtzeilen, Showdetails und Verlauf |
+
+`CompetitionRanks` ist der gemeinsame reine Rangkern für Zwischenstand und Gesamtwertung. Der Antwortvertrag unterscheidet Showzellen `SCORED_ENTRY` (auch 0), `NO_ENTRY` und `NOT_COUNTED`. Ohne abgeschlossene Show bleiben alle Contestränge `null`. Die erste gewertete Verlaufsstufe hat keine Rangveränderung; weitere vergleichen mit dem vorherigen gewerteten Schritt. `ContestStandingsPage` ist nach Contest-ID neu gemountet und verwirft verspätete Antworten. Tabelle, Details und Diagramm verwenden ausschließlich diese eine Antwort; das Frontend berechnet keine Punkte oder Ränge neu.
+
+JSON v11 erhält `resultClosedAt` je Show. v7–v10 besitzen explizite alte Showrecords, sodass strikte Creator-Feldprüfung für v11 bestehen bleibt. Unterstützte v1–v10 werden deterministisch offen übernommen. Der separate Analyseexport ändert weder Format noch Quellenfilter.

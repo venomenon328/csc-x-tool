@@ -25,6 +25,7 @@ describe('evaluation navigation', () => {
       switch (String(input)) {
         case '/api/contests': return jsonResponse([contest])
         case '/api/shows/1': return jsonResponse(show)
+        case '/api/shows/1/result-closure': return jsonResponse({ showId: 1, contestId: 1, status: 'IN_PROGRESS', closedAt: null, reasons: ['5 Teilnahmen sind unerfasst.'] })
         case '/api/shows/1/entries': return jsonResponse([])
         case '/api/contests/1/participants?includeInactive=true': return jsonResponse([])
         case '/api/shows/1/published-ballots': return jsonResponse({ mottoShowId: 1, entryListReady: true, votedCount: 0, notVotedCount: 0, unrecordedCount: 5, participants: [] })

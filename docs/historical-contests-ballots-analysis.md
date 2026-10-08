@@ -4,7 +4,7 @@
 **Stand:** 30.08.2026  
 **Status:** verbindliche fachliche Grundlage der Historik-Erweiterung; gezielte Fortschreibung am 07.10.2026
 
-Die freigegebene [Gesamtwertungs- und Statistikspezifikation](contest-statistics.md) ergänzt explizite Show-Ergebnisabschlüsse, abgeleitete Show-/Contestränge und Statistikansichten. Sie ersetzt die früheren pauschalen Ausschlüsse dieser Ableitungen in §§4 und 12.3. Die kanonischen Einreichungs-, Stimmzettel- und Legacy-Verträge dieses Dokuments bleiben erhalten; der neue Umfang ist noch nicht implementiert.
+Die freigegebene [Gesamtwertungs- und Statistikspezifikation](contest-statistics.md) ergänzt explizite Show-Ergebnisabschlüsse, abgeleitete Show-/Contestränge und Statistikansichten. Sie ersetzt die früheren pauschalen Ausschlüsse dieser Ableitungen in §§4 und 12.3. Die kanonischen Einreichungs-, Stimmzettel- und Legacy-Verträge dieses Dokuments bleiben erhalten; S1 liefert den Abschluss und die Gesamtwertung mit Verlauf, die weiteren Statistikansichten folgen in eigenen Paketen.
 
 ## 1. Einordnung und Geltungsbereich
 
@@ -481,6 +481,8 @@ Die bisherige Ansicht „Welche Punkte erhielt meine Einreichung von Teilnehmer 
 Der vorhandene read-only Showzwischenstand aus #97 bleibt eine jederzeit aus erfassten Stimmzetteln berechnete Arbeitssicht. Seine Darstellung wird nicht automatisch zum Showabschluss.
 
 Die am 07.10.2026 freigegebene Erweiterung [contest-statistics.md](contest-statistics.md) ergänzt einen bewussten Ergebnisabschluss je Show. Ausschließlich abgeschlossene Shows liefern ihre aus geteilten Showrängen berechneten Gesamtwertungspunkte und fließen in die neuen Conteststatistiken ein. Geteilte Ränge überspringen Folgeplätze; nach einer Wiederöffnung entfällt die Show bis zum erneuten Abschluss aus diesen Auswertungen.
+
+S1 erhält beim Wechsel einer abgeschlossenen aktuellen Show ins Archiv ihren geprüften Vollständigkeitsbeleg als historischen Listenmarker. Ergebniswiederöffnung allein hebt die vorhandene historische Songlistensperre nicht auf. Jeder erneute Abschluss validiert die echten Contest-Zuordnungen unabhängig vom Marker; der persönliche offene Votingzustand maskiert sie nur für seinen eigenen Arbeitsbereich.
 
 Stimmzettel und Beitrag-Zuordnungen bleiben die einzige Ergebnisquelle. Manuelle offizielle Gesamtpunkte, isolierte Einzelwerte oder importierte Endtabellen werden nicht reaktiviert. Die ursprüngliche generelle Abgrenzung gegen berechnete Platzierungen und Sieger ist genau für diesen freigegebenen Umfang abgelöst.
 
