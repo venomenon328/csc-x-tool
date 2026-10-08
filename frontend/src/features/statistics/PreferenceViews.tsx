@@ -59,7 +59,7 @@ export function PreferenceRecords({ data, openPreference, openEntry }: { data: S
     }} />
   }
   return <Stack spacing={2}>
-    <Button onClick={() => setAll(v => !v)}>{all ? 'S3a-Rekordgewinner anzeigen' : 'Vollständige S3a-Listen anzeigen'}</Button>
+    <Button onClick={() => setAll(v => !v)}>{all ? 'Rekordgewinner anzeigen' : 'Vollständige Präferenzlisten anzeigen'}</Button>
     <Typography>Alle mathematischen Rekordgleichstände bleiben gleichberechtigt. Rundung dient nur der Anzeige. Kleine Basis beschreibt beobachtete Top-15-Wertungen, keine Absicht oder Absprachen.</Typography>
     {pairList('Geschmackszwillinge', description.twins, all ? p.pairs.map(pair => ({ giverId: pair.firstId, receiverId: pair.secondId })) : records.twins)}
     {pairList('Musikalische Paralleluniversen', description.parallels, all ? p.parallelOrder : records.parallels)}

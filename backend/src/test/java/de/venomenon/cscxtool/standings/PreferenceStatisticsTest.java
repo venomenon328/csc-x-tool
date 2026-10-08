@@ -142,6 +142,12 @@ class PreferenceStatisticsTest {
         var before = participant(own.calculate(),1).consensus();
         own.vote(1,40,prepend(1,range(3,16)));
         assertThat(participant(own.calculate(),1).consensus()).isEqualTo(before);
+        var fieldFirst = new Fixture(40); fieldFirst.show(1,true);
+        fieldFirst.vote(1,1,range(3,17));
+        fieldFirst.vote(1,2,prepend(1,range(3,16))); // 115 points remain after removing A's song.
+        fieldFirst.vote(1,40,range(3,17)); // 140 remain: sum 255 before normalizing, not two normalized ballots.
+        assertMetric(participant(fieldFirst.calculate(),1).consensus(),587,603);
+        assertThat(participant(fieldFirst.calculate(),1).shows().getFirst().fieldPointSum()).isEqualTo(255);
         var equal = new Fixture(40); equal.show(1,true); equal.vote(1,1,range(3,17)); equal.vote(1,2,range(3,17));
         equal.show(2,true); equal.vote(2,1,range(3,17)); equal.vote(2,2,range(18,32));
         equal.show(3,true); equal.vote(3,1,range(3,17));

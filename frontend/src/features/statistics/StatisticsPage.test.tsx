@@ -70,6 +70,30 @@ function preferenceFixture(size = 40, showCount = 2): Statistics {
   d.preferences.polarizationOrder = d.preferences.entries.filter(e => e.polarizationEligible).map(e => e.entryId)
   d.preferences.participants = d.standings.rows.map(r => ({ participationId: r.participationId, consensus: r.participationId <= 2 ? metric(1) : missing('Kein vollständiger eigener Stimmzettel'), comparedShows: r.participationId <= 2 ? showCount : 0, shows: d.standings.shows.map(s => ({ showId: s.showId, similarity: r.participationId <= 2 ? metric(1) : missing('Kein vollständiger eigener Stimmzettel'), otherBallots: r.participationId <= 2 ? 1 : 2, comparisonEntries: size - 1, excludedEntryId: s.showId * 1000 + r.participationId, ownPointSum: r.participationId <= 2 ? 140 : 0, fieldPointSum: r.participationId <= 2 ? 140 : 280 })), exclusivePoints: 0, exclusiveEntryIds: [], exclusiveTwentyFiveEntryIds: [] }))
   d.preferences.records = { twins: [{ giverId: 1, receiverId: 2 }], parallels: [{ giverId: 1, receiverId: 2 }], audienceEntryIds: d.preferences.entries.filter(e => e.positiveEvaluations > 0).map(e => e.entryId), polarizationEntryIds: d.preferences.polarizationOrder, exclusiveParticipantIds: [], consensusParticipantIds: [1,2] }
+  // S1 and S2 use the same entries and two complete votes; no stale IDs from the legacy UI fixture.
+  d.entryAwards = d.preferences.entries.map(e => ({ entryId: e.entryId, twentyFives: e.twentyFives, opportunities: e.evaluations, rate: e.twentyFives / e.evaluations }))
+  for (const r of d.standings.rows) {
+    const rank = r.participationId >= 3 && r.participationId <= 17 ? r.participationId - 2 : 16
+    const p = points[rank - 1] ?? 0
+    r.rank = rank; r.totalPoints = p * showCount
+    r.shows = d.standings.shows.map(s => ({ showId: s.showId, state: 'SCORED_ENTRY', entryId: s.showId * 1000 + r.participationId, artist: `Artist ${r.participationId}`, title: `Song ${r.participationId}`, ballotPoints: p * 2, showRank: rank, contestPoints: p }))
+    r.history = d.standings.shows.map(s => ({ showId: s.showId, showNumber: s.showNumber, included: true, totalPoints: p * s.showNumber, rank, rankChange: null }))
+  }
+  d.relations = d.relations.map(r => {
+    const p = r.giverId <= 2 ? points[r.receiverId - 3] ?? 0 : null
+    return { ...r, points: (p ?? 0) * showCount, scoredShows: p ? showCount : 0, opportunities: p === null ? 0 : showCount, average: p, twentyFives: p === 25 ? showCount : 0,
+      shows: d.standings.shows.map(s => ({ showId: s.showId, entryId: s.showId * 1000 + r.receiverId, state: p === null ? 'NOT_VOTED' : p === 0 ? 'OUTSIDE_TOP_15' : 'POINTS', points: p, ballotRank: p ? r.receiverId - 2 : null })),
+    }
+  }).sort((a,b) => b.points - a.points)
+  d.topRelations = d.relations.filter(r => r.receiverId <= 7 && r.points > 0).map(r => ({ giverId: r.giverId, receiverId: r.receiverId }))
+  d.pairs = [{ firstId: 1, secondId: 2, firstToSecond: 0, secondToFirst: 0, partnership: 0, difference: 0, strongerGiverId: null, commonShowIds: d.standings.includedShowIds }]
+  d.profiles = d.profiles.map(p => {
+    const own = d.preferences.entries.filter(e => d.entries.find(v => v.id === e.entryId)?.participationId === p.participationId)
+    const row = d.standings.rows.find(r => r.participationId === p.participationId)!
+    const run = { length: showCount, firstShowId: 1, lastShowId: showCount, showIds: d.standings.includedShowIds }
+    return { ...p, topGiverIds: row.rank! <= 15 ? [1,2] : [], topReceiverIds: p.participationId <= 2 ? [3,4,5,6,7] : [], twentyFives: p.participationId === 3 ? 2 * showCount : 0, opportunities: own.reduce((sum,e) => sum + e.evaluations,0), twentyFiveRate: p.participationId === 3 ? 1 : 0, countedEntries: showCount, top15Count: row.rank! <= 15 ? showCount : 0, podiumCount: row.rank! <= 3 ? showCount : 0, wins: row.rank === 1 ? showCount : 0, pointRuns: row.rank! <= 15 ? [run] : [], podiumRuns: row.rank! <= 3 ? [run] : [] }
+  })
+  d.records = { partnerships: [], unrequited: [], twentyFiveParticipantIds: [3], twentyFiveEntryIds: d.entryAwards.filter(a => a.twentyFives > 0).map(a => a.entryId), pointRunParticipantIds: Array.from({ length: 15 },(_,i) => i + 3), podiumRunParticipantIds: [3,4,5], top15ParticipantIds: Array.from({ length: 15 },(_,i) => i + 3), podiumParticipantIds: [3,4,5] }
   return d
 }
 
@@ -282,7 +306,7 @@ describe('S3a-T07 preference views, shared drilldown and freshness', () => {
     expect(within(dialog).getAllByRole('button', { name: 'Exklusivbeitragsbelege öffnen' })).toHaveLength(1)
     expect(dialog).toHaveTextContent('25 eigene Stimmzettelpunkte · Basis: 2 bekannte wählbare Bewertungen')
     await closeDialog(user)
-    await user.click(screen.getByRole('button', { name: 'Vollständige S3a-Listen anzeigen' }))
+    await user.click(screen.getByRole('button', { name: 'Vollständige Präferenzlisten anzeigen' }))
     await user.click(screen.getAllByRole('button', { name: 'Verteilung und Beitragsbelege öffnen' })[0])
     await closeDialog(user)
     // Open a one-evaluation own contribution directly through the personal profile.
@@ -304,7 +328,7 @@ describe('S3a-T07 preference views, shared drilldown and freshness', () => {
     render(<MemoryRouter><PreferenceRecords data={d} openPreference={open} openEntry={vi.fn()} /></MemoryRouter>)
     const user = userEvent.setup()
     expect(screen.getAllByText('0 % · Basis: 12 Shows')).toHaveLength(2)
-    await user.click(screen.getByRole('button', { name: 'Vollständige S3a-Listen anzeigen' }))
+    await user.click(screen.getByRole('button', { name: 'Vollständige Präferenzlisten anzeigen' }))
     expect(screen.getAllByText('Einträge 1–25 von 4950')).toHaveLength(2)
     await user.click(screen.getByRole('button', { name: 'Weitere Geschmackszwillinge' }))
     expect(screen.getByText('Einträge 26–50 von 4950')).toBeVisible()
