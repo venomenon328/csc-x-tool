@@ -359,13 +359,14 @@ class ShowResultApiIntegrationTest {
         long id = fixture(), foreign = fixture(), second = id + 40;
         assertThat(send("POST","/api/contests/" + id + "/make-current","").statusCode()).isEqualTo(200);
         preparePersonalBallot(id, id + 19);
-        assertThat(send("POST","/api/contests/1/make-current","").statusCode()).isEqualTo(200);
         // A belongs to E16 and cannot vote for that own entry; B votes for E2..E16.
         setImpactBallot(id,id,id + 19,2);
         setImpactBallot(id,id,id + 16,1);
         extraShow(id,second,2);
         setImpactBallot(id,second,id + 19,2);
         service.close(id); service.close(second); service.close(foreign);
+        // Archive only after result closure, which transfers the canonical completeness proof.
+        assertThat(send("POST","/api/contests/1/make-current","").statusCode()).isEqualTo(200);
         var before = canonicalSqliteState();
         var statistics = service.statistics(id);
         for (int i = 0; i < 3; i++) {
