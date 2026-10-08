@@ -149,7 +149,8 @@ final class PreferenceStatistics {
     }
     private static ExactRatio exact(Metric m) { return m.value() == null ? null : new ExactRatio(new BigInteger(m.numerator()), new BigInteger(m.denominator())); }
     static <T> Comparator<T> order(Function<T, Metric> metric, boolean descending) {
-        return Comparator.comparing(v -> exact(metric.apply(v)), Comparator.nullsLast(descending ? Comparator.reverseOrder() : Comparator.naturalOrder()));
+        Comparator<ExactRatio> valueOrder = descending ? Comparator.reverseOrder() : Comparator.naturalOrder();
+        return Comparator.comparing((T v) -> exact(metric.apply(v)), Comparator.nullsLast(valueOrder));
     }
     static <T> List<T> winners(List<T> values, Function<T, Metric> metric, boolean descending) {
         var sorted = values.stream().filter(v -> metric.apply(v).value() != null).sorted(order(metric, descending)).toList();
