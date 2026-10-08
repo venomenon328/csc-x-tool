@@ -181,7 +181,7 @@ describe('S2-T06 statistics UI and shared evidence', () => {
     expect(table.querySelectorAll('tbody td')).toHaveLength(100)
   })
 
-  it('shows empty records and fewer than five relationships without invented winners', async () => {
+  it('shows empty records without invented winners', async () => {
     const data = fixture()
     data.standings.includedShowIds = []
     data.records = { partnerships: [], unrequited: [], twentyFiveParticipantIds: [], twentyFiveEntryIds: [], pointRunParticipantIds: [], podiumRunParticipantIds: [], top15ParticipantIds: [], podiumParticipantIds: [] }

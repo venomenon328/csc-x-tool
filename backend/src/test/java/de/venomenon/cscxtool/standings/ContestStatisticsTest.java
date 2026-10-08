@@ -74,7 +74,7 @@ class ContestStatisticsTest {
         for (int giver = 2; giver <= 9; giver++) incoming.vote(1, giver, Map.of(1, 1));
         var incomingResult = calculate(incoming.data());
         assertThat(incomingResult.profiles().stream().filter(p -> p.participationId() == 1).findFirst().orElseThrow().topGiverIds()).hasSize(8);
-        var few = new Fixture(21); few.show(1, true); few.vote(1, 21, Map.of());
+        var few = new Fixture(21); few.show(1, true); few.vote(1, 21, Map.of(1, 1));
         assertThat(calculate(few.data()).profiles().stream().filter(p -> p.participationId() == 1).findFirst().orElseThrow().topGiverIds()).hasSize(1);
     }
 
