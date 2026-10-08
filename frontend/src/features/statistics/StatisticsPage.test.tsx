@@ -5,10 +5,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { StatisticsPage } from './StatisticsPage'
 import { Heatmap } from './RelationshipViews'
 import type { Statistics, Relation } from './api'
+import type * as statisticsApi from './api'
 
 const state = vi.hoisted(() => ({ contestId: 1, fetch: vi.fn() }))
 vi.mock('../contests/ContestContext', () => ({ useContest: () => ({ selectedContestId: state.contestId, selectedContest: { name: `CSC ${state.contestId}` } }) }))
-vi.mock('./api', async original => ({ ...await original<typeof import('./api')>(), fetchStatistics: state.fetch }))
+vi.mock('./api', async original => ({ ...await original<typeof statisticsApi>(), fetchStatistics: state.fetch }))
 
 function fixture(contestId = 1, size = 8): Statistics {
   const rows = Array.from({ length: size }, (_, i) => ({
