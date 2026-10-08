@@ -354,6 +354,118 @@ class ShowResultApiIntegrationTest {
         assertThat(service.statistics(id).preferences()).isEqualTo(before);
     }
 
+    @Test
+    void s3bT05ReadsWithoutAnySqliteMutationAndRejectsRequestBoundaries() {
+        long id = fixture(), foreign = fixture(), second = id + 40;
+        assertThat(send("POST","/api/contests/" + id + "/make-current","").statusCode()).isEqualTo(200);
+        preparePersonalBallot(id, id + 19);
+        // A belongs to E16 and cannot vote for that own entry; B votes for E2..E16.
+        setImpactBallot(id,id,id + 19,2);
+        setImpactBallot(id,id,id + 16,1);
+        extraShow(id,second,2);
+        setImpactBallot(id,second,id + 19,2);
+        service.close(id); service.close(second); service.close(foreign);
+        // Archive only after result closure, which transfers the canonical completeness proof.
+        assertThat(send("POST","/api/contests/1/make-current","").statusCode()).isEqualTo(200);
+        var before = canonicalSqliteState();
+        var statistics = service.statistics(id);
+        for (int i = 0; i < 3; i++) {
+            for (long vote : List.of(id + 19,id + 16)) {
+                var response = send("GET",impactPath(id,id,vote),null);
+                assertThat(response.statusCode()).isEqualTo(200);
+                var result = mapper.readValue(response.body(),BallotImpactResponse.class);
+                assertThat(result.standings()).isEqualTo(statistics.standings());
+                assertThat(result.remainingBallots()).isEqualTo(1);
+            }
+            var single = send("GET",impactPath(id,second,second * 100 + 19),null);
+            assertThat(single.statusCode()).isEqualTo(200);
+            var na = mapper.readValue(single.body(),BallotImpactResponse.class);
+            assertThat(na.state()).isEqualTo("NO_REMAINING_BALLOT");
+            assertThat(na.hypotheticalWinnerEntryIds()).isEmpty();
+            assertThat(na.comparisons()).allSatisfy(c -> assertThat(c.hypothetical()).isNull());
+            for (String path : List.of(impactPath(id,id,foreign + 19),impactPath(id,foreign,foreign + 19),
+                    impactPath(id,second,id + 19),impactPath(id,id,id + 1),impactPath(id,id,999999),impactPath(id,1,id + 19))) {
+                assertThat(send("GET",path,null).statusCode()).isEqualTo(409);
+            }
+        }
+        assertThat(canonicalSqliteState()).isEqualTo(before);
+        assertThat(service.statistics(id)).isEqualTo(statistics); // S1, S2, S3a, actual records and history.
+        service.reopen(second);
+        assertThat(send("GET",impactPath(id,second,second * 100 + 19),null).statusCode()).isEqualTo(409);
+        assertThat(send("PUT",ballotPath(second,id + 19),"{\"status\":\"UNERFASST\"}").statusCode()).isEqualTo(204);
+        var unrecorded = canonicalSqliteState();
+        assertThat(send("GET",impactPath(id,second,second * 100 + 19),null).statusCode()).isEqualTo(409);
+        assertThat(canonicalSqliteState()).isEqualTo(unrecorded);
+    }
+
+    @Test
+    void s3bT06RoundtripsAndConcurrentRecloseRestoreUseConsistentActualAndAlternative() throws Exception {
+        long id = fixture();
+        setImpactBallot(id,id,id + 19,1);
+        setImpactBallot(id,id,id + 18,2);
+        service.close(id);
+        var original = service.impact(id,id,id + 19);
+        var statistics = service.statistics(id);
+        byte[] json = exports.exportJson();
+        var backup = backups.create(BackupReason.MANUAL);
+        service.reopen(id);
+        setImpactBallot(id,id,id + 19,2);
+        service.close(id);
+        var corrected = service.impact(id,id,id + 19);
+        assertThat(corrected.standings().includedShowIds()).isEqualTo(original.standings().includedShowIds());
+        assertThat(corrected.comparisons()).isNotEqualTo(original.comparisons());
+        var correctedBackup = backups.create(BackupReason.MANUAL);
+        restores.restore(restores.previewUploadedJson(new ByteArrayInputStream(json),"s3b.json").token());
+        assertThat(service.impact(id,id,id + 19)).isEqualTo(original);
+        assertThat(service.statistics(id)).isEqualTo(statistics);
+        // Current edition uses exactly the same values and pure simulation.
+        send("POST","/api/contests/" + id + "/make-current","");
+        assertThat(service.impact(id,id,id + 19).comparisons()).isEqualTo(original.comparisons());
+        send("POST","/api/contests/1/make-current","");
+        restores.restore(restores.previewKnownBackup(backup.id()).token());
+        assertThat(service.impact(id,id,id + 19)).isEqualTo(original);
+        String token = restores.previewKnownBackup(correctedBackup.id()).token();
+        CountDownLatch start = new CountDownLatch(1);
+        var reading = CompletableFuture.runAsync(() -> {
+            await(start);
+            for (int i = 0; i < 25; i++) {
+                var response = send("GET",impactPath(id,id,id + 19),null);
+                assertThat(response.statusCode()).isIn(200,409);
+                if (response.statusCode() == 409) { assertThat(response.body()).contains("BALLOT_IMPACT_UNAVAILABLE"); continue; }
+                var result = mapper.readValue(response.body(),BallotImpactResponse.class);
+                assertThat(result.comparisons()).isIn(original.comparisons(),corrected.comparisons());
+                assertThat(result.standings().includedShowIds()).containsExactly(id);
+                assertThat(result.comparisons().stream().mapToInt(c -> c.actual().ballotPoints()).sum()).isEqualTo(280);
+                assertThat(result.comparisons().stream().mapToInt(c -> c.hypothetical().ballotPoints()).sum()).isEqualTo(140);
+                for (var c : result.comparisons()) {
+                    var row = result.standings().rows().stream().filter(r -> r.participationId() == c.participationId()).findFirst().orElseThrow();
+                    var cell = row.shows().getFirst();
+                    assertThat(c.actual().ballotPoints()).isEqualTo(cell.ballotPoints());
+                    assertThat(c.actual().showRank()).isEqualTo(cell.showRank());
+                    assertThat(c.actual().contestTotal()).isEqualTo(row.totalPoints());
+                }
+            }
+        });
+        var changing = CompletableFuture.runAsync(() -> { await(start); service.reopen(id); service.close(id); restores.restore(token); });
+        start.countDown();
+        CompletableFuture.allOf(reading,changing).get(30,TimeUnit.SECONDS);
+        assertThat(service.impact(id,id,id + 19)).isEqualTo(corrected);
+    }
+
+    private Map<String,List<Map<String,Object>>> canonicalSqliteState() {
+        var state = new java.util.LinkedHashMap<String,List<Map<String,Object>>>();
+        for (String table : jdbc.queryForList("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name",String.class)) {
+            state.put(table,jdbc.queryForList("SELECT * FROM \"" + table.replace("\"","\"\"") + "\" ORDER BY rowid"));
+        }
+        return state;
+    }
+    private void setImpactBallot(long contest,long show,long voter,int first) {
+        var positions = IntStream.range(0,15).mapToObj(i -> Map.of("entryId",show == contest ? contest + first + i : show * 100 + first + i,"rank",i + 1)).toList();
+        var body = mapper.writeValueAsString(Map.of("ballots",List.of(Map.of("participationId",voter,"replaceExisting",true,"positions",positions))));
+        assertThat(send("POST","/api/shows/" + show + "/published-ballots/import",body).statusCode()).isEqualTo(200);
+    }
+    private static String impactPath(long contest,long show,long ballot) { return "/api/contests/" + contest + "/shows/" + show + "/ballot-impact/" + ballot; }
+
     private void extraShow(long contest, long show, int number) {
         jdbc.update("INSERT INTO motto_show(id,contest_id,show_number,name,entry_list_complete,created_at,updated_at) VALUES (?,?,?,'Oracle show',1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", show, contest, number);
         for (int i = 1; i <= 19; i++) {

@@ -1,7 +1,6 @@
 package de.venomenon.cscxtool.standings;
 
 import de.venomenon.cscxtool.shared.CompetitionRanks;
-import de.venomenon.cscxtool.shared.CscPoints;
 import de.venomenon.cscxtool.participant.CountryCatalog;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -9,8 +8,6 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
 import static de.venomenon.cscxtool.standings.ContestStandingsResponse.*;
 
 final class ContestStandings {
@@ -31,26 +28,21 @@ final class ContestStandings {
             boolean closed = show.closedAt() != null;
             shows.add(new ShowStatus(show.id(), show.number(), show.name(), ContestResultService.status(data, show), show.closedAt()));
             var entries = data.entries().stream().filter(e -> e.showId() == show.id()).toList();
-            Map<Long, Integer> points = new LinkedHashMap<>();
-            entries.forEach(e -> points.put(e.id(), 0));
+            Map<Long, ShowPoints.Score> scores = closed ? ShowPoints.calculate(data, show.id(), null) : Map.of();
             if (closed) {
                 included.add(show.id());
-                Set<Long> ballots = data.ballots().stream().filter(b -> b.showId() == show.id() && "ABGESTIMMT".equals(b.status()))
-                        .map(ResultData.Ballot::id).collect(Collectors.toSet());
-                data.positions().stream().filter(p -> ballots.contains(p.ballotId()))
-                        .forEach(p -> points.computeIfPresent(p.entryId(), (id, sum) -> sum + CscPoints.pointsForRank(p.rank())));
             }
-            Map<Long, Integer> showRanks = CompetitionRanks.of(points);
             for (var participant : data.participants()) {
                 var entry = entries.stream().filter(e -> Long.valueOf(participant.id()).equals(e.participationId())).findFirst().orElse(null);
                 Cell cell;
                 if (!closed) cell = new Cell(show.id(), "NOT_COUNTED", null, null, null, null, null, null);
                 else if (entry == null) cell = new Cell(show.id(), "NO_ENTRY", null, null, null, null, null, null);
                 else {
-                    int rank = showRanks.get(entry.id());
-                    int awarded = CompetitionRanks.contestPoints(rank);
+                    var score = scores.get(entry.id());
+                    int rank = score.rank();
+                    int awarded = score.contestPoints();
                     totals.compute(participant.id(), (id, sum) -> sum + awarded);
-                    cell = new Cell(show.id(), "SCORED_ENTRY", entry.id(), entry.artist(), entry.title(), points.get(entry.id()), rank, awarded);
+                    cell = new Cell(show.id(), "SCORED_ENTRY", entry.id(), entry.artist(), entry.title(), score.ballotPoints(), rank, awarded);
                 }
                 cells.get(participant.id()).add(cell);
             }

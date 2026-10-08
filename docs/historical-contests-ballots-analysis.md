@@ -4,7 +4,7 @@
 **Stand:** 30.08.2026  
 **Status:** verbindliche fachliche Grundlage der Historik-Erweiterung; gezielte Fortschreibung am 07.10.2026
 
-Die freigegebene [Gesamtwertungs- und Statistikspezifikation](contest-statistics.md) ergänzt explizite Show-Ergebnisabschlüsse, abgeleitete Show-/Contestränge und Statistikansichten. Sie ersetzt die früheren pauschalen Ausschlüsse dieser Ableitungen in §§4 und 12.3. Die kanonischen Einreichungs-, Stimmzettel- und Legacy-Verträge dieses Dokuments bleiben erhalten; S1 liefert Abschluss/Gesamtwertung, S2 Profile, Beziehungen, Heatmap und einfache Rekorde. S3a/S3b und die gemeinsame manuelle Abnahme bleiben ausstehend.
+Die freigegebene [Gesamtwertungs- und Statistikspezifikation](contest-statistics.md) ergänzt explizite Show-Ergebnisabschlüsse, abgeleitete Show-/Contestränge und Statistikansichten. Sie ersetzt die früheren pauschalen Ausschlüsse dieser Ableitungen in §§4 und 12.3. Die kanonischen Einreichungs-, Stimmzettel- und Legacy-Verträge dieses Dokuments bleiben erhalten; S1 liefert Abschluss/Gesamtwertung, S2 Profile, Beziehungen, Heatmap und einfache Rekorde. S3a ergänzt Präferenzkennzahlen, S3b Grenzfallrekorde und die lesende Gegenrechnung. Die gemeinsame manuelle Abnahme bleibt ausstehend.
 
 ## 1. Einordnung und Geltungsbereich
 
